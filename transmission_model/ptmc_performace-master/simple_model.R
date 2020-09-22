@@ -1,3 +1,8 @@
+library(rstudioapi); currentfile_path=rstudioapi::getActiveDocumentContext()$path
+currentfile_path=paste0(unlist(strsplit(currentfile_path,"\\/"))[1:(length(unlist(strsplit(currentfile_path,"\\/")))-1)],collapse="/")
+setwd(currentfile_path)
+
+######
 library(BayesianTools) # The mcmc solver, needs a few packages such as coda
 library(Rcpp)       # For c++ integration
 library(RcppEigen)  # For c++ integration
