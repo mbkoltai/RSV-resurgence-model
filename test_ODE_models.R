@@ -49,6 +49,16 @@ sirs_template <- function(t,X,parms){
   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
+## with seasonal forcing
+sirs_seasonal_forc <- function(t,X,parms){
+  birth_term=parms[[1]]; K_m=parms[[2]]; contmatr_rowvector=parms[[3]]; inf_vars_inds=parms[[4]]; susc_vars_inds=parms[[5]]
+  # stack I vars
+  inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
+  inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+  lambda_vect=diag(array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+  infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
+  F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
+  dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
 
 # SET PARAMETERS --------------------------------------------------------
 # system dimension
@@ -62,32 +72,33 @@ inf_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
 susc_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
   fun_sub2ind(x_inf,x_age,varname='S',varname_list,n_compartment,n_age,n_inf) }) })
 # contact matrix
-C_m=matrix(c(1,2,3,4),n_age,n_age)
+C_m_vals=rnorm(n_age^2,1,0.2); if (sum(C_m_vals<0)>0){C_m_vals[C_m_vals<0]=abs(C_m_vals[C_m_vals<0])}
+C_m=matrix(C_m_vals,n_age,n_age)
 contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,])%*%matrix(1,n_age,n_inf)})))
 # build kinetic matrix --------------------------------------------------------
-# waning terms: R_i_j -> S_min(i+1,n_inf)_j
+# waning (immunity) terms: R_i_j -> S_min(i+1,n_inf)_j
 omega=1/1e2; # 1/runif(1,60,200)
 # recovery terms
 rho=1/6; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list)
 # susceptibility
 # rbeta(35.583,11.417)~0.75; B(22.829,3.171)~0.9; B(6.117,12.882)~0.32
-delta_susc=cbind(c(1,0.7,0.5),c(1,0.7,0.5)/2)/500
+delta_primary=c(1,0.7,0.5); delta_susc=cbind(delta_primary,delta_primary/2,delta_primary/4)/500
 # birth term into S_1_1
-birth_rate=0; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
+birth_rate=1; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
 # parameter inputs
 params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds)
 # INITIAL CONDITIONS
 initvals_sirs_model=matrix(0,dim_sys,1); 
 # INITIAL SUSCEPTIBLES
-ind_init_susc=susc_vars_inds[[2]][2]; initvals_sirs_model[ind_init_susc]=1e3
+ind_init_susc=susc_vars_inds[[1]][1]; initvals_sirs_model[ind_init_susc]=1e3
 # INITIAL INFECTION. All first infection groups: sapply(inf_vars_inds, '[[',1)
 initvals_sirs_model[inf_vars_inds[[1]][1]]=1
 # duration of simul
 n_years=12; max_time<-n_years*n_days_year; timesteps <- seq(0,max_time,by=0.1)
 ###
 # integrate ODE --------------------------------------------------------
-ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_template,parms=params)
+ptm <- proc.time(); ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_template,parms=params); proc.time() - ptm
 df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
 # process simul output
 df_ode_solution_nonzero=df_ode_solution[,colSums(df_ode_solution)>0]
@@ -116,12 +127,13 @@ ggplot(df_ode_solution_tidy, aes(x=t,y=value,group=variable,color=compartment)) 
   # facet_wrap(~compartment+agegroup,ncol=2,scales='free') + # 1 panel: 1 vartype, 1 age groups, 3 #s infection, 
   scale_x_log10(limits=c(1,t_maxval),breaks=scales::trans_breaks("log10", function(x) 10^x),
   labels=scales::trans_format("log10", scales::math_format(10^.x))) + annotation_logticks(sides='b') + 
-  xlab('time') + ylab('variables') + ggtitle('SIRS simulation') #scale_y_log10(limits=c(0.1,ymaxval)) + 
+  xlab('days') + ylab('') + ggtitle('SIRS simulation')
+# scale_y_log10(limits=c(0.1,ymaxval)) + 
 # scale_size_manual(values=rev(as.numeric(unique(df_ode_solution_tidy$infection)))*0.3) +
 ## SAVE
 if (birth_rate==0) {birth_tag='_nobirth'} else {birth_tag=paste0('_birth_rate',birth_rate)}; group_type='vartype_grouped'
-init_tag="_init_S22" # check ind_init_susc
-timecourse_filename=paste0("output/toymodel_timecourse_",group_type,time_opt,birth_tag,init_tag,".png")
+n_age_tag=paste0('_',n_age,'agegroups') # init_tag="_init_S22" # check ind_init_susc
+timecourse_filename=paste0("simul_output/toymodel_timecourse_",group_type,time_opt,birth_tag,n_age_tag,".png")
 ggsave(timecourse_filename,width=24,height=18,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
