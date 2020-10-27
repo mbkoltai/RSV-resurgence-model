@@ -55,3 +55,14 @@ if (any(diag(K_m)==0)){ diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m))) }
 #### return output
 K_m
 }
+
+# ode w/o seasonal forcing --------------
+sirs_template <- function(t,X,parms){
+  birth_term=parms[[1]]; K_m=parms[[2]]; contmatr_rowvector=parms[[3]]; inf_vars_inds=parms[[4]]; susc_vars_inds=parms[[5]]
+  # stack I vars
+  inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
+  inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+  lambda_vect=diag(array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+  infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
+  F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
+  dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
