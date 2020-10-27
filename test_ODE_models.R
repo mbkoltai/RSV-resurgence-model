@@ -2,11 +2,13 @@
 # install_github("SineadMorris/shinySIR")
 
 # install.packages("deSolve"); install.packages('odin')
-library(tidyr); library(reshape2) # library(dplyr); library(readr); library(stringr); library(ggplot2); 
+library(tidyverse); library(reshape2) # library(dplyr); library(readr); library(stringr); library(ggplot2); 
 # ode solving, maximum likelihood, rcpp
 library(deSolve); library(bbmle); library(Rcpp) # library(GillespieSSA)
 library(rstudioapi); # library(fitdistrplus)
 currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
+# functions
+source('RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # set plotting theme
 standard_theme=theme(panel.grid=element_line(linetype="dashed",colour="black",size=0.1),
@@ -23,7 +25,7 @@ standard_theme=theme(panel.grid=element_line(linetype="dashed",colour="black",si
 #
 # steps of constructing infection terms (lambda):
 # linear list of state variables
-# X_vars=matrix(abs(rnorm(n_inf*n_age*n_vartype)),n_inf*n_age*n_vartype,1) # matrix(0,n_inf*n_age*n_vartype,1)
+# X_vars=matrix(abs(rnorm(n_inf*n_age*n_compartment)),n_inf*n_age*n_compartment,1) # matrix(0,n_inf*n_age*n_compartment,1)
 # inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X_vars[x]})) # do.call(cbind,inf_vars_inds)
 # inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked) 
 # # full lambda column vector
@@ -37,66 +39,6 @@ standard_theme=theme(panel.grid=element_line(linetype="dashed",colour="black",si
 # F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
 # rhs_odes=birth_term + F_vect + K_m%*%X_vars
 
-# system dimension --------------------------------------------------------
-# number of age groups, reinfections and variables (S,I,R)
-n_age=2; n_vartype=3; n_inf=3; dim_sys=n_age*n_vartype*n_inf
-# build kinetic matrix --------------------------------------------------------
-K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
-# S_i_j -> S_1_1 is S, subscript=1, superscript=1. subscript: # infection, superscript= # age group
-# conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
-varname_list=c('S','I','R')
-# waning terms: R_i_j -> S_min(i+1,n_inf)_j
-omega=1/1e2; # 1/runif(1,60,200)
-for (j_age in 1:n_age) {
-  for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {waning_terms_source_target=data.frame()}
-    wanevals=c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_vartype,n_age,n_inf),
-               fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_vartype,n_age,n_inf))
-    # waning_terms_source_target=rbind(waning_terms_source_target,wanevals)
-    K_m[wanevals[2],wanevals[1]]=omega } }
-# aging terms between compartments: S_i_j -> S_i_(j+1), R_i_j -> S_(i+1)_(j+1)
-duration_age_groups=rep(1,n_age); # eta_a=1/(365*d_a); 
-for (j_age in 1:(n_age-1)) {
-  for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
-  agevals=rbind(c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_vartype,n_age,n_inf),
-                  fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_vartype,n_age,n_inf)),
-               c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_vartype,n_age,n_inf),
-                 fun_sub2ind(min(i_inf+1,n_inf),j_age+1,'S',varname_list,n_vartype,n_age,n_inf))) ### end of rbind
-  aging_terms_source_target=rbind(aging_terms_source_target,agevals); d_a=duration_age_groups[j_age] } }
-for (k in 1:nrow(aging_terms_source_target)) {K_m[aging_terms_source_target[k,2],aging_terms_source_target[k,1]]=1/(365*d_a)}
-
-# recovery terms
-rho=1/6; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
-for (j_age in 1:n_age) {
-  for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {recov_terms_source_target=data.frame()}
- recov_vals=c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_vartype,n_age,n_inf),
-              fun_sub2ind(i_inf,j_age,'R',varname_list,n_vartype,n_age,n_inf))
- recov_terms_source_target=rbind(recov_terms_source_target,recov_vals)
- K_m[recov_vals[2],recov_vals[1]]=rho } }
-
-# diagonal terms
-# outflow terms that represent aging 'out of the model' from the highest age groups
-n_days_year=365
-for (j_age in n_age) {
-  for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
-    ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_vartype,n_age,n_inf),
-                              fun_sub2ind(i_inf,j_age,'R',varname_list,n_vartype,n_age,n_inf))) } }
-for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(n_days_year*d_a) }
-# diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
-if (any(diag(K_m)==0)){ diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m))) }
-
-# infection terms --------------------------------------------------------
-# contact matrix
-C_m=matrix(c(1,2,3,4),n_age,n_age)
-# susceptibility
-contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,])%*%matrix(1,n_age,n_inf)})))
-# linear indices of the I variables
-inf_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
-                fun_sub2ind(x_inf,x_age,varname='I',varname_list,n_vartype,n_age,n_inf) }) })
-# linear indices of S variables
-susc_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
-  fun_sub2ind(x_inf,x_age,varname='S',varname_list,n_vartype,n_age,n_inf) }) })
-# birth term into S_1_1
-birth_rate=1/100; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1)
 # construct ODE fcn --------------------------------------------------------
 sirs_template <- function(t,X,parms){
   birth_term=parms[[1]]; K_m=parms[[2]]; contmatr_rowvector=parms[[3]]; inf_vars_inds=parms[[4]]; susc_vars_inds=parms[[5]]
@@ -108,41 +50,99 @@ sirs_template <- function(t,X,parms){
   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
 
-# integrate ODE --------------------------------------------------------
+# SET PARAMETERS --------------------------------------------------------
+# system dimension
+# number of age groups, reinfections and variables (S,I,R)
+n_age=3; n_compartment=3; n_inf=3; dim_sys=n_age*n_compartment*n_inf
+# force of infection terms
+# linear indices of the I variables
+inf_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
+  fun_sub2ind(x_inf,x_age,varname='I',varname_list,n_compartment,n_age,n_inf) }) })
+# linear indices of S variables
+susc_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
+  fun_sub2ind(x_inf,x_age,varname='S',varname_list,n_compartment,n_age,n_inf) }) })
+# contact matrix
+C_m=matrix(c(1,2,3,4),n_age,n_age)
+contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,])%*%matrix(1,n_age,n_inf)})))
+# build kinetic matrix --------------------------------------------------------
+# waning terms: R_i_j -> S_min(i+1,n_inf)_j
+omega=1/1e2; # 1/runif(1,60,200)
+# recovery terms
+rho=1/6; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
+K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list)
 # susceptibility
 # rbeta(35.583,11.417)~0.75; B(22.829,3.171)~0.9; B(6.117,12.882)~0.32
 delta_susc=cbind(c(1,0.7,0.5),c(1,0.7,0.5)/2)/500
+# birth term into S_1_1
+birth_rate=0; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
 # parameter inputs
 params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds)
-# initial values
-initvals_sirs_model=matrix(0,dim_sys,1); initvals_sirs_model[1]=1e3
-# initial infection. all first infection groups: sapply(inf_vars_inds, '[[',1)
-initvals_sirs_model[inf_vars_inds[[1]][1]]=10
+# INITIAL CONDITIONS
+initvals_sirs_model=matrix(0,dim_sys,1); 
+# INITIAL SUSCEPTIBLES
+ind_init_susc=susc_vars_inds[[2]][2]; initvals_sirs_model[ind_init_susc]=1e3
+# INITIAL INFECTION. All first infection groups: sapply(inf_vars_inds, '[[',1)
+initvals_sirs_model[inf_vars_inds[[1]][1]]=1
 # duration of simul
-max_time<-3*n_days_year; timesteps <- seq(0,max_time,by=0.1)
+n_years=12; max_time<-n_years*n_days_year; timesteps <- seq(0,max_time,by=0.1)
+###
+# integrate ODE --------------------------------------------------------
 ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_template,parms=params)
 df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
-
-# Plot timecourse --------------------------------------------------------
+# process simul output
 df_ode_solution_nonzero=df_ode_solution[,colSums(df_ode_solution)>0]
 df_ode_solution_tidy=reshape2::melt(df_ode_solution[,colSums(df_ode_solution)>0],id.vars='t')
-df_ode_solution_tidy[c('vartype','infection','agegroup')]=
+df_ode_solution_tidy[c('compartment','infection','agegroup')]=
   sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$variable),'_'),'[[',x)})
-df_ode_solution_tidy$vartype=factor(df_ode_solution_tidy$vartype,levels=varname_list)
+df_ode_solution_tidy$compartment=factor(df_ode_solution_tidy$compartment,levels=varname_list)
+ymaxval=max(df_ode_solution_nonzero[,2:ncol(df_ode_solution_nonzero)]); t_maxval=max(df_ode_solution_nonzero$t)
+# inspect output
+t_comp=5e2; View(round(df_ode_solution_nonzero[seq(1,t_comp,10),colSums(df_ode_solution_nonzero[1:t_comp,]>1)>1],1))
+
+# Plot time course --------------------------------------------------------
+# set themes
+# standard_theme$strip.text=element_text(size=14); standard_theme$strip.text.y=element_text(size=16,color="red")
+# standard_theme$legend.text=element_text(size=14); standard_theme$legend.title=element_text(size=14)
+# standard_theme$legend.box.background = element_rect(colour="black")
 #
-ggplot(df_ode_solution_tidy, aes(x=t,y=value,group=variable,color=infection)) + 
-  geom_line() + facet_wrap(~vartype+agegroup,ncol=2) + theme_bw() + standard_theme + 
-  xlab('time') + ylab('variables') + ggtitle('SIRS simulation') + xlim(c(0,2*n_days_year)) 
+# time logarithmic?
+time_opt=c('_xlog') # ''
+ggplot(df_ode_solution_tidy, aes(x=t,y=value,group=variable,color=compartment)) + 
+  geom_line(size=1.05) + theme_bw() + standard_theme + labs(fill = "# infection") +
+  facet_grid(infection~agegroup,scales='free',labeller=label_both) + # 1 panel: 1 agegroup, 1 # infection, 3 vartype
+  # facet_grid(compartment~infection,scales='free',labeller=label_both) + # 1 panel: 1 vartype, 1 # infection, 2 age groups
+  # facet_grid(compartment~agegroup+infection,scales='free',labeller=label_both) + 
+  # facet_wrap(~compartment+infection,ncol=3,scales='free',labeller=label_both) + # 1 panel: 1 vartype, 1 # inf, 2 age groups  
+  # facet_wrap(~compartment+agegroup,ncol=2,scales='free') + # 1 panel: 1 vartype, 1 age groups, 3 #s infection, 
+  scale_x_log10(limits=c(1,t_maxval),breaks=scales::trans_breaks("log10", function(x) 10^x),
+  labels=scales::trans_format("log10", scales::math_format(10^.x))) + annotation_logticks(sides='b') + 
+  xlab('time') + ylab('variables') + ggtitle('SIRS simulation') #scale_y_log10(limits=c(0.1,ymaxval)) + 
 # scale_size_manual(values=rev(as.numeric(unique(df_ode_solution_tidy$infection)))*0.3) +
-# scale_y_log10(limits=c(0.1,max(df_ode_solution_nonzero[,2:ncol(df_ode_solution_nonzero)]))) +  
+## SAVE
+if (birth_rate==0) {birth_tag='_nobirth'} else {birth_tag=paste0('_birth_rate',birth_rate)}; group_type='vartype_grouped'
+init_tag="_init_S22" # check ind_init_susc
+timecourse_filename=paste0("output/toymodel_timecourse_",group_type,time_opt,birth_tag,init_tag,".png")
+ggsave(timecourse_filename,width=24,height=18,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # simple ODE fcn examples --------------------------------------------------------
 #
 # define ODE as a fcn
-sir <- function(t, y, parms) {
+
+# linear chain model: -->x1-->x2-->x3 flow, x2 accumulates bc its outflow parameter is small, its value exceeds x1
+parvect=c(1e1,1e1,1,1e1); 
+linear_chain_ode <- function(t,x,parms) {
+  p0=parms[1];p1=parms[2];p2=parms[3];p3=parms[4]; birth_vect=c(p0,0,0)
+  kin_matr=matrix(c(-p1,0,0, p1,-p2,0, 0,p2,-p3),3,3,byrow=T); dxdt=birth_vect+kin_matr%*%x; list(dxdt) }
+ode_solution_toymodel <- lsoda(c(0,0,0),seq(0,5e1,0.1),func=linear_chain_ode,parms=parvect)
+df_ode_solution_toymodel=ode_solution_toymodel %>% as.data.frame() %>% setNames(c("t",paste0('x',1:3)))
+ggplot(melt(df_ode_solution_toymodel,id.vars='t'),aes(x=t,y=value,color=variable)) + geom_line() + standard_theme + theme_bw()
+
+# sir model
+sir <- function(t,y,parms) {
   beta <- parms[1]; gamma <- parms[2]; S <- y[1]; I <- y[2]
   return(list(c(S = -beta*S*I, I = beta*S*I - gamma*I))) }
+
 sir_birth_death <- function(t,y,parms){
   mu=parms[1]; beta=parms[2]; gamma=parms[3]; S=y[1]; I=y[2]
   dxdt = c(-beta*S*I-mu*S+mu,beta*S*I - (gamma+mu)*I)
