@@ -1,3 +1,4 @@
 # gitignore
 simul_output/initial/
 odeint-v2/
+data/
