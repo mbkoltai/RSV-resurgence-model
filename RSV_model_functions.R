@@ -1,7 +1,7 @@
 # RSV_model_functions
 # generate linear index from 2-dim index (infection-age) ----------------------------------------------------------
-fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_var,n_age,n_inf){
-  varnum=which(varname_list %in% varname); k=(j_age-1)*n_var*n_inf + (varnum-1)*n_inf + i_inf; k }
+fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
+  varnum=which(varname_list %in% varname); k=(j_age-1)*length(varname_list)*n_inf + (varnum-1)*n_inf + i_inf; k }
 
 # generate all model names ----------------------------------------------------------
 fun_sirs_varnames=function(varname_list,n_age,n_inf){
@@ -9,8 +9,8 @@ fun_sirs_varnames=function(varname_list,n_age,n_inf){
 }
 
 # set up kinetic matrix ----------------------------------------------------------
-fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list){
-K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
+fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups){
+K_m=matrix(0.0,nrow=dim_sys,ncol=dim_sys)
 # S_i_j -> S_1_1 is S, subscript=1, superscript=1. subscript: # infection, superscript= # age group
 # conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
 # varname_list=c('S','I','R')
@@ -18,38 +18,38 @@ K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
 # omega=1/1e2; # 1/runif(1,60,200)
 for (j_age in 1:n_age) {
   for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {waning_terms_source_target=data.frame()}
-    wanevals=c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_compartment,n_age,n_inf),
-               fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_compartment,n_age,n_inf))
+    wanevals=c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),
+               fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_age,n_inf))
     # waning_terms_source_target=rbind(waning_terms_source_target,wanevals)
     K_m[wanevals[2],wanevals[1]]=omega } }
-# aging terms between compartments: S_i_j -> S_i_(j+1), R_i_j -> S_(i+1)_(j+1)
-duration_age_groups=rep(1,n_age); # eta_a=1/(365*d_a); 
+# aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> S_(i+1)_(j+1)
+duration_age_groups=rsv_age_groups$duration # rep(1,n_age); # eta_a=1/(365*d_a); 
 for (j_age in 1:(n_age-1)) {
   for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
-    agevals=rbind(c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_compartment,n_age,n_inf),
-                    fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_compartment,n_age,n_inf)),
-                  c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_compartment,n_age,n_inf),
-                    fun_sub2ind(min(i_inf+1,n_inf),j_age+1,'S',varname_list,n_compartment,n_age,n_inf))) ### end of rbind
-    aging_terms_source_target=rbind(aging_terms_source_target,agevals); d_a=duration_age_groups[j_age] } }
-for (k in 1:nrow(aging_terms_source_target)) {K_m[aging_terms_source_target[k,2],aging_terms_source_target[k,1]]=1/(365*d_a)}
-
+    agevals=rbind(c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age),
+  c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(min(i_inf+1,n_inf),j_age+1,'S',varname_list,n_age,n_inf),j_age))
+    aging_terms_source_target=rbind(aging_terms_source_target,agevals) } } # d_a=duration_age_groups[j_age]
+for (k in 1:nrow(aging_terms_source_target)) {
+  duration_scale=rsv_age_groups$duration[aging_terms_source_target[k,3]]
+  # print(c(aging_terms_source_target[k,2],aging_terms_source_target[k,1],duration_scale))
+  K_m[aging_terms_source_target[k,2],aging_terms_source_target[k,1]]=1/(365*duration_scale)}
 # recovery terms
 # rho=1/6; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 for (j_age in 1:n_age) {
   for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {recov_terms_source_target=data.frame()}
-    recov_vals=c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_compartment,n_age,n_inf),
-                 fun_sub2ind(i_inf,j_age,'R',varname_list,n_compartment,n_age,n_inf))
+    recov_vals=c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
+                 fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))
     recov_terms_source_target=rbind(recov_terms_source_target,recov_vals)
     K_m[recov_vals[2],recov_vals[1]]=rho } }
 
 # diagonal terms
-# outflow terms that represent aging 'out of the model' from the highest age groups
+# outflow terms that represent 'aging out' of the model from the highest age groups
 n_days_year=365
 for (j_age in n_age) {
   for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
-    ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_compartment,n_age,n_inf),
-                                           fun_sub2ind(i_inf,j_age,'R',varname_list,n_compartment,n_age,n_inf))) } }
-for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(n_days_year*d_a) }
+    ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
+                                           fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
+for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_age_groups$duration[nrow(rsv_age_groups)]) }
 # diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
 if (any(diag(K_m)==0)){ diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m))) }
 #### return output
@@ -66,3 +66,121 @@ sirs_template <- function(t,X,parms){
   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
+
+# age structure of country --------------
+fun_cntr_agestr=function(i_cntr,i_year,age_low_vals,age_high_vals){
+  age_groups=data.table(age_low=seq(0,75,5), age_high=c(seq(4,74,5),100))
+  if (!any((.packages()) %in% "wpp2019")) {library(wpp2019)}; if (!exists("popF")) {data("pop")}
+  cntr_agestr=data.frame(agegroups=popF[popF$name %in% i_cntr,"age"],values=popF[popF$name %in% i_cntr,i_year] +
+                           popM[popM$name %in% i_cntr,i_year])
+  agegr_truthvals=sapply(strsplit(as.character(cntr_agestr$agegroups),"-"),"[[",1) %in% age_groups$age_low
+  N_tot=cntr_agestr$values[agegr_truthvals]
+  N_tot[length(N_tot)]=N_tot[length(N_tot)]+sum(cntr_agestr$values[!agegr_truthvals]); N_tot=N_tot*1e3; # N_tot
+  data.table(age_low=age_low_vals, age_high=age_high_vals,values=N_tot, duration=(age_high_vals-age_low_vals)+1)
+}
+
+# create inf and susc vars indices --------------
+fun_inf_susc_index_lists<-function(n_age,n_inf,varname_list){   n_compartment=length(varname_list)
+  inf_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
+  fun_sub2ind(x_inf,x_age,varname='I',varname_list,n_age,n_inf) }) })
+# linear indices of S variables
+susc_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
+  fun_sub2ind(x_inf,x_age,varname='S',varname_list,n_age,n_inf) }) })
+list(inf_vars_inds,susc_vars_inds)
+}
+
+# functn call covidm contact matrix --------------
+fun_covidm_contactmatrix <- function(country_sel){if (!exists("covid_params")){
+  cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
+cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; source(file.path(cm_path,"R","covidm.R")); 
+covid_params=cm_parameters_SEI3R(country_sel)}; # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
+#  "home"   "work"   "school" "other" 
+covid_params$pop[[1]]$matrices}
+
+# funcn create symmetric matrix  --------------
+fun_symm_contmatr<-function(C_m_vals,n_age){
+# C_m_vals=rnorm(n_age^2,1,0.2); 
+if (sum(C_m_vals<0)>0){C_m_vals[C_m_vals<0]=abs(C_m_vals[C_m_vals<0])}; C_m=matrix(C_m_vals,n_age,n_age)
+C_m[lower.tri(C_m)]<-0; z<-matrix(0,n_age,n_age); z[upper.tri(z)]<-C_m[upper.tri(C_m)]; z<-t(z); C_m[lower.tri(C_m)]<-z[lower.tri(z)]
+C_m}
+
+### fcn RSV age groups  --------------
+fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group_sizes){
+rsv_age_groups=data.table(age_low=rsv_age_groups_low,age_high=rsv_age_groups_low+rsv_age_group_sizes)
+truthvals=which(match(rsv_age_groups$age_low,standard_age_groups$age_low)==match(rsv_age_groups$age_high,standard_age_groups$age_high))
+rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=NA
+rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=data.frame(t(sapply(1:length(rsv_age_groups_low), function(x) 
+{c(max(which(rsv_age_groups_low[x]>=standard_age_groups$age_low)),
+   max(which(rsv_age_groups_low[x]+rsv_age_group_sizes[x]>=standard_age_groups$age_low)))})))
+agelim_diffs=rsv_age_groups$age_high-rsv_age_groups$age_low; agelim_diffs_increm=rep(NA,length(agelim_diffs))
+agelim_diffs_increm[agelim_diffs %% 1==0]=1; agelim_diffs_increm[agelim_diffs %% 1>0]=0.1 
+rsv_age_groups[,"duration"]=(rsv_age_groups$age_high-rsv_age_groups$age_low) + agelim_diffs_increm
+scaling_fact=rsv_age_groups$duration/sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$duration[
+  rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
+popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$values[
+  rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
+rsv_age_groups[,"value"]=NA
+# rsv_age_groups$value[truthvals]=standard_age_groups$value[match(rsv_age_groups$age_low,standard_age_groups$age_low)[truthvals]]
+rsv_age_groups$value=popul_custom_agegroups*scaling_fact; rsv_age_groups
+}
+
+# process output
+fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,S_tot){
+df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
+# df_ode_solution_nonzero=df_ode_solution[,colSums(df_ode_solution)>0]
+df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution)>0] %>% pivot_longer(!t) # ,id.vars='t')
+df_ode_solution_tidy[c('compartment','infection','agegroup')]=
+  sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$name),'_'),'[[',x)})
+df_ode_solution_tidy$compartment=factor(df_ode_solution_tidy$compartment,levels=varname_list)
+df_ode_solution_tidy$agegroup=as.numeric(df_ode_solution_tidy$agegroup)
+df_ode_solution_tidy[,"value_fract"]=df_ode_solution_tidy$value/S_tot[df_ode_solution_tidy$agegroup]
+list(df_ode_solution,df_ode_solution_tidy)
+}
+
+# create reduced contact matrix
+fun_create_red_C_m=function(C_m_full,rsv_age_groups){
+  for (i_row in 1:n_age){   for (j_col in 1:n_age){
+  C_m[i_row,j_col]=mean(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row],
+                                 rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]])   } }
+  C_m
+}
+
+# seasonal forcing term
+fun_seas_forc=function(timesteps,peak_day,st_dev_season,basal_rate){
+# peak_day=60; st_dev_season=27; basal_rate=0.1; 
+dist_from_peak=apply(data.frame(abs(timesteps %% 365-peak_day),n_days_year-(timesteps %% 365)+peak_day),1,min)
+forcing_vector=basal_rate + exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
+
+### assign miltiple variables
+'%=%' = function(l, r, ...) UseMethod('%=%')
+# Binary Operator
+'%=%.lbunch' = function(l, r, ...) {
+  Envir = as.environment(-1)
+  if (length(r) > length(l))
+    warning("RHS has more args than LHS. Only first", length(l), "used.")
+  if (length(l) > length(r))  {
+    warning("LHS has more args than RHS. RHS will be repeated.")
+    r <- extendToMatch(r, l)
+  }
+  for (II in 1:length(l)) {
+    do.call('<-', list(l[[II]], r[[II]]), envir=Envir)
+  }
+}
+extendToMatch <- function(source, destin) {
+  s <- length(source)
+  d <- length(destin)
+  # Assume that destin is a length when it is a single number and source is not
+  if(d==1 && s>1 && !is.null(as.numeric(destin)))
+    d <- destin
+  dif <- d - s
+  if (dif > 0) {
+    source <- rep(source, ceiling(d/s))[1:d]
+  }
+  return (source)
+}
+# Grouping the left hand side
+g = function(...) {
+  List = as.list(substitute(list(...)))[-1L]
+  class(List) = 'lbunch'
+  return(List)
+}

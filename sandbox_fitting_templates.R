@@ -9,6 +9,15 @@ ode_solution_toymodel <- lsoda(c(0,0,0),seq(0,5e1,0.1),func=linear_chain_ode,par
 df_ode_solution_toymodel=ode_solution_toymodel %>% as.data.frame() %>% setNames(c("t",paste0('x',1:3)))
 ggplot(melt(df_ode_solution_toymodel,id.vars='t'),aes(x=t,y=value,color=variable)) + geom_line() + standard_theme + theme_bw()
 
+### ageing process model --------------------------------------------------------
+births=10; agegr_sizes=c(1,2,3); g(d1,d2,d3) %=% c(rep(1/n_days_year,3)/agegr_sizes)
+K_small=-diag(c(d1,d2,d3)); K_small[2,1]=abs(diag(K_small)[1]); K_small[3,2]=abs(diag(K_small)[2]); inits=c(365*births*agegr_sizes)
+ode_aging=function(t,X,parms){births=parms[[1]]; K_small=parms[[2]]; dxdt=matrix(c(births,0,0)) + K_small%*%X; list(dxdt)}
+ptm<-proc.time();ode_aging_sol<-lsoda(inits,times=(0:4e4)/10,func=ode_aging,parms=list(births,K_small));proc.time()-ptm
+varnames=c('01','12','36'); df_ode_aging_sol=ode_aging_sol %>% as.data.frame() %>% setNames(c("t",varnames))
+matplot(df_ode_aging_sol$t,df_ode_aging_sol[,2:ncol(df_ode_aging_sol)],type="l",col=1:3,xlab="days",ylab="# ppl")
+legend("topright",legend=varnames,col=1:length(varnames),lty=1:3,cex=0.5,pt.cex=5)
+
 # sir model
 sir <- function(t,y,parms) {
   beta <- parms[1]; gamma <- parms[2]; S <- y[1]; I <- y[2]

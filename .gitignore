@@ -1,4 +1,10 @@
 # gitignore
-simul_output/initial/
+simul_output/
 odeint-v2/
 data/
+hodgson_rsv_model/
+ptmc_performance-master/
+toymodel_rcpp/
+*.pdf
+*.odg
+*.RDS
