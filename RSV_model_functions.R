@@ -1,4 +1,37 @@
 # RSV_model_functions
+# Model description ----------------------
+# without reinfections the model would be: dx/dt = [-id_matr;id_matr;0]*diag(I_vect)*C_m*S_vect + K_m*x(t)
+# with reinfections more complicated, abstractly denoted: 
+# dx/dt = F(I_vect,C_m,S_vect) + K_m*x(t)
+# I_vect: vector of infectious compartments, S_vect: vector of susceptible compartments, C_m: contact matrix
+# K_m: kinetic matrix for linear terms (aging, recovery, waning of immunity)
+#
+# steps of constructing infection terms (lambda):
+# linear list of state variables
+# X_vars=matrix(abs(rnorm(n_inf*n_age*n_compartment)),n_inf*n_age*n_compartment,1) # matrix(0,n_inf*n_age*n_compartment,1)
+# inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X_vars[x]})) # do.call(cbind,inf_vars_inds)
+# inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked) 
+# # full lambda column vector
+# lambda_vect=diag(array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+# # infection vector
+# infection_vect=diag(X_vars[unlist(susc_vars_inds)])%*%lambda_vect
+# 
+# # put together RHS of ODEs (this is to test, we need to do it within ODE function)
+# # dX/dt = F(delta,S,lambda) + K_m*X
+# F_vect=matrix(0,dim_sys,1)
+# F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
+# rhs_odes=birth_term + F_vect + K_m%*%X_vars
+# sirs_seasonal_forc <- function(t,X,parms){ 
+#   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
+#   forcing_vector=parms[[6]]; elem_time_step=parms[[7]]; # event_vector=parms[[8]]
+#   # stack I vars
+#   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
+#   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+#   lambda_vect=diag(forcing_vector[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+#   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
+#   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
+#   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
+
 # generate linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
   varnum=which(varname_list %in% varname); k=(j_age-1)*length(varname_list)*n_inf + (varnum-1)*n_inf + i_inf; k }
@@ -163,6 +196,14 @@ fun_seas_forc=function(timesteps,peak_day,st_dev_season,basal_rate){
 dist_from_peak=apply(data.frame( abs(timesteps %% 365-peak_day),365-peak_day+(timesteps %% 365) ),1,min)
 forcing_vector=basal_rate + exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
 
+# shutdown term ----------------------
+fun_shutdown_seasforc=function(shutdown_start_week,shutdown_stop_week,shutdown_scale,forcing_vector,elem_time_step,basal_rate,n_prec){
+shutdown_timewindow=c(shutdown_start_week*7/elem_time_step,shutdown_stop_week*7/elem_time_step)
+start_repl=max(which(forcing_vector[1:shutdown_timewindow[1]]-basal_rate<n_prec))
+stop_repl=min(which(forcing_vector[shutdown_timewindow[2]:length(forcing_vector)]-basal_rate<n_prec))+shutdown_timewindow[2]
+forcing_vector[start_repl:stop_repl]=forcing_vector[start_repl:stop_repl]*shutdown_scale+basal_rate
+list(forcing_vector,timesteps[shutdown_timewindow])}
+
 # initial-final totals by age group ----------------------
 fun_agegroup_init_final_pop<-function(df_ode_solution_tidy){
 df_initial_final_totals=cbind(
@@ -180,7 +221,7 @@ timecourse_filename=paste0(foldername,"/RSV_DE_",paste0(n_age,'agegroups_'),frac
 timecourse_filename
 }
 
-### assign miltiple variables -----------------
+### assign multiple variables -----------------
 '%=%' = function(l, r, ...) UseMethod('%=%')
 # Binary Operator
 '%=%.lbunch' = function(l, r, ...) {
@@ -213,3 +254,11 @@ g = function(...) {
   class(List) = 'lbunch'
   return(List)
 }
+
+# scale_y_log10(limits=c(0.1,ymaxval)) + scale_size_manual(values=rev(as.numeric(unique(df_ode_solution_tidy$infection)))*0.3)
+# facet_grid(compartment~infection,scales='free',labeller=label_both) + # 1 panel: 1 vartype, 1 # infection, 2 age groups
+# facet_grid(compartment~agegroup+infection,scales='free',labeller=label_both) + 
+# facet_wrap(~compartment+infection,ncol=3,scales='free',labeller=label_both) + # 1 panel: 1 vartype, 1 # inf, 2 age groups  
+# facet_wrap(~compartment+agegroup,ncol=2,scales='free') + # 1 panel: 1 vartype, 1 age groups, 3 #s infection, 
+# scale_x_log10(limits=c(1,t_maxval),breaks=scales::trans_breaks("log10", function(x) 10^x),
+# labels=scales::trans_format("log10", scales::math_format(10^.x))) + annotation_logticks(sides='b') + 
