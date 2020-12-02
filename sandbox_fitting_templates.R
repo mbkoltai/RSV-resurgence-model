@@ -18,6 +18,11 @@ varnames=c('01','12','36'); df_ode_aging_sol=ode_aging_sol %>% as.data.frame() %
 matplot(df_ode_aging_sol$t,df_ode_aging_sol[,2:ncol(df_ode_aging_sol)],type="l",col=1:3,xlab="days",ylab="# ppl")
 legend("topright",legend=varnames,col=1:length(varnames),lty=1:3,cex=0.5,pt.cex=5)
 
+# check if kinet matrix OK (aging/waning terms)
+# source_vars=fun_sub2ind(1:3,10,varname = "R",varname_list,n_age,n_inf); target_vars=fun_sub2ind(c(2,3,3),11,"S",varname_list,n_age,n_inf)
+source_vars=fun_sub2ind(1:3,10,"S",varname_list,n_age,n_inf); target_vars=fun_sub2ind(1:3,11,"S",varname_list,n_age,n_inf)
+for (x in 1:3) {print(K_m[target_vars[x],source_vars[x]])}
+
 # sir model
 sir <- function(t,y,parms) {
   beta <- parms[1]; gamma <- parms[2]; S <- y[1]; I <- y[2]

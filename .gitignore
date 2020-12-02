@@ -7,4 +7,5 @@ ptmc_performance-master/
 toymodel_rcpp/
 *.pdf
 *.odg
+.odg#
 *.RDS

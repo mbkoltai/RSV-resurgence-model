@@ -10,25 +10,30 @@ fun_sirs_varnames=function(varname_list,n_age,n_inf){
 
 # set up kinetic matrix ----------------------------------------------------------
 fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups){
-K_m=matrix(0.0,nrow=dim_sys,ncol=dim_sys)
+K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
 # S_i_j -> S_1_1 is S, subscript=1, superscript=1. subscript: # infection, superscript= # age group
-# conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
-# varname_list=c('S','I','R')
-# waning terms: R_i_j -> S_min(i+1,n_inf)_j
-# omega=1/1e2; # 1/runif(1,60,200)
+# varname_list=c('S','I','R') # conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
+# waning terms: omega=1/1e2. flow: R_i_j -> S_min(i+1,n_inf)_j;  eg. R_1_1 -> S_2_1
 for (j_age in 1:n_age) {
   for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {waning_terms_source_target=data.frame()}
     wanevals=c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),
                fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_age,n_inf))
     # waning_terms_source_target=rbind(waning_terms_source_target,wanevals)
     K_m[wanevals[2],wanevals[1]]=omega } }
-# aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> S_(i+1)_(j+1)
-duration_age_groups=rsv_age_groups$duration # rep(1,n_age); # eta_a=1/(365*d_a); 
+# aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> S_(i+1)_(j+1), I_i_j->I_(i+1)_j
 for (j_age in 1:(n_age-1)) {
   for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
-    agevals=rbind(c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age),
-  c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(min(i_inf+1,n_inf),j_age+1,'S',varname_list,n_age,n_inf),j_age))
-    aging_terms_source_target=rbind(aging_terms_source_target,agevals) } } # d_a=duration_age_groups[j_age]
+  agevals=rbind( 
+  # S_i_j -> S_i_(j+1)
+  c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age ),
+  # R_i_j -> S_(i+1)_(j+1) OR R_i_j -> R_i_(j+1)
+  # c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(min(i_inf+1,n_inf),j_age+1,'S',varname_list,n_age,n_inf),j_age)
+  c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'R',varname_list,n_age,n_inf),j_age),
+  # I_i_j -> I_i_(j+1)
+  c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'I',varname_list,n_age,n_inf),j_age)
+  )
+  # bundle
+  aging_terms_source_target=rbind(aging_terms_source_target,agevals) } }
 for (k in 1:nrow(aging_terms_source_target)) {
   duration_scale=rsv_age_groups$duration[aging_terms_source_target[k,3]]
   # print(c(aging_terms_source_target[k,2],aging_terms_source_target[k,1],duration_scale))
@@ -44,15 +49,18 @@ for (j_age in 1:n_age) {
 
 # diagonal terms
 # outflow terms that represent 'aging out' of the model from the highest age groups
-n_days_year=365
 for (j_age in n_age) {
   for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
     ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
+                                           # if infections have the aging term on them too
+                                           fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
                                            fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
 for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_age_groups$duration[nrow(rsv_age_groups)]) }
 # diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
-if (any(diag(K_m)==0)){ diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m))) }
+diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m)))
+
 #### return output
+# print(diag(K_m))
 K_m
 }
 
@@ -121,11 +129,12 @@ popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_a
   rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
 rsv_age_groups[,"value"]=NA
 # rsv_age_groups$value[truthvals]=standard_age_groups$value[match(rsv_age_groups$age_low,standard_age_groups$age_low)[truthvals]]
-rsv_age_groups$value=popul_custom_agegroups*scaling_fact; rsv_age_groups
+rsv_age_groups$value=popul_custom_agegroups*scaling_fact
+rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_high,sep='-'); rsv_age_groups
 }
 
 # process output
-fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,S_tot){
+fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,rsv_age_groups){
 df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
 # df_ode_solution_nonzero=df_ode_solution[,colSums(df_ode_solution)>0]
 df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution)>0] %>% pivot_longer(!t) # ,id.vars='t')
@@ -133,9 +142,12 @@ df_ode_solution_tidy[c('compartment','infection','agegroup')]=
   sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$name),'_'),'[[',x)})
 df_ode_solution_tidy$compartment=factor(df_ode_solution_tidy$compartment,levels=varname_list)
 df_ode_solution_tidy$agegroup=as.numeric(df_ode_solution_tidy$agegroup)
-df_ode_solution_tidy[,"value_fract"]=df_ode_solution_tidy$value/S_tot[df_ode_solution_tidy$agegroup]
-list(df_ode_solution,df_ode_solution_tidy)
-}
+finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==max(t)) %>% summarise(agegroup_sum_popul=sum(value))
+df_ode_solution_tidy[,"value_fract"]=df_ode_solution_tidy$value/finalvals$agegroup_sum_popul[df_ode_solution_tidy$agegroup]
+df_ode_solution_tidy[,"t_years"]=df_ode_solution_tidy$t/365
+df_ode_solution_tidy[,"agegroup_name"]=rsv_age_groups$agegroup_name[df_ode_solution_tidy$agegroup]
+df_ode_solution_tidy$agegroup_name=factor(df_ode_solution_tidy$agegroup_name,levels=unique(df_ode_solution_tidy$agegroup_name))
+list(df_ode_solution,df_ode_solution_tidy) }
 
 # create reduced contact matrix
 fun_create_red_C_m=function(C_m_full,rsv_age_groups){
@@ -145,13 +157,30 @@ fun_create_red_C_m=function(C_m_full,rsv_age_groups){
   C_m
 }
 
-# seasonal forcing term
+# seasonal forcing term ------------------
 fun_seas_forc=function(timesteps,peak_day,st_dev_season,basal_rate){
 # peak_day=60; st_dev_season=27; basal_rate=0.1; 
-dist_from_peak=apply(data.frame(abs(timesteps %% 365-peak_day),n_days_year-(timesteps %% 365)+peak_day),1,min)
+dist_from_peak=apply(data.frame( abs(timesteps %% 365-peak_day),365-peak_day+(timesteps %% 365) ),1,min)
 forcing_vector=basal_rate + exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
 
-### assign miltiple variables
+# initial-final totals by age group ----------------------
+fun_agegroup_init_final_pop<-function(df_ode_solution_tidy){
+df_initial_final_totals=cbind(
+    df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==min(t)) %>% summarise(agegroup_sum_popul=sum(value)),
+    df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==max(t)) %>% summarise(agegroup_sum_popul=sum(value)) )
+df_initial_final_totals=df_initial_final_totals[,c(1,2,4)]; colnames(df_initial_final_totals)=c("agegroup","initial_pop","final_pop")
+df_initial_final_totals[,"fract_final_init"]=df_initial_final_totals$final_pop/df_initial_final_totals$initial_pop
+df_initial_final_totals }
+
+# create file name ----------------------
+fun_create_filename=function(foldername,facet2tag,value_type,n_age,scale_val,filetype){
+if (nchar(facet2tag)==0) {overlay_tag='_overlaid'} else {overlay_tag=''}
+if (grepl('fract',value_type)) {fract_abs="fractional"} else {fract_abs="absval"}
+timecourse_filename=paste0(foldername,"/RSV_DE_",paste0(n_age,'agegroups_'),fract_abs,'_y',scale_val,overlay_tag,".",filetype)
+timecourse_filename
+}
+
+### assign miltiple variables -----------------
 '%=%' = function(l, r, ...) UseMethod('%=%')
 # Binary Operator
 '%=%.lbunch' = function(l, r, ...) {
