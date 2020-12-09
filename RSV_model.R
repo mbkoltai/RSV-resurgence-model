@@ -39,7 +39,7 @@ country_sel="Germany"
 # time resolution (in days)
 elem_time_step=0.25
 # population data
-standard_age_groups <- fun_cntr_agestr("Germany","2020",seq(0,75,5),c(seq(4,74,5),99))
+standard_age_groups <- fun_cntr_agestr("Germany","2015",seq(0,75,5),c(seq(4,74,5),99))
 # RSV age groups (population data from wpp2019)
 rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,10,15, 20); rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3),rep(4,3),79)
 rsv_age_groups=fun_rsv_agegroups(standard_age_groups,rsv_age_groups_low,rsv_age_group_sizes)
@@ -69,7 +69,8 @@ rho=1/7; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
 # SUSCEPTIBILITY # rbeta(35.583,11.417)~0.75; B(22.829,3.171)~0.9; B(6.117,12.882)~0.32
-delta_primary=c(0.5,0.25,0.125); delta_susc=sapply(1:n_age, function(x) {delta_primary/(1.05^x * rsv_age_groups$value[x])})
+# NORMALIZE by entire population!!!
+delta_primary=c(0.5,0.25,0.125); delta_susc=sapply(1:n_age, function(x) {delta_primary/(1.05^x * sum(rsv_age_groups$value))})
 # delta_susc*matrix(rep(rsv_age_groups$value,times=3),3,byrow = T)
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 birth_rate=2130; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
