@@ -4,25 +4,18 @@
 # install.packages("deSolve"); install.packages('odin')
 library(tidyverse) # library(reshape2) # library(dplyr); library(readr); library(stringr); library(ggplot2); 
 # ode solving, maximum likelihood, rcpp
-library(deSolve); library(bbmle); library(Rcpp) # library(GillespieSSA)
+library(deSolve); library(bbmle); library(Rcpp); library(gtools) # library(GillespieSSA)
 library(rstudioapi); # library(fitdistrplus)
 # contact data from https://bisaloo.github.io/contactdata/index.html (Prem 2017)
 library(contactdata); library(wpp2019)
-# covidm
-currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # functions
 rm(list=ls()); source('RSV_model_functions.R')
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# set plotting theme
-standard_theme=theme(panel.grid=element_line(linetype="dashed",colour="black",size=0.1),
-                     plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90),
-                     axis.tlext.y=element_text(size=9),
-                     axis.title=element_text(size=14), text=element_text(family="Calibri"))
+currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Set up SIRS ODE model --------------------------------------------------------
 # see description in "RSV_model_functions.R"
 ## with seasonal forcing
-sirs_seasonal_forc <- function(t,X,parms){ 
+sirs_seasonal_forc <- function(t,X,parms){
   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
   forcing_vector=parms[[6]]; elem_time_step=parms[[7]]
   # stack I vars
@@ -55,7 +48,10 @@ l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_i
 # CONTACT MATRIX
 # random values: C_m_vals=rnorm(n_age^2,1,0.2); C_m=fun_symm_contmatr(C_m_vals,n_age)
 # contact matrix from covidm ("home","work","school","other")
-C_m_full=Reduce('+',fun_covidm_contactmatrix(country_sel))
+cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
+cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; setwd(cm_path); source(file.path(cm_path,"R","covidm.R"))
+covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)
+C_m_full=Reduce('+',covid_params$pop[[1]]$matrices)
 # create for our age groups
 C_m=fun_create_red_C_m(C_m_full,rsv_age_groups)
 # bc of reinfections we need to input contact matrix repeatedly
@@ -70,23 +66,23 @@ rho=1/7; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
 # SUSCEPTIBILITY # rbeta(35.583,11.417)~0.75; B(22.829,3.171)~0.9; B(6.117,12.882)~0.32
 # NORMALIZE by entire population!!!
-delta_primary=c(0.5,0.25,0.125); delta_susc=sapply(1:n_age, function(x) {delta_primary/(1.05^x * sum(rsv_age_groups$value))})
-# delta_susc*matrix(rep(rsv_age_groups$value,times=3),3,byrow = T)
+agedep_fact=1; delta_primary=c(0.5,0.25,0.125); delta_susc=sapply(1:n_age, function(x) {delta_primary/(agedep_fact^x * rsv_age_groups$value[x])})
+delta_susc_prop=delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T)
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 birth_rate=2130; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
 ####
 # DURATION of SIMULATION
 n_years=10.5; max_time=n_years*n_days_year; timesteps <- seq(0,max_time,by=elem_time_step)
 # seasonal forcing
-start_week=49; forcing_vector=fun_seas_forc(timesteps,peak_day=start_week*7,st_dev_season=27,basal_rate=0.02) # matplot(timesteps,forcing_vector,type="l")
+start_week=49; forcing_vector=fun_seas_forc(timesteps,peak_day=start_week*7,st_dev_season=27,basal_rate=0.02) 
 # shutdown season
-shutdown_start_week=8*52+(start_week-4); shutdown_stop_week=shutdown_start_week+12; shutdown_scale=0.1; n_prec=0.001
+shutdown_start_week=7*52+(start_week-4); shutdown_stop_week=shutdown_start_week+12; shutdown_scale=0.1; n_prec=0.001
 shutdown_list=fun_shutdown_seasforc(shutdown_start_week,shutdown_stop_week,shutdown_scale,forcing_vector,
-                                      elem_time_step,basal_rate,n_prec)
-forcing_vector=shutdown_list[[1]]; shutdown_limits=shutdown_list[[2]]
+                                      elem_time_step,basal_rate=0.02,n_prec)
+forcing_vector=shutdown_list[[1]]; shutdown_limits=shutdown_list[[2]] # matplot(timesteps,forcing_vector,type="l")
 # INITIAL CONDITIONS
 # introduce stationary state as init state?
-initvals_sirs_model=matrix(0,dim_sys,1); stationary_init=TRUE
+initvals_sirs_model=matrix(0,dim_sys,1); stationary_init=FALSE
 if (stationary_init){# statsol=readRDS("simul_output/statsol_100years.RDS") # as.numeric(statsol[2:length(statsol)])
   initvals_sirs_model[,1]=round(as.numeric(df_ode_solution[nrow(df_ode_solution),2:ncol(df_ode_solution)]))} else {
 # entire popul into susceptibles
@@ -94,13 +90,22 @@ if (stationary_init){# statsol=readRDS("simul_output/statsol_100years.RDS") # as
 # INITIAL INFECTION 
 initvals_sirs_model[inf_vars_inds[[1]][1]]=1 # all first infection groups: sapply(inf_vars_inds, '[[',1)
 
+### susceptibility as fcn of age and exposure
+suscept_agedep=data.frame(agegroup=factor(rsv_age_groups$agegroup_name,levels=unique(rsv_age_groups$agegroup_name)),
+                          t(delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T))) %>% pivot_longer(!agegroup)
+suscept_agedep$name=gsub("X","infection #",suscept_agedep$name)
+ggplot(suscept_agedep,aes(x=agegroup,y=value,group=name,color=name)) + geom_line(size=2) + theme_bw() + standard_theme +
+  xlab("age group (years)") + ylab("susceptibility")
+if (length(unique(round(suscept_agedep$value,6)))==3){dep_tag="expos_dep"}else{dep_tag="age_expos_dep"}
+ggsave(paste0("simul_output/suscept_",dep_tag,".png"),width=32,height=22,units="cm")
+
 ### integrate ODE --------------------------------------------------------
 # deSolve input
 params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,forcing_vector,elem_time_step)
 # sirs_template, sirs_seasonal_forc
 ptm<-proc.time(); ode_solution<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); proc.time()-ptm
 list_simul_output=fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups)
-df_ode_solution=list_simul_output[[1]]; df_ode_solution_tidy=list_simul_output[[2]]
+df_ode_solution=list_simul_output[[1]]; df_ode_solution_tidy=list_simul_output[[2]]; rm(list_simul_output)
 ####
 # initial vs final popul sizes: fun_agegroup_init_final_pop(df_ode_solution_tidy)
 # PLOT how age group totals change
@@ -111,43 +116,111 @@ scale_val=c('free_y','fixed')[2]; ggplot(df_ode_solution_tidy %>% group_by(t_yea
 ggsave(paste("simul_output/agegroup_totals_",scale_val,"yscale.png",sep=""),width=28,height=16,units="cm")
 ####
 # Plot time course --------------------------------------------------------
-xval_lims=c(max_time/365-3.75,max_time/365-0.25); xval_breaks=seq(0,max_time/365,by=1/4)
-vars_to_show=grepl('I_',df_ode_solution_tidy$name)&(df_ode_solution_tidy$t_years>xval_lims[1]&df_ode_solution_tidy$t_years<xval_lims[2])
+df_ode_solution_tidy$agegroup_name=factor(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr"),
+                                          levels=unique(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr")))
+df_ode_solution_tidy$infection=paste0("infection #",df_ode_solution_tidy$infection)
+xval_lims=c(floor(shutdown_limits/365)[1]-0.25,ceiling(shutdown_limits/365)[2]+0.15); xval_breaks=seq(0,max_time/365,by=1/4); agegr_lim=7
+vars_to_show=grepl('I_',df_ode_solution_tidy$name)&(df_ode_solution_tidy$t_years>xval_lims[1]&df_ode_solution_tidy$t_years<xval_lims[2])&
+  df_ode_solution_tidy$agegroup<=agegr_lim
 # y axis fixed? | facet by AGE only or age+INFECTION? | abs values or fraction?
 # all permutations
-all_perms=permutations(n=2,r=3,repeats.allowed=T)
+all_perms=permutations(n=2,r=3,repeats.allowed=T) 
 for (k in 1:nrow(all_perms)) {
-scale_val=c('fixed','free_y')[all_perms[k,1]];facet2tag=c('','infection')[all_perms[k,2]];value_type=c("value","value_fract")[all_perms[k,3]]
+scale_val=c('fixed','free_y')[all_perms[k,1]]; facet2tag=c('','infection')[all_perms[k,2]]
+value_type=c("value","value_fract")[all_perms[k,3]]
 if (grepl("fract",value_type)){y_axis_tag='fraction'} else {y_axis_tag="# cases"}; if (nchar(facet2tag)){nrow_val=6} else{nrow_val=3}
+if (nchar(facet2tag)>0) {height_div=1} else{height_div=2}
 # PLOT
 ggplot(df_ode_solution_tidy[vars_to_show,],aes_string(x="t_years",y=value_type,group="name",color="infection")) + #,linetype="infection"
   geom_line(size=1.05) + theme_bw() + standard_theme + theme(axis.text.x=element_text(size=7),axis.text.y=element_text(size=6)) + 
-  facet_wrap(as.formula(paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep='')),sep='')),nrow=nrow_val,scales=scale_val) + 
-  scale_x_continuous(breaks=xval_breaks,minor_breaks=seq(0,max_time/365,by=1/12)) + # scale_y_log10(limits=c(0.1,1e6)) + 
-  # shutdown
+  facet_wrap(as.formula(paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep='')),sep='')),
+             ncol=round(agegr_lim/height_div),scales=scale_val) + # ~agegroup_name
+  scale_x_continuous(breaks=xval_breaks,minor_breaks=seq(0,max_time/365,by=1/12)) + ## shutdown:
   geom_rect(aes(xmin=shutdown_limits[1]/365,xmax=shutdown_limits[2]/365,ymin=0,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
   xlab('years') + ylab(y_axis_tag) + ggtitle('RSV infections by age group (SIRS simulation)')
 ## SAVE
-timecourse_filename=fun_create_filename("simul_output",facet2tag,value_type,n_age,gsub("_y","",scale_val),"png")
-ggsave(timecourse_filename,width=32,height=22,units="cm")}
+if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"}else{foldername="suscept_agedep"}
+timecourse_filename=fun_create_filename(paste0("simul_output/",foldername),facet2tag,value_type,n_age,gsub("_y","",scale_val),"png")
+ggsave(timecourse_filename,width=30,height=18,units="cm")}
 
-### RSV data  --------------------------------------------------------
+### map infections to symptomatic cases -----------------------------------
+prop_symptom=1-c(mean(rbeta(1e3,shape1=3,shape2=30)),mean(rbeta(1e3,shape1=9,shape2=43)),mean(rbeta(1e3,shape1=38,shape2=35)),
+                mean(rbeta(1e3,shape1=36,shape2=11))) # prop_symptom_age=cbind(c(0,1,5,15),c(0.9,4.9,14.9,99),prop_symptom_age); 
+list_symptom_agegroups=list(1:2,3:7,8:9,10:11); 
+# AGE DEPENDENT or not?
+sever_agedep=1
+for (k in 1:3){ a=data.frame(t(rbind(unlist(list_symptom_agegroups),
+      unlist(sapply(1:length(list_symptom_agegroups), function(x){rep(x,length(list_symptom_agegroups[[x]]))})),
+      prop_symptom[unlist(sapply(1:length(list_symptom_agegroups), function(x){rep(x,length(list_symptom_agegroups[[x]]))}))]*(1/k^sever_agedep) )),
+      infection=paste0("infection #",as.character(k)) ); if (k==1){df_symptom_prop=a} else{df_symptom_prop=rbind(df_symptom_prop,a)} }
+colnames(df_symptom_prop)[1:3]=c("agegroup","sympt_group","sympt_value")
+# calculate symptom cases
+df_ode_solution_tidy_cases=left_join(df_ode_solution_tidy[grepl('I_',df_ode_solution_tidy$name),],df_symptom_prop,by=c("infection","agegroup"))
+df_ode_solution_tidy_cases[,"symptom_cases"]=df_ode_solution_tidy_cases$value*df_ode_solution_tidy_cases$sympt_value
+df_ode_solution_tidy_cases[,"symptom_cases_fract"]=df_ode_solution_tidy_cases$value_fract*df_ode_solution_tidy_cases$sympt_value
+# plot sum of 1,2,3rd infections
+df_ode_solution_tidy_cases_sum=df_ode_solution_tidy_cases %>% group_by(t_years,compartment,agegroup,agegroup_name) %>% 
+  summarise(symptom_cases=sum(symptom_cases),symptom_cases_fract=sum(symptom_cases_fract))
+# time window of plot
+vars_to_show=df_ode_solution_tidy_cases_sum$t_years>6.75 & df_ode_solution_tidy_cases_sum$t_years<10.15 & 
+             df_ode_solution_tidy_cases_sum$agegroup<7; plot_perms=permutations(n=2,r=2,repeats.allowed=T)
+for (k_plot in 1:nrow(permutations(n=2,r=2,repeats.allowed=T))){
+scale_val=c("free","fixed")[plot_perms[k_plot,1]]; vartype=c("symptom_cases_fract","symptom_cases")[plot_perms[k_plot,2]]
+if (grepl("fract",vartype)){y_axis_tag='fraction'} else {y_axis_tag="# cases"}
+ggplot(df_ode_solution_tidy_cases_sum[vars_to_show,],aes(x=t_years,y=symptom_cases_fract,group=compartment,color=compartment)) +
+  geom_line(size=1.05) + theme_bw() + standard_theme + theme(axis.text.x=element_text(size=8),axis.text.y=element_text(size=8)) + 
+  facet_wrap(~agegroup_name,scales=scale_val) + # df_ode_solution_tidy_cases$agegroup
+  scale_x_continuous(breaks=xval_breaks,minor_breaks=seq(0,max_time/365,by=1/12)) + scale_y_continuous(breaks=(0:10)/10) + 
+  geom_rect(aes(xmin=shutdown_limits[1]/365,xmax=shutdown_limits[2]/365,ymin=0,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
+  xlab('years') + ylab(y_axis_tag) + ggtitle('symptomatic cases by age group (age-structured SIRS model)') + theme(legend.position='none')
+# SAVE
+symptvals=length(unique(df_symptom_prop[,c("sympt_value")])); symptagegrval=length(unique(df_symptom_prop[,c("sympt_group")]))
+if (symptvals>symptagegrval){dep_tag="_ageexpdep"}else{dep_tag="_agedep_only"}
+if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"}else{foldername="suscept_agedep"}
+full_filename=paste0("simul_output/",foldername,paste0("/symptomcases_sever",dep_tag),"/RSV_DE_symptomcases_sever",
+                     dep_tag,"_y",scale_val,'_',gsub("# ","",y_axis_tag),".png")
+ggsave(full_filename,width=32,height=22,units="cm") }
+
+### Age distrib before and after shutdown ----------------------------
+df_ode_solution_tidy_cases_sum$season=findInterval(df_ode_solution_tidy_cases_sum$t_years,c(0,(1:10)+0.51))
+season_peaks=df_ode_solution_tidy_cases_sum %>% group_by(agegroup,agegroup_name,season) %>% summarise(max_case=max(symptom_cases)) %>%
+  group_by(season) %>% mutate(max_case_share_season=max_case/sum(max_case))
+season_peaks[,"pre_post_shtdn"]="pre"; season_peaks$pre_post_shtdn[season_peaks$season>=ceiling(max(shutdown_limits/365))]="post"
+season_truthvals=season_peaks$agegroup<=floor(shutdown_limits/365)[1] & !season_peaks$season==floor(shutdown_limits/365)[2] & season_peaks$season>3
+ylimvals=c(0.05,0.16)
+# PLOT
+ggplot(season_peaks[season_truthvals,],aes(x=agegroup_name,y=max_case_share_season,group=season,color=factor(season))) + 
+  geom_line(aes(size=pre_post_shtdn)) + theme_bw() + standard_theme + 
+  theme(axis.text.x=element_text(size=12),axis.text.y=element_text(size=12),legend.text=element_text(size=12),legend.title=element_text(size=14)) + 
+  xlab("") + ylab("fraction of all cases in season") + scale_size_manual(values=c(3,1)) + # range=c(1, 2), guide=FALSE 
+  scale_y_continuous(breaks=seq(ylimvals[1],ylimvals[2],by=0.01),limits=ylimvals) +
+  labs(color="season",shape="before/after shutdown",size="before/after shutdown") # + ylim(ylimvals)
+# SAVE
+if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"}else{foldername="suscept_agedep"}
+symptvals=length(unique(df_symptom_prop[,c("sympt_value")])); symptagegrval=length(unique(df_symptom_prop[,c("sympt_group")]))
+if (symptvals>symptagegrval){dep_tag="_ageexpdep"}else{dep_tag="_agedep_only"}
+ggsave(paste0("simul_output/",foldername,"/age_distrib_under5yr_suscept",dep_tag,".png"),width=32,height=22,units="cm")
+
+### UK RSV data  --------------------------------------------------------
 resp_virus_data_uk=read_csv("data/Respiratory viral defections by any method UK Ages.csv")
-resp_virus_data_uk_tidy=resp_virus_data_uk[,!colnames(resp_virus_data_uk) %in% "X1"] %>% pivot_longer(!c("Year","startweek","Age"))
+resp_virus_data_uk_tidy=resp_virus_data_uk %>% pivot_longer(!c("Year","startweek","Age"))
 resp_virus_data_uk_tidy$Age=factor(resp_virus_data_uk_tidy$Age,levels=unique(resp_virus_data_uk_tidy$Age))
-truthvals_rsv=resp_virus_data_uk_tidy$name %in% "RSV" & (!resp_virus_data_uk_tidy$Year %in% c(2014,2020))
+leaveout_year=c(2014); truthvals_rsv=resp_virus_data_uk_tidy$name %in% "RSV" & (!resp_virus_data_uk_tidy$Year %in% leaveout_year)
 # means across years
 averages_years=data.frame(resp_virus_data_uk_tidy[truthvals_rsv,] %>% group_by(startweek,Age) %>% 
                             summarise(value=mean(value)),Year='mean',name='RSV')
 if (!any(resp_virus_data_uk_tidy$Year %in% "mean")){
 resp_virus_data_uk_tidy=rbind(resp_virus_data_uk_tidy,averages_years[,colnames(resp_virus_data_uk_tidy)])}
-truthvals_rsv=resp_virus_data_uk_tidy$name %in% "RSV" & (!resp_virus_data_uk_tidy$Year %in% c(2014,2020))
+truthvals_rsv=(resp_virus_data_uk_tidy$name %in% "RSV") & resp_virus_data_uk_tidy$Year %in% c("mean",2020)
+  # (!resp_virus_data_uk_tidy$Year %in% c(leaveout_year,))
 resp_virus_data_uk_tidy[,"type"]="indiv year"; resp_virus_data_uk_tidy[resp_virus_data_uk_tidy$Year %in% "mean","type"]="5-year average"
 resp_virus_data_uk_tidy[,"width"]=1.01; resp_virus_data_uk_tidy[resp_virus_data_uk_tidy$Year %in% "mean","width"]=1.015
 # plot
-ggplot(resp_virus_data_uk_tidy[truthvals_rsv,],aes(x=startweek,y=value,group=Year,color=Year,linetype=factor(type),size=width)) + 
-  geom_line() + geom_point(aes(shape=factor(type))) + facet_wrap(~Age,scales="free") + scale_linetype_manual(values=c("solid","dashed")) + 
-  scale_size(range=c(1,1.5), guide=FALSE) + labs(shape="data type",linetype="data type") + theme_bw() + standard_theme + ylab("")
+ggplot(resp_virus_data_uk_tidy[truthvals_rsv,],aes(x=startweek,y=value,group=Year,color=Year)) + # ,linetype=factor(type)
+  geom_line(size=1.25) + geom_point(aes(shape=factor(type),size=factor(width))) + facet_wrap(~Age,scales="free") + 
+  scale_x_continuous(breaks=(0:10)*5) + scale_linetype_manual(values=c("solid","dashed")) + theme_bw() + standard_theme + ylab("") +
+  scale_size_manual(values = c(1.5,2),guide=FALSE) + labs(shape="data type") # ,linetype="data type"
+# scale_linetype_manual(values=c("solid","dashed")) + 
 # SAVE
-ggsave("simul_output/uk_rsv_data.png",width=32,height=16,units="cm")
+ggsave("simul_output/uk_rsv_data2020.png",width=32,height=16,units="cm")
 # resp_virus_data_uk_tidy[truthvals_rsv,] %>% group_by(Year,Age) %>% filter(value==max(value))

@@ -32,6 +32,12 @@
 #   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
 #   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
 
+# set plotting theme
+standard_theme=theme(panel.grid=element_line(linetype="dashed",colour="black",size=0.1),
+                     plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90),
+                     axis.text.y=element_text(size=9),
+                     axis.title=element_text(size=14), text=element_text(family="Calibri"))
+
 # generate linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
   varnum=which(varname_list %in% varname); k=(j_age-1)*length(varname_list)*n_inf + (varnum-1)*n_inf + i_inf; k }
@@ -131,10 +137,9 @@ list(inf_vars_inds,susc_vars_inds)
 }
 
 # functn call covidm contact matrix --------------
-fun_covidm_contactmatrix <- function(country_sel){if (!exists("covid_params")){
-  cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
-cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; source(file.path(cm_path,"R","covidm.R")); 
-covid_params=cm_parameters_SEI3R(country_sel)}; # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
+fun_covidm_contactmatrix <- function(country_sel,currentdir_path,cm_path){if (!exists("covid_params")){
+  cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; setwd(cm_path); source(file.path(cm_path,"R","covidm.R"))
+  covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)} # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
 #  "home"   "work"   "school" "other" 
 covid_params$pop[[1]]$matrices}
 
@@ -163,7 +168,7 @@ popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_a
 rsv_age_groups[,"value"]=NA
 # rsv_age_groups$value[truthvals]=standard_age_groups$value[match(rsv_age_groups$age_low,standard_age_groups$age_low)[truthvals]]
 rsv_age_groups$value=popul_custom_agegroups*scaling_fact
-rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_high,sep='-'); rsv_age_groups
+rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_low+rsv_age_groups$duration,sep='-'); rsv_age_groups
 }
 
 # process output
@@ -184,11 +189,11 @@ list(df_ode_solution,df_ode_solution_tidy) }
 
 # create reduced contact matrix
 fun_create_red_C_m=function(C_m_full,rsv_age_groups){
+  C_m=matrix(0,nrow=nrow(rsv_age_groups),ncol=nrow(rsv_age_groups))
   for (i_row in 1:n_age){   for (j_col in 1:n_age){
   C_m[i_row,j_col]=mean(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row],
                                  rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]])   } }
-  C_m
-}
+  C_m }
 
 # seasonal forcing term ------------------
 fun_seas_forc=function(timesteps,peak_day,st_dev_season,basal_rate){
