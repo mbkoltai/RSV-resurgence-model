@@ -9,3 +9,4 @@ toymodel_rcpp/
 *.odg
 .odg#
 *.RDS
+contact_matrix.R

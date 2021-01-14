@@ -1,16 +1,13 @@
 # install.packages("devtools"); library("devtools")
 # install_github("SineadMorris/shinySIR")
 
-# install.packages("deSolve"); install.packages('odin')
-library(tidyverse) # library(reshape2) # library(dplyr); library(readr); library(stringr); library(ggplot2); 
 # ode solving, maximum likelihood, rcpp
-library(deSolve); library(bbmle); library(Rcpp); library(gtools) # library(GillespieSSA)
-library(rstudioapi); # library(fitdistrplus)
 # contact data from https://bisaloo.github.io/contactdata/index.html (Prem 2017)
-library(contactdata); library(wpp2019)
+# library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
+lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp"), library, character.only=TRUE)
 # functions
-rm(list=ls()); source('RSV_model_functions.R')
-currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
+rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
+source('RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Set up SIRS ODE model --------------------------------------------------------
 # see description in "RSV_model_functions.R"
@@ -24,7 +21,7 @@ sirs_seasonal_forc <- function(t,X,parms){
   lambda_vect=diag(forcing_vector[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
-  dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
+  dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
 
 # SET PARAMETERS --------------------------------------------------------
 # selected country
@@ -49,13 +46,17 @@ l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_i
 # random values: C_m_vals=rnorm(n_age^2,1,0.2); C_m=fun_symm_contmatr(C_m_vals,n_age)
 # contact matrix from covidm ("home","work","school","other")
 cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
-cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; setwd(cm_path); source(file.path(cm_path,"R","covidm.R"))
-covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)
-C_m_full=Reduce('+',covid_params$pop[[1]]$matrices)
+list_contmatrs=fun_covidm_contactmatrix(country_sel="Germany",currentdir_path=currentdir_path,cm_path=cm_path)
+C_m_full=Reduce('+',list_contmatrs)
+# make matrix symmetric
+C_m_fullrecipr=fun_recipr_contmatr(C_m_full,age_group_sizes=standard_age_groups$values)
 # create for our age groups
-C_m=fun_create_red_C_m(C_m_full,rsv_age_groups)
+C_m=fun_create_red_C_m(C_m_fullrecipr,rsv_age_groups,
+                orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
+# make it reciprocal for the larger group
+C_m=fun_recipr_contmatr(C_m,age_group_sizes=rsv_age_groups$value)
 # bc of reinfections we need to input contact matrix repeatedly
-contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,])%*%matrix(1,n_age,n_inf)})))
+contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))
 
 # build kinetic matrix --------------------------------------------------------
 # WANING (immunity) terms: R_i_j -> S_min(i+1,n_inf)_j
@@ -65,9 +66,18 @@ rho=1/7; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
 # SUSCEPTIBILITY # rbeta(35.583,11.417)~0.75; B(22.829,3.171)~0.9; B(6.117,12.882)~0.32
-# NORMALIZE by entire population!!!
-agedep_fact=1; delta_primary=c(0.5,0.25,0.125); delta_susc=sapply(1:n_age, function(x) {delta_primary/(agedep_fact^x * rsv_age_groups$value[x])})
+# NORMALIZE by age group sizes (this is for the infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
+# agedep_fact determines strength of age dependence, if agedep_fact>1, decreasing susceptibility with age
+agedep_fact=1; delta_primary=c(0.5,0.25,0.125)
+delta_susc=sapply(1:n_age, function(x) {delta_primary/((agedep_fact^x)*rsv_age_groups$value[x])})
 delta_susc_prop=delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T)
+### PLOT susceptibility ~ f(age,exposure)
+suscept_agedep=fcn_suscept_agedeptable(rsv_age_groups,delta_susc,n_inf)
+ggplot(suscept_agedep,aes(x=agegroup,y=value,group=name,color=name)) + geom_line(size=2) + theme_bw() + standard_theme +
+  xlab("age group (years)") + ylab("susceptibility") + ggtitle('susceptibility ~ f(age,#infection')
+# if (length(unique(round(suscept_agedep$value,6)))==3){dep_tag="expos_dep"}else{dep_tag="age_expos_dep"}
+# ggsave(paste0("simul_output/suscept_",dep_tag,".png"),width=32,height=22,units="cm")
+#
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 birth_rate=2130; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
 ####
@@ -79,25 +89,17 @@ start_week=49; forcing_vector=fun_seas_forc(timesteps,peak_day=start_week*7,st_d
 shutdown_start_week=7*52+(start_week-4); shutdown_stop_week=shutdown_start_week+12; shutdown_scale=0.1; n_prec=0.001
 shutdown_list=fun_shutdown_seasforc(shutdown_start_week,shutdown_stop_week,shutdown_scale,forcing_vector,
                                       elem_time_step,basal_rate=0.02,n_prec)
-forcing_vector=shutdown_list[[1]]; shutdown_limits=shutdown_list[[2]] # matplot(timesteps,forcing_vector,type="l")
+forcing_vector=shutdown_list[[1]]; shutdown_limits=shutdown_list[[2]] #matplot(timesteps/365,forcing_vector,type="l"); axis(1,at=0:10)
 # INITIAL CONDITIONS
 # introduce stationary state as init state?
 initvals_sirs_model=matrix(0,dim_sys,1); stationary_init=FALSE
-if (stationary_init){# statsol=readRDS("simul_output/statsol_100years.RDS") # as.numeric(statsol[2:length(statsol)])
-  initvals_sirs_model[,1]=round(as.numeric(df_ode_solution[nrow(df_ode_solution),2:ncol(df_ode_solution)]))} else {
-# entire popul into susceptibles
+if (stationary_init){
+  # statsol=readRDS("simul_output/statsol_100years.RDS") # as.numeric(statsol[2:length(statsol)])
+  initvals_sirs_model[,1]=round(as.numeric(df_ode_solution[nrow(df_ode_solution),2:ncol(df_ode_solution)])) } else {
+# at t=0 entire popul into susceptibles
   initvals_sirs_model[sapply(susc_vars_inds,"[[",1)]=rsv_age_groups$value }
 # INITIAL INFECTION 
-initvals_sirs_model[inf_vars_inds[[1]][1]]=1 # all first infection groups: sapply(inf_vars_inds, '[[',1)
-
-### susceptibility as fcn of age and exposure
-suscept_agedep=data.frame(agegroup=factor(rsv_age_groups$agegroup_name,levels=unique(rsv_age_groups$agegroup_name)),
-                          t(delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T))) %>% pivot_longer(!agegroup)
-suscept_agedep$name=gsub("X","infection #",suscept_agedep$name)
-ggplot(suscept_agedep,aes(x=agegroup,y=value,group=name,color=name)) + geom_line(size=2) + theme_bw() + standard_theme +
-  xlab("age group (years)") + ylab("susceptibility")
-if (length(unique(round(suscept_agedep$value,6)))==3){dep_tag="expos_dep"}else{dep_tag="age_expos_dep"}
-ggsave(paste0("simul_output/suscept_",dep_tag,".png"),width=32,height=22,units="cm")
+initvals_sirs_model[inf_vars_inds[[1]][1]]=10 # all first infection groups: sapply(inf_vars_inds, '[[',1)
 
 ### integrate ODE --------------------------------------------------------
 # deSolve input
@@ -107,58 +109,44 @@ ptm<-proc.time(); ode_solution<-lsoda(initvals_sirs_model,timesteps,func=sirs_se
 list_simul_output=fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups)
 df_ode_solution=list_simul_output[[1]]; df_ode_solution_tidy=list_simul_output[[2]]; rm(list_simul_output)
 ####
-# initial vs final popul sizes: fun_agegroup_init_final_pop(df_ode_solution_tidy)
-# PLOT how age group totals change
-scale_val=c('free_y','fixed')[2]; ggplot(df_ode_solution_tidy %>% group_by(t_years,agegroup_name) %>% summarise(agegroup_total=sum(value)),
-  aes(x=t_years,y=agegroup_total,group=agegroup_name)) + geom_line() + facet_wrap(~agegroup_name,scales=scale_val) +
-  scale_y_log10() + theme_bw() + standard_theme + xlab("year") + ylab("million popul")
-# save
-ggsave(paste("simul_output/agegroup_totals_",scale_val,"yscale.png",sep=""),width=28,height=16,units="cm")
+# PLOT how age group totals change (initial vs final popul sizes: fun_agegroup_init_final_pop(df_ode_solution_tidy))
+scale_val=c('free_y','fixed')[2]; fcn_plotagegroup_totals(df_ode_solution_tidy,scale_val)
+# ggsave(paste("simul_output/agegroup_totals_",scale_val,"yscale.png",sep=""),width=28,height=16,units="cm")
 ####
 # Plot time course --------------------------------------------------------
-df_ode_solution_tidy$agegroup_name=factor(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr"),
-                                          levels=unique(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr")))
-df_ode_solution_tidy$infection=paste0("infection #",df_ode_solution_tidy$infection)
-xval_lims=c(floor(shutdown_limits/365)[1]-0.25,ceiling(shutdown_limits/365)[2]+0.15); xval_breaks=seq(0,max_time/365,by=1/4); agegr_lim=7
-vars_to_show=grepl('I_',df_ode_solution_tidy$name)&(df_ode_solution_tidy$t_years>xval_lims[1]&df_ode_solution_tidy$t_years<xval_lims[2])&
-  df_ode_solution_tidy$agegroup<=agegr_lim
-# y axis fixed? | facet by AGE only or age+INFECTION? | abs values or fraction?
-# all permutations
-all_perms=permutations(n=2,r=3,repeats.allowed=T) 
-for (k in 1:nrow(all_perms)) {
-scale_val=c('fixed','free_y')[all_perms[k,1]]; facet2tag=c('','infection')[all_perms[k,2]]
-value_type=c("value","value_fract")[all_perms[k,3]]
-if (grepl("fract",value_type)){y_axis_tag='fraction'} else {y_axis_tag="# cases"}; if (nchar(facet2tag)){nrow_val=6} else{nrow_val=3}
-if (nchar(facet2tag)>0) {height_div=1} else{height_div=2}
+xval_lims=c(floor(shutdown_limits/365)[1]-0.15,ceiling(shutdown_limits/365)[2]+0.15); xval_breaks=seq(0,max_time/365,by=1/4)
+agegr_lim=7
+plot_df_ode_sol=subset(df_ode_solution_tidy,grepl('I',name) & agegroup<=agegr_lim & (t_years>xval_lims[1] & t_years<xval_lims[2]))
+for (k in 1:(2^3)) {
+# tags: y-axis fixed/free | facet by AGE/(age&INFECTION) | abs values/fraction (all_perms=permutations(n=2,r=3,repeats.allowed=T))
+  g(scale_val,facet2tag,value_type,y_axis_tag,nrow_val,height_div,facet_formula) %=% fun_tcourse_plottags(k,nval=2,rval=3)
 # PLOT
-ggplot(df_ode_solution_tidy[vars_to_show,],aes_string(x="t_years",y=value_type,group="name",color="infection")) + #,linetype="infection"
+ggplot(plot_df_ode_sol,aes_string(x="t_years",y=value_type,group="name",color="infection")) +
   geom_line(size=1.05) + theme_bw() + standard_theme + theme(axis.text.x=element_text(size=7),axis.text.y=element_text(size=6)) + 
-  facet_wrap(as.formula(paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep='')),sep='')),
-             ncol=round(agegr_lim/height_div),scales=scale_val) + # ~agegroup_name
+  facet_wrap(as.formula(facet_formula),ncol=round(agegr_lim/as.numeric(height_div)),scales=scale_val) + 
   scale_x_continuous(breaks=xval_breaks,minor_breaks=seq(0,max_time/365,by=1/12)) + ## shutdown:
   geom_rect(aes(xmin=shutdown_limits[1]/365,xmax=shutdown_limits[2]/365,ymin=0,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
-  xlab('years') + ylab(y_axis_tag) + ggtitle('RSV infections by age group (SIRS simulation)')
+  xlab('years') + ylab(y_axis_tag) + ggtitle('RSV infections by age group (SIRS simulation)') # + xlim(c(0,5))
 ## SAVE
 if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"}else{foldername="suscept_agedep"}
 timecourse_filename=fun_create_filename(paste0("simul_output/",foldername),facet2tag,value_type,n_age,gsub("_y","",scale_val),"png")
-ggsave(timecourse_filename,width=30,height=18,units="cm")}
+ggsave(timecourse_filename,width=30,height=18,units="cm")
+}
 
 ### map infections to symptomatic cases -----------------------------------
 prop_symptom=1-c(mean(rbeta(1e3,shape1=3,shape2=30)),mean(rbeta(1e3,shape1=9,shape2=43)),mean(rbeta(1e3,shape1=38,shape2=35)),
                 mean(rbeta(1e3,shape1=36,shape2=11))) # prop_symptom_age=cbind(c(0,1,5,15),c(0.9,4.9,14.9,99),prop_symptom_age); 
 list_symptom_agegroups=list(1:2,3:7,8:9,10:11); 
-# AGE DEPENDENT or not?
-sever_agedep=1
-for (k in 1:3){ a=data.frame(t(rbind(unlist(list_symptom_agegroups),
-      unlist(sapply(1:length(list_symptom_agegroups), function(x){rep(x,length(list_symptom_agegroups[[x]]))})),
-      prop_symptom[unlist(sapply(1:length(list_symptom_agegroups), function(x){rep(x,length(list_symptom_agegroups[[x]]))}))]*(1/k^sever_agedep) )),
-      infection=paste0("infection #",as.character(k)) ); if (k==1){df_symptom_prop=a} else{df_symptom_prop=rbind(df_symptom_prop,a)} }
-colnames(df_symptom_prop)[1:3]=c("agegroup","sympt_group","sympt_value")
+# EXPOSURE DEPENDENT or not?
+expos_agedep=1 # expos_agedep=0: no dependence on exposure. if 0<expos_agedep<1:sublinear dependence, expos_agedep=1: linear depend
+df_symptom_prop=fun_propsymptom_table(list_symptom_agegroups,expos_dep_val=expos_agedep,rsv_age_groups$agegroup_name,n_inf=3)
+# plot clinical fraction as fcn of age and #infection
+# ggplot(df_symptom_prop,aes(x=agegroup_name,y=sympt_value,color=factor(n_inf),linetype=factor(n_inf),group=n_inf)) + geom_line(size=1.25) + 
+#   theme_bw() + standard_theme + labs(color="# infection") + ylab("% symptomatic")
+# ggsave("simul_output/severity_age_noexp_depend.png",width=22,height=16,units="cm")
 # calculate symptom cases
-df_ode_solution_tidy_cases=left_join(df_ode_solution_tidy[grepl('I_',df_ode_solution_tidy$name),],df_symptom_prop,by=c("infection","agegroup"))
-df_ode_solution_tidy_cases[,"symptom_cases"]=df_ode_solution_tidy_cases$value*df_ode_solution_tidy_cases$sympt_value
-df_ode_solution_tidy_cases[,"symptom_cases_fract"]=df_ode_solution_tidy_cases$value_fract*df_ode_solution_tidy_cases$sympt_value
-# plot sum of 1,2,3rd infections
+df_ode_solution_tidy_cases=fun_symptom_table(df_ode_solution_tidy,df_symptom_prop,bindcolnames=c("infection","agegroup"))
+# sum of 1,2,3rd infections
 df_ode_solution_tidy_cases_sum=df_ode_solution_tidy_cases %>% group_by(t_years,compartment,agegroup,agegroup_name) %>% 
   summarise(symptom_cases=sum(symptom_cases),symptom_cases_fract=sum(symptom_cases_fract))
 # time window of plot
@@ -172,7 +160,8 @@ ggplot(df_ode_solution_tidy_cases_sum[vars_to_show,],aes(x=t_years,y=symptom_cas
   facet_wrap(~agegroup_name,scales=scale_val) + # df_ode_solution_tidy_cases$agegroup
   scale_x_continuous(breaks=xval_breaks,minor_breaks=seq(0,max_time/365,by=1/12)) + scale_y_continuous(breaks=(0:10)/10) + 
   geom_rect(aes(xmin=shutdown_limits[1]/365,xmax=shutdown_limits[2]/365,ymin=0,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
-  xlab('years') + ylab(y_axis_tag) + ggtitle('symptomatic cases by age group (age-structured SIRS model)') + theme(legend.position='none')
+  xlab('years') + ylab(y_axis_tag) + ggtitle('symptomatic cases by age group (age-structured SIRS model)') + 
+  theme(legend.position='none')
 # SAVE
 symptvals=length(unique(df_symptom_prop[,c("sympt_value")])); symptagegrval=length(unique(df_symptom_prop[,c("sympt_group")]))
 if (symptvals>symptagegrval){dep_tag="_ageexpdep"}else{dep_tag="_agedep_only"}

@@ -116,14 +116,14 @@ sirs_template <- function(t,X,parms){
 
 # age structure of country --------------
 fun_cntr_agestr=function(i_cntr,i_year,age_low_vals,age_high_vals){
-  age_groups=data.table(age_low=seq(0,75,5), age_high=c(seq(4,74,5),100))
+  age_groups=data.frame(age_low=seq(0,75,5), age_high=c(seq(4,74,5),100))
   if (!any((.packages()) %in% "wpp2019")) {library(wpp2019)}; if (!exists("popF")) {data("pop")}
   cntr_agestr=data.frame(agegroups=popF[popF$name %in% i_cntr,"age"],values=popF[popF$name %in% i_cntr,i_year] +
                            popM[popM$name %in% i_cntr,i_year])
   agegr_truthvals=sapply(strsplit(as.character(cntr_agestr$agegroups),"-"),"[[",1) %in% age_groups$age_low
   N_tot=cntr_agestr$values[agegr_truthvals]
   N_tot[length(N_tot)]=N_tot[length(N_tot)]+sum(cntr_agestr$values[!agegr_truthvals]); N_tot=N_tot*1e3; # N_tot
-  data.table(age_low=age_low_vals, age_high=age_high_vals,values=N_tot, duration=(age_high_vals-age_low_vals)+1)
+  data.frame(age_low=age_low_vals, age_high=age_high_vals,values=N_tot, duration=(age_high_vals-age_low_vals)+1)
 }
 
 # create inf and susc vars indices --------------
@@ -139,36 +139,79 @@ list(inf_vars_inds,susc_vars_inds)
 # functn call covidm contact matrix --------------
 fun_covidm_contactmatrix <- function(country_sel,currentdir_path,cm_path){if (!exists("covid_params")){
   cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; setwd(cm_path); source(file.path(cm_path,"R","covidm.R"))
-  covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)} # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
+  covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)} 
+  # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
 #  "home"   "work"   "school" "other" 
 covid_params$pop[[1]]$matrices}
 
-# funcn create symmetric matrix  --------------
-fun_symm_contmatr<-function(C_m_vals,n_age){
-# C_m_vals=rnorm(n_age^2,1,0.2); 
-if (sum(C_m_vals<0)>0){C_m_vals[C_m_vals<0]=abs(C_m_vals[C_m_vals<0])}; C_m=matrix(C_m_vals,n_age,n_age)
-C_m[lower.tri(C_m)]<-0; z<-matrix(0,n_age,n_age); z[upper.tri(z)]<-C_m[upper.tri(C_m)]; z<-t(z); C_m[lower.tri(C_m)]<-z[lower.tri(z)]
-C_m}
+# funcn create reciprocal matrix  --------------
+fun_recipr_contmatr<-function(C_m_full,age_group_sizes){
+  all_perms=permutations(n=nrow(C_m_full),r=2,repeats.allowed=T); N_tot=sum(age_group_sizes)
+  C_m_full_symm=matrix(0,nrow=nrow(C_m_full),ncol=nrow(C_m_full))
+  for (k in 1:nrow(all_perms)) { 
+    i=all_perms[k,1]; j=all_perms[k,2]
+    C_m_full_symm[i,j]=(C_m_full[i,j] + C_m_full[j,i]*(age_group_sizes[j]/age_group_sizes[i]))/2
+  }
+  colnames(C_m_full_symm)=colnames(C_m_full); rownames(C_m_full_symm)=rownames(C_m_full) 
+  C_m_full_symm
+}
 
-### fcn RSV age groups  --------------
+# create reduced contact matrix --------------
+fun_create_red_C_m=function(C_m_full,rsv_age_groups,orig_age_groups_duration,orig_age_groups_sizes){
+  C_m=matrix(0,nrow=nrow(rsv_age_groups),ncol=nrow(rsv_age_groups)); rownames(C_m)=rsv_age_groups$agegroup_name
+  colnames(C_m)=rsv_age_groups$agegroup_name
+  for (i_row in 1:n_age){
+    for (j_col in 1:n_age){
+      # we are merging or splitting age groups, there are 3 possibilities for a new age group:
+      # same OR smaller than (ST) OR larger than (LT) the original
+      # (it is an *average* of contacts per person, and we have no resolution within age bands)
+      #
+      # if the 'i' group (C[i,j]) is the *same* as original or *smaller*, this (in itself) does not change the contact rate
+      if (rsv_age_groups$wpp_agegroup_low[i_row]==rsv_age_groups$wpp_agegroup_high[i_row]) {
+        # 'j' group same or smaller as original
+        if (rsv_age_groups$wpp_agegroup_low[j_col]==rsv_age_groups$wpp_agegroup_high[j_col]) {
+            f_dur=rsv_age_groups$duration[j_col]/orig_age_groups_duration[rsv_age_groups$wpp_agegroup_high[j_col]]
+            C_m[i_row,j_col]=(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row],rsv_age_groups$wpp_agegroup_low[j_col]])*f_dur
+        } else { # if 'j' is larger than original group
+          group_span=rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]
+          agegroup_weights=orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span])
+          C_m[i_row,j_col]=sum(agegroup_weights*C_m_full[i_row,group_span])
+        } # end of 'i' smaller or same as original
+      } else { # if 'i' in C[i,j] is a bigger age band -> weighted average of the contact rates of constituent groups
+        group_span=rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row]
+        agegroup_weights=orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span])
+        # if 'j' is same/smaller -> contact rate with original group proportionally divided
+        if (rsv_age_groups$wpp_agegroup_low[j_col]==rsv_age_groups$wpp_agegroup_high[j_col]) {
+          f_dur=rsv_age_groups$duration[j_col]/orig_age_groups_duration[rsv_age_groups$wpp_agegroup_high[j_col]]
+  C_m[i_row,j_col]=sum((orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span]))*C_m_full[group_span,j_col])*f_dur
+        } else {# if 'j' larger -> weighted average of the contact rates of the constituent groups
+          C_m[i_row,j_col]=sum(rep(agegroup_weights,length(agegroup_weights))*unlist(
+            lapply(group_span,function(x) {agegroup_weights*C_m_full[x,group_span]})))
+        }
+      }
+      # C_m[i_row,j_col]=mean(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row],
+      #                                rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]])   
+    } }
+  C_m }
+
+### fcn RSV age groups --------------
 fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group_sizes){
-rsv_age_groups=data.table(age_low=rsv_age_groups_low,age_high=rsv_age_groups_low+rsv_age_group_sizes)
-truthvals=which(match(rsv_age_groups$age_low,standard_age_groups$age_low)==match(rsv_age_groups$age_high,standard_age_groups$age_high))
-rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=NA
-rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=data.frame(t(sapply(1:length(rsv_age_groups_low), function(x) 
-{c(max(which(rsv_age_groups_low[x]>=standard_age_groups$age_low)),
+  rsv_age_groups=data.frame(age_low=rsv_age_groups_low,age_high=rsv_age_groups_low+rsv_age_group_sizes)
+  truthvals=which(match(rsv_age_groups$age_low,standard_age_groups$age_low)==match(rsv_age_groups$age_high,standard_age_groups$age_high))
+  rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=NA
+  rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=data.frame(t(sapply(1:length(rsv_age_groups_low), function(x) 
+  {c(max(which(rsv_age_groups_low[x]>=standard_age_groups$age_low)),
    max(which(rsv_age_groups_low[x]+rsv_age_group_sizes[x]>=standard_age_groups$age_low)))})))
-agelim_diffs=rsv_age_groups$age_high-rsv_age_groups$age_low; agelim_diffs_increm=rep(NA,length(agelim_diffs))
-agelim_diffs_increm[agelim_diffs %% 1==0]=1; agelim_diffs_increm[agelim_diffs %% 1>0]=0.1 
-rsv_age_groups[,"duration"]=(rsv_age_groups$age_high-rsv_age_groups$age_low) + agelim_diffs_increm
-scaling_fact=rsv_age_groups$duration/sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$duration[
-  rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
-popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$values[
-  rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
-rsv_age_groups[,"value"]=NA
+  agelim_diffs=rsv_age_groups$age_high-rsv_age_groups$age_low; agelim_diffs_increm=rep(NA,length(agelim_diffs))
+  agelim_diffs_increm[agelim_diffs %% 1==0]=1; agelim_diffs_increm[agelim_diffs %% 1>0]=0.1 
+  rsv_age_groups[,"duration"]=(rsv_age_groups$age_high-rsv_age_groups$age_low) + agelim_diffs_increm
+  scaling_fact=rsv_age_groups$duration/sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$duration[
+    rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
+  popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$values[
+    rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])}); rsv_age_groups[,"value"]=NA
 # rsv_age_groups$value[truthvals]=standard_age_groups$value[match(rsv_age_groups$age_low,standard_age_groups$age_low)[truthvals]]
-rsv_age_groups$value=popul_custom_agegroups*scaling_fact
-rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_low+rsv_age_groups$duration,sep='-'); rsv_age_groups
+  rsv_age_groups$value=popul_custom_agegroups*scaling_fact
+  rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_low+rsv_age_groups$duration,sep='-'); rsv_age_groups
 }
 
 # process output
@@ -184,16 +227,13 @@ finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==max(t)) %>% 
 df_ode_solution_tidy[,"value_fract"]=df_ode_solution_tidy$value/finalvals$agegroup_sum_popul[df_ode_solution_tidy$agegroup]
 df_ode_solution_tidy[,"t_years"]=df_ode_solution_tidy$t/365
 df_ode_solution_tidy[,"agegroup_name"]=rsv_age_groups$agegroup_name[df_ode_solution_tidy$agegroup]
-df_ode_solution_tidy$agegroup_name=factor(df_ode_solution_tidy$agegroup_name,levels=unique(df_ode_solution_tidy$agegroup_name))
-list(df_ode_solution,df_ode_solution_tidy) }
+df_ode_solution_tidy$agegroup_name=factor(df_ode_solution_tidy$agegroup_name,
+                                          levels=unique(df_ode_solution_tidy$agegroup_name))
+df_ode_solution_tidy$agegroup_name=factor(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr"),
+                                          levels=unique(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr")))
+df_ode_solution_tidy$infection=paste0("infection #",df_ode_solution_tidy$infection)
 
-# create reduced contact matrix
-fun_create_red_C_m=function(C_m_full,rsv_age_groups){
-  C_m=matrix(0,nrow=nrow(rsv_age_groups),ncol=nrow(rsv_age_groups))
-  for (i_row in 1:n_age){   for (j_col in 1:n_age){
-  C_m[i_row,j_col]=mean(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row],
-                                 rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]])   } }
-  C_m }
+list(df_ode_solution,df_ode_solution_tidy) }
 
 # seasonal forcing term ------------------
 fun_seas_forc=function(timesteps,peak_day,st_dev_season,basal_rate){
@@ -218,6 +258,60 @@ df_initial_final_totals=df_initial_final_totals[,c(1,2,4)]; colnames(df_initial_
 df_initial_final_totals[,"fract_final_init"]=df_initial_final_totals$final_pop/df_initial_final_totals$initial_pop
 df_initial_final_totals }
 
+### create symptom fract table ----------------------
+fun_propsymptom_table <- function(list_symptom_agegroups,expos_dep_val,agegroupname,n_inf){
+for (k in 1:n_inf){
+  a=data.frame(t(rbind(unlist(list_symptom_agegroups),
+          unlist(sapply(1:length(list_symptom_agegroups), function(x){rep(x,length(list_symptom_agegroups[[x]]))})),
+          prop_symptom[unlist(sapply(1:length(list_symptom_agegroups), 
+          function(x){rep(x,length(list_symptom_agegroups[[x]]))}))]*(1/(k^expos_agedep)) )),
+          infection=paste0("infection #",as.character(k)), n_inf=k )
+if (k==1){df_symptom_prop=a} else{df_symptom_prop=rbind(df_symptom_prop,a)} 
+}
+colnames(df_symptom_prop)[1:n_inf]=c("agegroup","sympt_group","sympt_value"); 
+df_symptom_prop[,"agegroup_name"]=factor(agegroupname[df_symptom_prop$agegroup],levels=agegroupname)
+df_symptom_prop
+}
+
+### fcn plot agegroup total populs ----------------------
+fcn_suscept_agedeptable <- function(rsv_age_groups,delta_susc,n_inf){
+suscept_agedep=data.frame(agegroup=factor(rsv_age_groups$agegroup_name,levels=unique(rsv_age_groups$agegroup_name)),
+                          t(delta_susc*matrix(rep(rsv_age_groups$value,n_inf),nrow=n_inf,byrow=T))) %>% pivot_longer(!agegroup)
+suscept_agedep$name=gsub("X","infection #",suscept_agedep$name); suscept_agedep
+}
+
+### fcn plot agegroup total populs ----------------------
+fcn_plotagegroup_totals <- function(df_ode_solution_tidy,scale_val){
+  ggplot(df_ode_solution_tidy %>% group_by(t_years,agegroup_name) %>% summarise(agegroup_total=sum(value)),
+       aes(x=t_years,y=agegroup_total,group=agegroup_name)) + geom_line() + facet_wrap(~agegroup_name,scales=scale_val) +
+  scale_y_log10() + theme_bw() + standard_theme + xlab("year") + ylab("million popul")
+}
+
+### fun timecourse plot tags ----------------------
+fun_tcourse_plottags <- function(k,nval,rval){
+all_perms=permutations(n=nval,r=rval,repeats.allowed=T)
+g(k1,k2,k3) %=% all_perms[k,] # assign multiple variables
+scale_val=c('fixed','free_y')[k1]; facet2tag=c('','infection')[k2]; value_type=c("value","value_fract")[k3]
+# set tags for filename
+if (grepl("fract",value_type)){y_axis_tag='fraction'} else {y_axis_tag="# cases"}
+if (nchar(facet2tag)){nrow_val=6} else{nrow_val=3}; if (nchar(facet2tag)>0) {height_div=1} else{height_div=2}
+facet_formula=paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep='')),sep='')
+c(scale_val,facet2tag,value_type,y_axis_tag,nrow_val,height_div,facet_formula)
+}
+
+## create table of symptomatic cases ----------------------
+fun_symptomcases_table <- function(df_ode_solution_tidy,df_symptom_prop,bindcolnames){
+  # bindcolnames=c("infection","agegroup")
+  df_ode_solution_tidy_cases=left_join(df_ode_solution_tidy[grepl('I_',df_ode_solution_tidy$name),],
+                                     df_symptom_prop,by=bindcolnames)
+df_ode_solution_tidy_cases[,"symptom_cases"]=df_ode_solution_tidy_cases$value*df_ode_solution_tidy_cases$sympt_value
+df_ode_solution_tidy_cases[,"symptom_cases_fract"]=df_ode_solution_tidy_cases$value_fract*df_ode_solution_tidy_cases$sympt_value
+# plot sum of 1,2,3rd infections
+# df_ode_solution_tidy_cases_sum=df_ode_solution_tidy_cases %>% group_by(t_years,compartment,agegroup,agegroup_name) %>% 
+#   summarise(symptom_cases=sum(symptom_cases),symptom_cases_fract=sum(symptom_cases_fract))
+df_ode_solution_tidy_cases
+}
+
 # create file name ----------------------
 fun_create_filename=function(foldername,facet2tag,value_type,n_age,scale_val,filetype){
 if (nchar(facet2tag)==0) {overlay_tag='_overlaid'} else {overlay_tag=''}
@@ -227,6 +321,7 @@ timecourse_filename
 }
 
 ### assign multiple variables -----------------
+# use as: g(a,b,c) %=% c(1,2,3)
 '%=%' = function(l, r, ...) UseMethod('%=%')
 # Binary Operator
 '%=%.lbunch' = function(l, r, ...) {
