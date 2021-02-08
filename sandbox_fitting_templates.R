@@ -1,4 +1,28 @@
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### single simulation with unchanging susceptibility --------------------------------------------------------
+n_years=15; max_time=n_years*n_days_year; timesteps <- seq(0,max_time,by=elem_time_step)
+# seasonal forcing
+basal_rate=0.3; R0_val=round(basal_rate*R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf),2)
+forcing_vector_npi=rep(basal_rate,length(timesteps))
+
+params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,forcing_vector_npi,elem_time_step,delta_susc)
+# SIMULATE
+ptm<-proc.time(); ode_solution<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); proc.time()-ptm
+# reshape data
+list_simul_output=fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups)
+df_ode_solution=list_simul_output[[1]]; df_ode_solution_tidy=list_simul_output[[2]]; rm(list_simul_output)
+# plot
+ggplot(subset(df_ode_solution_tidy,grepl('I',name)&agegroup<=agegr_lim ),
+       aes_string(x="t_years",y=value_type,group="name",color="infection")) + geom_line(size=1.025) + theme_bw() + standard_theme +
+  theme(axis.text.x=element_text(size=9,vjust=0.5),axis.text.y=element_text(size=9),legend.position="top",legend.title=element_blank()) +
+  facet_wrap(as.formula(facet_formula),ncol=as.numeric(ncol_val),scales=scale_val) + # scale_x_continuous(breaks=xval_breaks) +
+  ggtitle('RSV infections by age group') + xlab('years') + ylab(y_axis_tag) + labs(caption=paste0("R0=",R0_val)) + xlim(c(0,5))
+
+# save
+ggsave(paste0("simul_output/suscept_noagedep/RSV_DE_R0_",R0_val,"_longterm.png"), 
+       width=plot_x_y[1],height=plot_x_y[2],units="cm")
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # simple ODE fcn examples --------------------------------------------------------
 #
 # linear chain model: -->x1-->x2-->x3 flow, x2 accumulates bc its outflow parameter is small, its value exceeds x1

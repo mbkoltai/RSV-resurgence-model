@@ -23,22 +23,36 @@
 # rhs_odes=birth_term + F_vect + K_m%*%X_vars
 # sirs_seasonal_forc <- function(t,X,parms){ 
 #   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
-#   forcing_vector=parms[[6]]; elem_time_step=parms[[7]]; # event_vector=parms[[8]]
+#   forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; # event_vector=parms[[8]]
 #   # stack I vars
 #   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
 #   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
-#   lambda_vect=diag(forcing_vector[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+#   lambda_vect=diag(forcing_vector_npi[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
 #   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
 #   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
 #   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
 
 # set plotting theme
-standard_theme=theme(panel.grid=element_line(linetype="dashed",colour="black",size=0.1),
+standard_theme=theme(# panel.grid=element_line(linetype="solid",colour="black",size=0.1),
                      plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90),
                      axis.text.y=element_text(size=9),
                      axis.title=element_text(size=14), text=element_text(family="Calibri"))
 
-# generate linear index from 2-dim index (infection-age) ----------------------------------------------------------
+# Set up SIRS ODE model --------------------------------------------------------
+# see description in "RSV_model_functions.R"
+## with seasonal forcing
+sirs_seasonal_forc <- function(t,X,parms){
+  birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
+  forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; delta_susc=parms[[8]]
+  # stack I vars
+  inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
+  inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+  lambda_vect=diag(forcing_vector_npi[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+  infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
+  F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
+  dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
+
+# linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
   varnum=which(varname_list %in% varname); k=(j_age-1)*length(varname_list)*n_inf + (varnum-1)*n_inf + i_inf; k }
 
@@ -103,7 +117,20 @@ diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m)))
 K_m
 }
 
-# ode w/o seasonal forcing --------------
+### R0 calculation --------------
+R0_calc_SIRS <- function(C_m,delta_susc_prop,rho,n_inf) {
+  # po = parameters$pop[[population]];
+  # dIp = sum(po$dIp * seq(0, by = parameters$time_step, length.out = length(po$dIp)));
+  # dIs = sum(po$dIs * seq(0, by = parameters$time_step, length.out = length(po$dIs)));
+  # dIa = sum(po$dIa * seq(0, by = parameters$time_step, length.out = length(po$dIa)));
+  # cm = Reduce('+', mapply(function(c, m) c * m, po$contact, po$matrices, SIMPLIFY = F));
+  susc_matrs=lapply(1:n_inf, function(x) {matrix(rep(delta_susc_prop[x,],ncol(delta_susc_prop)),ncol = ncol(delta_susc_prop))})
+  # ngm = po$u * t(t(cm) * (    po$y * (po$fIp * dIp + po$fIs * dIs) + (1 - po$y) * po$fIa * dIa) )
+  ngm=Reduce('+',lapply(susc_matrs, function(x) {x* C_m}))*(1/rho)*(1/n_inf)
+  abs(eigen(ngm)$values[1])
+}
+
+### ode w/o seasonal forcing --------------
 sirs_template <- function(t,X,parms){
   birth_term=parms[[1]]; K_m=parms[[2]]; contmatr_rowvector=parms[[3]]; inf_vars_inds=parms[[4]]; susc_vars_inds=parms[[5]]
   # stack I vars
@@ -136,9 +163,17 @@ susc_vars_inds=lapply(1:n_age, function(x_age){ sapply(1:n_inf, function(x_inf){
 list(inf_vars_inds,susc_vars_inds)
 }
 
-# functn call covidm contact matrix --------------
+### get objects larger than 1M (memory) --------------
+fcn_objs_mem_use <- function(min_size){
+mem_use_df=round(data.frame(unlist(sapply(ls(envir=.GlobalEnv), function(n) object.size(get(n)), simplify = FALSE)))/1e6,1)
+colnames(mem_use_df)[1]<-"size (Mb)"; mem_use_df[,"objs"]=rownames(mem_use_df)
+mem_use_df<-mem_use_df[order(mem_use_df$size,decreasing=T),]; rownames(mem_use_df)<-c()
+mem_use_df[mem_use_df$size>min_size,c(2,1)]
+}
+
+### functn call covidm contact matrix --------------
 fun_covidm_contactmatrix <- function(country_sel,currentdir_path,cm_path){if (!exists("covid_params")){
-  cm_force_rebuild=F; cm_build_verbose=T; cm_version=2; setwd(cm_path); source(file.path(cm_path,"R","covidm.R"))
+  setwd(cm_path); cm_force_rebuild<<-F; cm_build_verbose<<-T; cm_version<<-2; source(file.path(cm_path,"R","covidm.R"))
   covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)} 
   # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
 #  "home"   "work"   "school" "other" 
@@ -214,16 +249,25 @@ fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group
   rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_low+rsv_age_groups$duration,sep='-'); rsv_age_groups
 }
 
-# process output
+### process simul output -----------------
 fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,rsv_age_groups){
 df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
+neg_thresh=-1e-3
+if (any(rowSums(df_ode_solution<neg_thresh)>0)){
+  print(paste0("negative values in ", sum(rowSums(df_ode_solution<neg_thresh)>0), " rows!"))
+  neg_rows=rowSums(df_ode_solution<neg_thresh)>0
+  df_ode_solution[neg_rows,!(colnames(df_ode_solution) %in% "t")]=NA
+}
 # df_ode_solution_nonzero=df_ode_solution[,colSums(df_ode_solution)>0]
-df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution)>0] %>% pivot_longer(!t) # ,id.vars='t')
+df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution,na.rm=T)>0] %>% pivot_longer(!t) # ,id.vars='t')
 df_ode_solution_tidy[c('compartment','infection','agegroup')]=
   sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$name),'_'),'[[',x)})
 df_ode_solution_tidy$compartment=factor(df_ode_solution_tidy$compartment,levels=varname_list)
 df_ode_solution_tidy$agegroup=as.numeric(df_ode_solution_tidy$agegroup)
-finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==max(t)) %>% summarise(agegroup_sum_popul=sum(value))
+finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==max(t)) %>% summarise(agegroup_sum_popul=sum(value)) #,na.rm = T
+if (any(is.na(finalvals$agegroup_sum_popul))) {
+  finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==0) %>% summarise(agegroup_sum_popul=sum(value))
+} # print(finalvals)
 df_ode_solution_tidy[,"value_fract"]=df_ode_solution_tidy$value/finalvals$agegroup_sum_popul[df_ode_solution_tidy$agegroup]
 df_ode_solution_tidy[,"t_years"]=df_ode_solution_tidy$t/365
 df_ode_solution_tidy[,"agegroup_name"]=rsv_age_groups$agegroup_name[df_ode_solution_tidy$agegroup]
@@ -235,19 +279,70 @@ df_ode_solution_tidy$infection=paste0("infection #",df_ode_solution_tidy$infecti
 
 list(df_ode_solution,df_ode_solution_tidy) }
 
-# seasonal forcing term ------------------
+### seasonal forcing term ------------------
 fun_seas_forc=function(timesteps,peak_day,st_dev_season,basal_rate){
 # peak_day=60; st_dev_season=27; basal_rate=0.1; 
 dist_from_peak=apply(data.frame( abs(timesteps %% 365-peak_day),365-peak_day+(timesteps %% 365) ),1,min)
-forcing_vector=basal_rate + exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
+forcing_vector=basal_rate + (1-basal_rate)*exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
 
 # shutdown term ----------------------
-fun_shutdown_seasforc=function(shutdown_start_week,shutdown_stop_week,shutdown_scale,forcing_vector,elem_time_step,basal_rate,n_prec){
-shutdown_timewindow=c(shutdown_start_week*7/elem_time_step,shutdown_stop_week*7/elem_time_step)
-start_repl=max(which(forcing_vector[1:shutdown_timewindow[1]]-basal_rate<n_prec))
-stop_repl=min(which(forcing_vector[shutdown_timewindow[2]:length(forcing_vector)]-basal_rate<n_prec))+shutdown_timewindow[2]
-forcing_vector[start_repl:stop_repl]=forcing_vector[start_repl:stop_repl]*shutdown_scale+basal_rate
-list(forcing_vector,timesteps[shutdown_timewindow])}
+fun_shutdown_seasforc=function(timesteps,elem_time_step,basal_rate,npi_year,peak_week,season_width, # shutdown_scale,
+                               preseas_npi_on,postseas_npi_on,n_prec,st_devs,n_sd){
+  # seasonal forcing without shutdown
+  seas_forcing=fun_seas_forc(timesteps,peak_day=peak_week*7,st_dev_season=season_width*7,basal_rate); max_time=max(timesteps)
+  # shutdown
+  seas_lims=lapply(st_devs, function(n) {lapply(0:(max_time/365),function(x){x+(peak_week+c(-n*season_width,n*season_width))/52})})
+  seas_lims=rbind(cbind(sd=st_devs[1],t(data.frame(seas_lims[[1]]))), cbind(sd=st_devs[2],t(data.frame(seas_lims[[2]]))))
+  rownames(seas_lims)=c(); colnames(seas_lims)[2:3]=c("on","off"); seas_lims=data.frame(seas_lims)
+  seas_lims[,"season"]=ceiling(seas_lims$on)
+  # forcing with NPI vector
+  forcing_vector_npi=seas_forcing
+  shutdown_start_week=seas_lims$on[seas_lims$season==(npi_year+1) & seas_lims$sd==n_sd]*52-preseas_npi_on 
+  # npi_year*52 + (peak_week-preseas_npi_on)
+  shutdown_stop_week=seas_lims$off[seas_lims$season==(npi_year+1) & seas_lims$sd==n_sd]*52+postseas_npi_on
+  shutdown_timewindow=c(shutdown_start_week*7/elem_time_step,shutdown_stop_week*7/elem_time_step)
+  # shutdown: flat
+  forcing_vector_npi[shutdown_timewindow[1]:shutdown_timewindow[2]]=seas_forcing[shutdown_timewindow[1]]
+  forcing_vector_npi[forcing_vector_npi>seas_forcing]=seas_forcing[forcing_vector_npi>seas_forcing]
+  # x_smooth=(shutdown_timewindow[2]):(corr_window_backtobasal+shutdown_timewindow[2]); y_to_smooth=forcing_vector_npi[x_smooth]
+  # smooth_output=spline(x_smooth,y_to_smooth,method="natural"); matplot(smooth_output$x,smooth_output$y,type='l')
+  # correct by interpol
+  # corr_window_max=min(which(seas_forcing[shutdown_timewindow[2]:length(seas_forcing)]<seas_forcing[shutdown_timewindow[1]]))
+  # corr_window_backtobasal=min(which(forcing_vector_npi[(shutdown_timewindow[2]):length(forcing_vector_npi)]<basal_rate*(1+n_prec)))
+  # interpol_vals=approx(c(forcing_vector_npi[shutdown_timewindow[2]],forcing_vector_npi[shutdown_timewindow[2]+corr_window_backtobasal]),
+  #                      n=corr_window_backtobasal+1)$y
+  # plot(forcing_vector_npi[(shutdown_timewindow[2]-5e2):((shutdown_timewindow[2]+corr_window_max)+1e2)],pch=1)
+  # forcing_vector_npi[shutdown_timewindow[2]:(shutdown_timewindow[2]+corr_window_max)]=seas_forcing[shutdown_timewindow[1]]
+  # forcing_vector_npi[shutdown_timewindow[2]:(shutdown_timewindow[2]+corr_window_backtobasal)]=interpol_vals
+  # first period should not be on-season
+  if (forcing_vector_npi[1]>basal_rate){onsetpoint=min(which(forcing_vector_npi<basal_rate*1.01))
+    forcing_vector_npi[1:onsetpoint]=forcing_vector_npi[onsetpoint]; seas_forcing[1:onsetpoint]=seas_forcing[onsetpoint]
+  }
+  list(forcing_vector_npi,timesteps[shutdown_timewindow],seas_forcing,seas_lims)
+}
+
+### plot seasonal forcing ----------------------
+fcn_plot_seas_forc <- function(timesteps,seas_force,forcing_vector_npi,shutdwn_lims,seas_lims){
+  ggplot(data.frame(time=timesteps/365,norm_seas=seas_force,seasforce_NPI=forcing_vector_npi),aes(x=time)) +
+    geom_line(aes(y=norm_seas),linetype="dashed",color="blue") + geom_line(aes(y=seasforce_NPI),color="red") + 
+    scale_x_continuous(limits=c(0.65,max(timesteps)/365-0.1),breaks=0:(4*ceiling(max(timesteps)/365))/4) +
+    theme_bw() + standard_theme + theme(# axis.title=element_text(size=8),
+                                        axis.text.x=element_text(vjust=0.5)) + ylab("seasonal forcing") + 
+    geom_vline(data=seas_lims,aes(xintercept=on),color="blue",linetype="dashed",size=0.3) + 
+    geom_vline(data=seas_lims,aes(xintercept=off),color="royalblue1",size=0.3,linetype="dashed") +
+    geom_rect(aes(xmin=shutdwn_lims[1]/365,xmax=shutdwn_lims[2]/365,ymin=0,ymax=Inf),fill="pink",color=NA,alpha=0.01)
+}
+
+### initial susceptible populs -----------------
+fcn_init_susc_vals<-function(stationary_init,from_file_or_output,simul_output,susc_vars_inds,agegr_sizes,sim_filepath){
+initvals_sirs_model=matrix(0,dim_sys,1); # stationary_init=FALSE
+if (stationary_init){
+  if (grepl("file",from_file_or_output)) {  initvals_sirs_model[,1]=readRDS(sim_filepath) } else {
+    initvals_sirs_model[,1]=round(as.numeric(simul_output[nrow(simul_output),2:ncol(simul_output)]))} } else {
+    # at t=0 entire popul into susceptibles
+initvals_sirs_model[sapply(susc_vars_inds,"[[",1)]=agegr_sizes } # rsv_age_groups$value
+initvals_sirs_model
+}
 
 # initial-final totals by age group ----------------------
 fun_agegroup_init_final_pop<-function(df_ode_solution_tidy){
@@ -258,13 +353,28 @@ df_initial_final_totals=df_initial_final_totals[,c(1,2,4)]; colnames(df_initial_
 df_initial_final_totals[,"fract_final_init"]=df_initial_final_totals$final_pop/df_initial_final_totals$initial_pop
 df_initial_final_totals }
 
+### age distrib for seasons ----------------------
+fcn_seas_agedistrib <- function(df_ode_sol_cases_sum,max_time,timesteps,seas_case_threshold){
+# AUC: AUC <- sum(diff(x[1:n])*rollmean(y[1:n],2))
+season_peaks_AUC=df_ode_sol_cases_sum %>% group_by(agegroup,agegroup_name,season) %>% 
+  summarise(max_case=max(symptom_cases),auc_case=sum(diff(t_years*365*(1/unique(diff(timesteps))))*rollmean(symptom_cases,2))) %>% 
+    group_by(season) %>% mutate(max_case_share_season=max_case/sum(max_case),auc_case_share_season=auc_case/sum(auc_case),
+    pre_post_shtdn=ifelse(season>=round(max(shutdwn_lims/365))+1, "post-NPI", "pre-NPI")) %>% 
+  group_by(season) %>% filter(any(max_case>seas_case_threshold))
+# add pre/npi/post
+  season_peaks_AUC$pre_post_shtdn[season_peaks_AUC$season==ceiling(max(shutdwn_lims/365))]="NPI"
+  season_peaks_AUC$pre_post_shtdn=factor(season_peaks_AUC$pre_post_shtdn,levels=c("pre-NPI","NPI","post-NPI"))
+  season_peaks_AUC$agegr_size=unlist(lapply(lapply(strsplit(gsub("yr","",gsub("age=","",season_peaks_AUC$agegroup_name)),"-"),as.numeric),diff))
+  season_peaks_AUC$mean_age=unlist(lapply(lapply(strsplit(gsub("yr","",gsub("age=","",season_peaks_AUC$agegroup_name)),"-"),as.numeric),mean))
+season_peaks_AUC}
+
 ### create symptom fract table ----------------------
 fun_propsymptom_table <- function(list_symptom_agegroups,expos_dep_val,agegroupname,n_inf){
 for (k in 1:n_inf){
   a=data.frame(t(rbind(unlist(list_symptom_agegroups),
           unlist(sapply(1:length(list_symptom_agegroups), function(x){rep(x,length(list_symptom_agegroups[[x]]))})),
           prop_symptom[unlist(sapply(1:length(list_symptom_agegroups), 
-          function(x){rep(x,length(list_symptom_agegroups[[x]]))}))]*(1/(k^expos_agedep)) )),
+          function(x){rep(x,length(list_symptom_agegroups[[x]]))}))]*(1/(k^expos_dep_val)) )),
           infection=paste0("infection #",as.character(k)), n_inf=k )
 if (k==1){df_symptom_prop=a} else{df_symptom_prop=rbind(df_symptom_prop,a)} 
 }
@@ -288,28 +398,69 @@ fcn_plotagegroup_totals <- function(df_ode_solution_tidy,scale_val){
 }
 
 ### fun timecourse plot tags ----------------------
-fun_tcourse_plottags <- function(k,nval,rval){
+fun_tcourse_plottags <- function(k,nval,rval,n_inf,n_age,colvar,agegr_lim,delta_susc_prop,delta_primary,
+                                 preseas_npi_on,postseas_npi_on,shutdown_scale,basal_rate){
+  # k,nval=2,rval=3,n_inf,agegr_lim,delta_susc_prop,delta_primary, preseas_npi_on,postseas_npi_on,shutdown_scale,basal_rate
 all_perms=permutations(n=nval,r=rval,repeats.allowed=T)
 g(k1,k2,k3) %=% all_perms[k,] # assign multiple variables
 scale_val=c('fixed','free_y')[k1]; facet2tag=c('','infection')[k2]; value_type=c("value","value_fract")[k3]
 # set tags for filename
 if (grepl("fract",value_type)){y_axis_tag='fraction'} else {y_axis_tag="# cases"}
-if (nchar(facet2tag)){nrow_val=6} else{nrow_val=3}; if (nchar(facet2tag)>0) {height_div=1} else{height_div=2}
-facet_formula=paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep='')),sep='')
-c(scale_val,facet2tag,value_type,y_axis_tag,nrow_val,height_div,facet_formula)
+# if (nchar(facet2tag)){nrow_val=6} else{nrow_val=3}; 
+if (nchar(facet2tag)>0) {height_div=1} else{height_div=2}
+# no. of cols
+if (grepl("age",colvar)){
+ncol_val=agegr_lim # round(agegr_lim/as.numeric(height_div))
+facet_formula=paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep='')),sep='')} else {
+  ncol_val=n_inf # round(agegr_lim/as.numeric(height_div))
+  facet_formula=paste('~',paste("agegroup_name+",gsub("^\\+","",facet2tag),sep=''),sep='') }
+if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"} else {
+  foldername="suscept_agedep"}
+# caption 
+caption_txt<-paste0('NPI (-',preseas_npi_on,',',postseas_npi_on,") weeks from CI95 season, ",
+       round(1e2*(1-shutdown_scale)),"% contact reduction, ",basal_rate*1e2,"% off-season activity")
+# filename
+timecourse_filename=fun_create_filename(paste0("simul_output/",foldername),facet2tag,value_type,
+                                        n_age,gsub("_y","",scale_val),"png")
+# add npi timing to filename
+timecourse_filename=gsub('.png',paste0('_npi',npi_year,'y_on',preseas_npi_on,"w_off",postseas_npi_on,
+                                       'w_basrate',basal_rate*1e2,'pct.png'),timecourse_filename)
+c(scale_val,facet2tag,value_type,y_axis_tag,ncol_val,facet_formula,foldername,caption_txt,timecourse_filename)
 }
 
 ## create table of symptomatic cases ----------------------
-fun_symptomcases_table <- function(df_ode_solution_tidy,df_symptom_prop,bindcolnames){
+fun_symptomcases_table <- function(df_ode_solution_tidy,df_symptom_prop,bindcolnames,n_sd){
   # bindcolnames=c("infection","agegroup")
   df_ode_solution_tidy_cases=left_join(df_ode_solution_tidy[grepl('I_',df_ode_solution_tidy$name),],
-                                     df_symptom_prop,by=bindcolnames)
+                                     df_symptom_prop[,!grepl("agegroup_name",colnames(df_symptom_prop))],by=bindcolnames)
 df_ode_solution_tidy_cases[,"symptom_cases"]=df_ode_solution_tidy_cases$value*df_ode_solution_tidy_cases$sympt_value
 df_ode_solution_tidy_cases[,"symptom_cases_fract"]=df_ode_solution_tidy_cases$value_fract*df_ode_solution_tidy_cases$sympt_value
+# df_ode_solution_tidy_cases
 # plot sum of 1,2,3rd infections
-# df_ode_solution_tidy_cases_sum=df_ode_solution_tidy_cases %>% group_by(t_years,compartment,agegroup,agegroup_name) %>% 
-#   summarise(symptom_cases=sum(symptom_cases),symptom_cases_fract=sum(symptom_cases_fract))
-df_ode_solution_tidy_cases
+df_ode_sol_cases_sum=df_ode_solution_tidy_cases %>% group_by(t_years,compartment,agegroup,agegroup_name) %>% 
+  summarise(symptom_cases=sum(symptom_cases),symptom_cases_fract=sum(symptom_cases_fract))
+df_ode_sol_cases_sum$season=findInterval(df_ode_sol_cases_sum$t_years,c(0,seas_lims$on[seas_lims$sd==n_sd]))
+df_ode_sol_cases_sum
+}
+
+### fun sumcase plot tags
+fun_sumcase_plot_tags<-function(n_val,r_val,k_plot,df_symptom_prop,preseas_npi_on,postseas_npi_on,shutdown_scale,basal_rate){
+  plot_perms=permutations(n=n_val,r=r_val,repeats.allowed=T)
+scale_val=c("free","fixed")[plot_perms[k_plot,1]]; plotvar=c("symptom_cases_fract","symptom_cases")[plot_perms[k_plot,2]]
+if (grepl("fract",c("symptom_cases_fract","symptom_cases")[plot_perms[k_plot,2]])){
+  y_axis_tag='fraction'} else {y_axis_tag="# cases"}
+symptvals=length(unique(df_symptom_prop[,c("sympt_value")])); symptagegrval=length(unique(df_symptom_prop[,c("sympt_group")]))
+if (symptvals>symptagegrval){dep_tag="_ageexpdep"}else{dep_tag="_agedep_only"}
+if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"}else{foldername="suscept_agedep"}
+full_filename=paste0("simul_output/",foldername,paste0("/symptomcases_sever",dep_tag),"/symptomcases_y",
+                     scale_val,'_',gsub("# cases","absval",y_axis_tag),".png")
+full_filename=gsub('.png',paste0('_npi',npi_year,'y_on',preseas_npi_on,"w_off",postseas_npi_on,'w_basrate',
+                                 basal_rate*1e2,'pct.png'),full_filename)
+# gsub('.png',paste0('_npi',npi_year,'y_week',preseas_npi_on,'.png'),full_filename)
+# 
+caption_txt=paste0('NPI (-',preseas_npi_on,',',postseas_npi_on,") weeks from CI95 season, ",
+       1e2-round(1e2*shutdown_scale),"% contact reduction, ",basal_rate*1e2,"% off-season activity")
+c(scale_val,y_axis_tag,plotvar,foldername,full_filename,caption_txt)
 }
 
 # create file name ----------------------
@@ -318,6 +469,19 @@ if (nchar(facet2tag)==0) {overlay_tag='_overlaid'} else {overlay_tag=''}
 if (grepl('fract',value_type)) {fract_abs="fractional"} else {fract_abs="absval"}
 timecourse_filename=paste0(foldername,"/RSV_DE_",paste0(n_age,'agegroups_'),fract_abs,'_y',scale_val,overlay_tag,".",filetype)
 timecourse_filename
+}
+
+### fcn age distrib plot tags -----------------
+fcn_agedistrib_plot_tags <- function(delta_susc_prop,delta_primary,plot_season_peaks,df_symptom_prop,
+                                     preseas_npi_on,postseas_npi_on,seas_case_threshold){
+if (length(unique(round(array(delta_susc_prop),5)))==length(delta_primary)){foldername="suscept_noagedep"} else {
+  foldername="suscept_agedep"}
+symptvals=length(unique(df_symptom_prop[,c("sympt_value")])); symptagegrval=length(unique(df_symptom_prop[,c("sympt_group")]))
+if (symptvals>symptagegrval){dep_tag="_ageexpdep"}else{dep_tag="_agedep_only"}
+agedistr_filename=paste0("simul_output/",foldername,"/age_distrib_sever",dep_tag,"_npi_on",preseas_npi_on,"w_off",
+                         postseas_npi_on,"w_basal",1e2*basal_rate,"pct.png") # _seasmincase,seas_case_threshold/1e3,"e3
+#,"_seas", paste0(unique(plot_season_peaks$season),collapse="_")
+agedistr_filename
 }
 
 ### assign multiple variables -----------------
