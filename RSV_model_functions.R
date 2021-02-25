@@ -41,13 +41,25 @@ standard_theme=theme(# panel.grid=element_line(linetype="solid",colour="black",s
 # Set up SIRS ODE model --------------------------------------------------------
 # see description in "RSV_model_functions.R"
 ## with seasonal forcing
-sirs_seasonal_forc <- function(t,X,parms){
+# sirs_seasonal_forc <- function(t,X,parms){
+#   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
+#   forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; delta_susc=parms[[8]]
+#   # stack I vars
+#   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
+#   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+#   lambda_vect=diag(forcing_vector_npi[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+#   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
+#   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
+#   dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
+
+## with seasonal forcing using interpolation
+sirs_seasonal_forc_interpol <- function(t,X,parms){
   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
   forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; delta_susc=parms[[8]]
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
-  lambda_vect=diag(forcing_vector_npi[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
+  lambda_vect=diag(approx_seas_forc(t)*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
   dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
@@ -250,9 +262,10 @@ fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group
 }
 
 ### process simul output -----------------
-fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,rsv_age_groups){
+fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,rsv_age_groups,neg_thresh){
 df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
-neg_thresh=-1e-3
+df_ode_solution = df_ode_solution[1:(nrow(df_ode_solution)-1),]
+# neg_thresh=-1e-3
 if (any(rowSums(df_ode_solution<neg_thresh)>0)){
   print(paste0("negative values in ", sum(rowSums(df_ode_solution<neg_thresh)>0), " rows!"))
   neg_rows=rowSums(df_ode_solution<neg_thresh)>0

@@ -115,7 +115,12 @@ sir_nll(logparams=log(par_initguess),data,N)/N
 # with true value
 sir_nll(logparams=log(params),data,N)/N
 
-####
+# plot
+ggplot(sq_err_llh) + # geom_point(aes(x=pois_err,y=sq_err)) + 
+  geom_point(aes(x=negbinom_err_size1,y=sq_err),color="blue") + geom_point(aes(x=negbinom_err_size10,y=sq_err),color="red") +  
+  geom_point(aes(x=negbinom_err_size100,y=sq_err),color="green") +
+  theme_bw() + standard_theme + scale_y_log10()
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # least-square fitting with Nelder-Mead ----------------------------------------------------
 # true values: params=c(1/60, 1.05,1/3)
 par_initguess=c(0.01,1,0.1); parnames=c('mu','beta','gamma')
@@ -134,8 +139,7 @@ fcn_extract_optimresults <- function(optim_proc,parnames){
 ####
 optim_outputs=fcn_extract_optimresults(optim_proc,parnames)
 # convergence process
-conv_proc=gsub("\\s+", " ",
-               optim_proc[(which(grepl('Stepsize|Exit',optim_proc))[1]+1):(which(grepl('Stepsize|Exit',optim_proc))[2]-1)])
+conv_proc=gsub("\\s+", " ",optim_proc[(which(grepl('Stepsize|Exit',optim_proc))[1]+1):(which(grepl('Stepsize|Exit',optim_proc))[2]-1)])
 conv_proc=as.data.frame(conv_proc) %>% separate('conv_proc',c('step_type','n_step','sse1','sse2'),sep=' ')
 # post-optim error
 sir_sse(as.numeric(optim_outputs[,1:length(parnames)]),data)
@@ -147,6 +151,18 @@ optim_proc_max_llh=optim(log(par_initguess),fn=sir_nll,method='Nelder-Mead',y=da
 # yes!
 # fractional error
 abs(exp(optim_proc_max_llh$par)-params)/params
+
+####
+# compare poisson with squared error
+singlefit=left_join(subset(df_ode_solution_scan,parset_ID==3000 & !is.na(sum_weekly)), # 3379
+                    newburials_weekly[,!grepl("epi_year|week",colnames(newburials_weekly))],by="date",suffix=c("_model","_satel_data"))
+adj_factor=mogad_weekly_death_rate/basal_burial_rate
+sq_err_llh=data.frame(data=round(singlefit$new_graves_best_ipol-basal_burial_rate)*adj_factor, pred=round(singlefit$sum_weekly),
+                      pois_err=-dpois(x=round((singlefit$new_graves_best_ipol-basal_burial_rate)*adj_factor),lambda=round(singlefit$sum_weekly),log=TRUE),
+                      sq_err=(round((singlefit$sum_weekly-(singlefit$new_graves_best_ipol-basal_burial_rate))*adj_factor ))^2,
+                      negbinom_err_size1=-dnbinom(x=round((singlefit$new_graves_best_ipol-basal_burial_rate)*adj_factor),mu=round(singlefit$sum_weekly),size=1,log=TRUE),
+                      negbinom_err_size10=-dnbinom(x=round((singlefit$new_graves_best_ipol-basal_burial_rate)*adj_factor),mu=round(singlefit$sum_weekly),size=10,log=TRUE),
+                      negbinom_err_size100=-dnbinom(x=round((singlefit$new_graves_best_ipol-basal_burial_rate)*adj_factor),mu=round(singlefit$sum_weekly),size=100,log=TRUE))
 
 ###
 # Amadillo sample code ----------------------------------------------------

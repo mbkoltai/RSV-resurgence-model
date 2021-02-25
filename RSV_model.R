@@ -5,9 +5,9 @@
 # contact data from https://bisaloo.github.io/contactdata/index.html (Prem 2017)
 # functions
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
-source('RSV_model_functions.R')
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
 lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo"), library, character.only=TRUE)
+source('RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
 # selected country
@@ -95,10 +95,12 @@ initvals_sirs_model[inf_vars_inds[[1]][1]]=10 # all first infection groups: sapp
 ### integrate ODE --------------------------------------------------------
 # deSolve input
 params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,forcing_vector_npi,elem_time_step,delta_susc)
-# SIMULATE
-ptm<-proc.time(); ode_solution<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); proc.time()-ptm
+# solve with interpolation
+approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
+ptm<-proc.time(); ode_solution_interpol<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_interpol,parms=params); proc.time()-ptm  
+
 # reshape data
-list_simul_output=fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups)
+list_simul_output=fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups,neg_thresh=-0.001)
 df_ode_solution=list_simul_output[[1]]; df_ode_solution_tidy=list_simul_output[[2]]; rm(list_simul_output)
 # check size of objs: fcn_objs_mem_use()
 ####
@@ -120,7 +122,7 @@ for (k in 7:8) {# 1:(2^3)
 # PLOT
 ggplot(subset(df_ode_solution_tidy,grepl('I',name)&agegroup<=agegr_lim&(t_years>xval_lims[1]&t_years<xval_lims[2])),
  aes_string(x="t_years",y=value_type,group="name",color="infection")) + geom_line(size=1.025) + theme_bw() + standard_theme +
- theme(axis.text.x=element_text(size=9,vjust=0.5),axis.text.y=element_text(size=9),legend.position="top",legend.title=element_blank()) +
+ theme(axis.text.x=element_text(size=8,vjust=0.5),axis.text.y=element_text(size=8),legend.position="top",legend.title=element_blank()) +
  facet_wrap(as.formula(facet_formula),ncol=as.numeric(ncol_val),scales=scale_val) + scale_x_continuous(breaks=xval_breaks) +
  geom_rect(aes(xmin=shutdwn_lims[1]/365,xmax=shutdwn_lims[2]/365,ymin=0,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
  geom_vline(data=seas_lims_plot,aes(xintercept=on),color="blue",linetype="dashed",size=0.3) +
