@@ -474,7 +474,7 @@ if (length(unique(round(delta_susc_prop[,1],4)))==1) {
 # if (grepl("_noagedep",foldername)) {subtitle_str="suscept~f(expos)"} else {subtitle_str="suscept~f(age,expos)"}
 # caption 
 caption_txt<-paste0('NPI (',npi_on,',',npi_off,") weeks from CI95 season, ",round(1e2*shutdown_scale),
-    "% contact reduction, ",1e2*round(1/(1+forcing_above_baseline),2),"% off-season activity")
+    "% reduction below baseline, ",1e2*round(1/(1+forcing_above_baseline),2),"% off-season activity")
 # filename
 timecourse_filename=fun_create_filename(paste0("simul_output/",foldername),facet2tag,value_type,
                                         n_age,gsub("_y","",scale_val),"png")
