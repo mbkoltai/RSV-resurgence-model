@@ -53,7 +53,7 @@ gg_color_hue <- function(n) {
 
 # Set up SIRS ODE model --------------------------------------------------------
 # see description in "RSV_model_functions.R"
-## with seasonal forcing
+## with seasonal forcing by subsetting t (SLOW!!!)
 # sirs_seasonal_forc <- function(t,X,parms){
 #   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
 #   forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; delta_susc=parms[[8]]
@@ -66,7 +66,7 @@ gg_color_hue <- function(n) {
 #   dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
 
 ## with seasonal forcing using interpolation
-sirs_seasonal_forc_interpol <- function(t,X,parms){
+sirs_seasonal_forc <- function(t,X,parms){
   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
   elem_time_step=parms[[6]]; delta_susc=parms[[7]] # forcing_vector_npi=parms[[6]]; 
   # stack I vars
@@ -315,29 +315,28 @@ forcing_vector= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_seaso
 
 # shutdown term ----------------------
 fun_shutdown_seasforc=function(timesteps,elem_time_step,forcing_above_baseline,npi_strength,npi_year,peak_week,season_width, # shutdown_scale,
-                               preseas_npi_on,postseas_npi_off,n_prec,n_sd){
+                               npi_on,npi_off,n_prec,n_sd){
   # seasonal forcing without shutdown
   seas_forcing=fun_seas_forc(timesteps,peak_day=peak_week*7,st_dev_season=season_width*7,forcing_above_baseline); max_time=max(timesteps)
   # shutdown
-  seas_lims=t(data.frame(lapply(n_sd, function(n) {lapply(0:(max_time/365),function(x){x+(peak_week+c(-n*season_width,n*season_width))/52})})))
+  seas_lims=t(data.frame(lapply(n_sd, 
+                          function(n) {lapply(0:(max_time/365),function(x){x+(peak_week+c(-n*season_width,n*season_width))/52})})))
   rownames(seas_lims)=c(); colnames(seas_lims)=c("on","off"); seas_lims=subset(data.frame(seas_lims),on<=max(timesteps)/365)
   seas_lims[,"season"]=ceiling(seas_lims$on)
   # forcing with NPI vector
   forcing_vector_npi=seas_forcing
-  shutdown_start_week=round(seas_lims$on[seas_lims$season==(npi_year+1)]*52-preseas_npi_on)
-  shutdown_stop_week=round(seas_lims$off[seas_lims$season==(npi_year+1)]*52+postseas_npi_off)
+  shutdown_start_day=seas_lims$on[seas_lims$season==(npi_year+1)]*365 - npi_on*7
+  shutdown_stop_day=seas_lims$off[seas_lims$season==(npi_year+1)]*365 + npi_off*7
   # shutdown: flat
-  forcing_vector_npi[(shutdown_start_week*7/elem_time_step):(shutdown_stop_week*7/elem_time_step)]=1-npi_strength
-    # seas_forcing[shutdown_start_week*7/elem_time_step]
-  # print(c(length(forcing_vector_npi),length(seas_forcing),shutdown_timewindow,seas_forcing[shutdown_timewindow[1]]))
+  forcing_vector_npi[round(shutdown_start_day/elem_time_step):round(shutdown_stop_day/elem_time_step)]=1-npi_strength
   if (sum(forcing_vector_npi>seas_forcing)>0){
      forcing_vector_npi[forcing_vector_npi>seas_forcing] <- seas_forcing[forcing_vector_npi>seas_forcing]}
   # first period should not be on-season
   if (forcing_vector_npi[1]>forcing_above_baseline){
-    onsetpoint=max(which(timesteps/365 < seas_lims$on[1]-0.1)) # min(which(forcing_vector_npi>forcing_above_baseline*1.01))
-    forcing_vector_npi[1:onsetpoint]=forcing_vector_npi[onsetpoint]; seas_forcing[1:onsetpoint]=seas_forcing[onsetpoint]
+    onsetpoint=max(which(timesteps/365 < seas_lims$on[1]-0.1)); forcing_vector_npi[1:onsetpoint]=forcing_vector_npi[onsetpoint]
+    seas_forcing[1:onsetpoint]=seas_forcing[onsetpoint]
   }
-  list(forcing_vector_npi,timesteps[c(shutdown_start_week*7/elem_time_step,shutdown_stop_week*7/elem_time_step)],seas_forcing,seas_lims)
+  list(forcing_vector_npi,timesteps[c(round(shutdown_start_day/elem_time_step),round(shutdown_stop_day/elem_time_step))],seas_forcing,seas_lims)
 }
 
 ### plot seasonal forcing ----------------------
@@ -352,10 +351,10 @@ ggplot(date_forcing) + geom_line(aes(x=date,y=forcing_vector_npi,group=1)) +
     geom_vline(data=seas_lims_date,aes(xintercept=on),color="blue",linetype="dashed",size=0.5) + 
     geom_vline(data=seas_lims_date,aes(xintercept=off),color="blue",linetype="dashed",size=0.5) + 
     geom_rect(aes(xmin=shutdwn_lims_date[1],xmax=shutdwn_lims_date[2],ymin=-Inf,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
-    scale_x_date(date_breaks="month",expand=expansion(0,0)) + scale_y_continuous(breaks=(0:20)/10,expand=expansion(0,0.2)) +
+    scale_x_date(date_breaks="2 months",expand=expansion(0,0)) + scale_y_continuous(breaks=(0:40)/10,expand=expansion(0,0.2)) +
     theme_bw() + standard_theme + theme(axis.text.x=element_text(vjust=0.5,size=6),axis.text.y=element_text(size=7)) +
-    ylab("seasonal forcing") + 
-    ggtitle(paste0("base line:",round(min(seas_force),1),", NPI: [",paste0(shutdwn_lims_date,collapse=", "),"]"))
+    ylab("seasonal forcing") + ggtitle(paste0("NPI: [",paste0(shutdwn_lims_date,collapse=", "),"]")) 
+# "base line:",round(min(seas_force),1),
 }
 
 ### set up initial condition ------------------
@@ -420,10 +419,16 @@ fcn_clin_fract_age_exp <- function(agedep_fact,clinfract_expos,rsv_age_groups,n_
 }
 
 ### plot clin fract
-fcn_clinfract_agedeptable=function(clin_fract_age_exp){
+fcn_plot_clinfract_table=function(clin_fract_age_exp){
   ggplot(clin_fract_age_exp,aes(x=agegroup_name,y=sympt_value,group=infection,color=infection,linetype=infection)) + geom_line(size=2) +
     theme_bw() + standard_theme + xlab("age group (years)") + ylab("clinical fraction") + scale_y_continuous(breaks=(0:10)/10) +
     theme(legend.position="top",axis.text.x=element_text(size=14),axis.text.y=element_text(size=12),legend.text=element_text(size=12))
+}
+
+fcn_plot_suscept_table=function(suscept_table){
+ggplot(suscept_table,aes(x=agegroup,y=value,group=name,color=name,linetype=name)) + 
+  geom_line(size=2) + theme_bw() + standard_theme + xlab("age group (years)") + ylab("susceptibility") + 
+  theme(legend.position="top",axis.text.x=element_text(size=14),axis.text.y=element_text(size=12),legend.text=element_text(size=12))
 }
 
 ### fcn plot agegroup total populs ----------------------
@@ -443,7 +448,7 @@ fcn_plotagegroup_totals <- function(df_ode_solution_tidy,scale_val){
 
 ### fun timecourse plot tags ----------------------
 fun_tcourse_plottags <- function(k,nval,rval,n_inf,n_age,colvar,agegr_lim,delta_susc_prop,delta_primary,
-                                 preseas_npi_on,postseas_npi_off,shutdown_scale,forcing_above_baseline){
+                                 npi_on,npi_off,shutdown_scale,forcing_above_baseline){
 
 all_perms=permutations(n=nval,r=rval,repeats.allowed=T)
 g(k1,k2,k3) %=% all_perms[k,] # assign multiple variables
@@ -468,14 +473,14 @@ if (length(unique(round(delta_susc_prop[,1],4)))==1) {
 }
 # if (grepl("_noagedep",foldername)) {subtitle_str="suscept~f(expos)"} else {subtitle_str="suscept~f(age,expos)"}
 # caption 
-caption_txt<-paste0('NPI (',preseas_npi_on,',',postseas_npi_off,") weeks from CI95 season, ",
-       round(1e2*(1-shutdown_scale)),"% contact reduction, ",forcing_above_baseline*1e2,"% off-season activity")
+caption_txt<-paste0('NPI (',npi_on,',',npi_off,") weeks from CI95 season, ",round(1e2*shutdown_scale),
+    "% contact reduction, ",1e2*round(1/(1+forcing_above_baseline),2),"% off-season activity")
 # filename
 timecourse_filename=fun_create_filename(paste0("simul_output/",foldername),facet2tag,value_type,
                                         n_age,gsub("_y","",scale_val),"png")
 # add npi timing to filename
-timecourse_filename=gsub('.png',paste0('_npi',npi_year,'y_on',preseas_npi_on,"w_off",postseas_npi_off,
-                                       'w_basrate',forcing_above_baseline*1e2,'pct.png'),timecourse_filename)
+timecourse_filename=gsub('.png',paste0('_npi',npi_year,'y_on',npi_on,"w_off",npi_off,
+                                       'w_maxforc',forcing_above_baseline*1e2,'pct.png'),timecourse_filename)
 
 c(scale_val,facet2tag,value_type,y_axis_tag,ncol_val,facet_formula,foldername,caption_txt,subtitle_str,timecourse_filename)
 }
@@ -492,11 +497,9 @@ df_ode_sol_cases_sum=df_ode_solution_tidy_cases %>% group_by(t,compartment,agegr
 df_ode_sol_cases_sum
 }
 
-
-
 ### fun sumcase plot tags
-fun_sumcase_plot_tags <- function(n_val,r_val,k_plot,df_symptom_prop,delta_susc_prop,preseas_npi_on,
-                                  postseas_npi_off,shutdown_scale,forcing_above_baseline){
+fun_sumcase_plot_tags <- function(n_val,r_val,k_plot,df_symptom_prop,delta_susc_prop,npi_on,
+                                  npi_off,shutdown_scale,forcing_above_baseline){
   plot_perms=permutations(n=n_val,r=r_val,repeats.allowed=T)
 scale_val=c("free","fixed")[plot_perms[k_plot,1]]; plotvar=c("symptom_cases_fract","symptom_cases")[plot_perms[k_plot,2]]
 if (grepl("fract",c("symptom_cases_fract","symptom_cases")[plot_perms[k_plot,2]])){
@@ -519,12 +522,12 @@ if (length(unique(round(delta_susc_prop[,1],4)))==1) { # ncol(matrix(apply(delta
 
 full_filename=paste0("simul_output/",foldername,paste0("/sever",dep_tag),"/symptomcases_y",
                      scale_val,'_',gsub("# cases","absval",y_axis_tag),".png")
-full_filename=gsub('.png',paste0('_npi',npi_year,'y_on',preseas_npi_on,"w_off",postseas_npi_off,'w_basrate',
+full_filename=gsub('.png',paste0('_npi',npi_year,'y_on',npi_on,"w_off",npi_off,'w_basrate',
                                  forcing_above_baseline*1e2,'pct.png'),full_filename)
-# gsub('.png',paste0('_npi',npi_year,'y_week',preseas_npi_on,'.png'),full_filename)
-# 
-caption_txt=paste0('NPI (',preseas_npi_on,',',postseas_npi_off,") weeks from CI95 season, ",
-       1e2-round(1e2*shutdown_scale),"% contact reduction, ",forcing_above_baseline*1e2,"% off-season activity")
+# gsub('.png',paste0('_npi',npi_year,'y_week',npi_on,'.png'),full_filename)
+
+caption_txt<-paste0('NPI (',npi_on,',',npi_off,") weeks from CI95 season, ",round(1e2*shutdown_scale),
+                    "% contact reduction, ",1e2*round(1/(1+forcing_above_baseline),2),"% off-season activity")
 if (grepl("_expdep_only",strsplit(full_filename,"/")[[1]][3])) {sever_str="clin.fract.~f(expos)"} else {
   if (grepl("_agedep_only",strsplit(full_filename,"/")[[1]][3])) {sever_str="clin.fract.~f(age)"} else {
     sever_str="clin.fract.~f(age,expos)"}
@@ -543,7 +546,7 @@ timecourse_filename
 
 ### fcn age distrib plot tags -----------------
 fcn_agedistrib_plot_tags <- function(delta_susc_prop,delta_primary,plot_season_peaks,df_symptom_prop,
-                                     preseas_npi_on,postseas_npi_off,seas_case_threshold){
+                                     npi_on,npi_off,npi_strength,seas_case_threshold){
 if (length(unique(round(delta_susc_prop[,1],4)))==1) { # ncol(matrix(apply(delta_susc_prop,2,unique))
     if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str_susc="suscept~f(age)"} else {
       foldername="suscept_const"; subtitle_str_susc="suscept~const"}
@@ -560,8 +563,8 @@ if (symptvals_by_age>1 & symptvals_by_exp>1){dep_tag="_age_exp_dep"; subtitle_st
       dep_tag="_age_dep"; subtitle_str_exp="clin.fract~f(age)"} else if (symptvals_by_age==1 & symptvals_by_exp>1) {
         dep_tag="_exp_dep"; subtitle_str_exp="clin.fract~f(expos)"} else {dep_tag="_const"; subtitle_str_exp="clin.fract~const"} }
 
-agedistr_filename=paste0("simul_output/",foldername,"/sever",dep_tag,"/age_distrib_npi_on",preseas_npi_on,"w_off",
-                         postseas_npi_off,"w_basal",1e2*forcing_above_baseline,"pct.png") # _seasmincase,seas_case_threshold/1e3,"e3
+agedistr_filename=paste0("simul_output/",foldername,"/sever",dep_tag,"/age_distrib_npi_on",npi_on,"w_off",
+                         npi_off,"_NPIred",1e2*npi_strength,"pct.png") # _seasmincase,seas_case_threshold/1e3,"e3
 #,"_seas", paste0(unique(plot_season_peaks$season),collapse="_")
 agedistr_filename
 }
