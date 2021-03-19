@@ -68,7 +68,7 @@ gg_color_hue <- function(n) {
 ## with seasonal forcing using interpolation
 sirs_seasonal_forc <- function(t,X,parms){
   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
-  elem_time_step=parms[[6]]; delta_susc=parms[[7]] # forcing_vector_npi=parms[[6]]; 
+  elem_time_step=parms[[6]]; delta_susc=parms[[7]]; dim_sys=nrow(K_m) # forcing_vector_npi=parms[[6]]; 
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
@@ -278,7 +278,7 @@ fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group
 ### process simul output -----------------
 fun_process_simul_output=function(ode_solution,varname_list,n_age,n_inf,rsv_age_groups,neg_thresh){
 df_ode_solution=ode_solution %>% as.data.frame() %>% setNames(c("t",fun_sirs_varnames(varname_list,n_age,n_inf)))
-df_ode_solution = df_ode_solution[1:(nrow(df_ode_solution)-1),] %>% filter(t %% 1 ==0) 
+df_ode_solution = df_ode_solution[1:(nrow(df_ode_solution)-1),] %>% filter(t %% 1 ==0); df_ode_solution=round(df_ode_solution)
 # neg_thresh=-1e-3
 if (any(rowSums(df_ode_solution<neg_thresh)>0)){
   print(paste0("negative values in ", sum(rowSums(df_ode_solution<neg_thresh)>0), " rows!"))
@@ -286,25 +286,16 @@ if (any(rowSums(df_ode_solution<neg_thresh)>0)){
   df_ode_solution[neg_rows,!(colnames(df_ode_solution) %in% "t")]=NA
 }
 # df_ode_solution_nonzero=df_ode_solution[,colSums(df_ode_solution)>0]
-df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution,na.rm=T)>0] %>% pivot_longer(!t) # ,id.vars='t')
+df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution,na.rm=T)>0] %>% pivot_longer(!t)
 df_ode_solution_tidy[c('compartment','infection','agegroup')]=
-  sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$name),'_'),'[[',x)}) 
-df_ode_solution_tidy = df_ode_solution_tidy # !grepl("R",compartment) & 
-df_ode_solution_tidy$compartment=factor(df_ode_solution_tidy$compartment,levels=varname_list)
-df_ode_solution_tidy$agegroup=as.numeric(df_ode_solution_tidy$agegroup)
+  sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$name),'_'),'[[',x)})
+df_ode_solution_tidy = df_ode_solution_tidy %>% mutate(compartment=factor(compartment,levels=varname_list),agegroup=as.numeric(agegroup))
 finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==max(t)) %>% summarise(agegroup_sum_popul=sum(value)) #,na.rm = T
 if (any(is.na(finalvals$agegroup_sum_popul))) {
-  finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==0) %>% summarise(agegroup_sum_popul=sum(value))
-} # print(finalvals)
-df_ode_solution_tidy[,"value_fract"]=df_ode_solution_tidy$value/finalvals$agegroup_sum_popul[df_ode_solution_tidy$agegroup]
-# df_ode_solution_tidy[,"t_years"]=df_ode_solution_tidy$t/365
-df_ode_solution_tidy[,"agegroup_name"]=rsv_age_groups$agegroup_name[df_ode_solution_tidy$agegroup]
-df_ode_solution_tidy$agegroup_name=factor(df_ode_solution_tidy$agegroup_name,
-                                          levels=unique(df_ode_solution_tidy$agegroup_name))
-df_ode_solution_tidy$agegroup_name=factor(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr"),
-                                          levels=unique(paste0("age=",df_ode_solution_tidy$agegroup_name,"yr")))
-df_ode_solution_tidy$infection=paste0("infection #",df_ode_solution_tidy$infection)
-
+  finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==0) %>% summarise(agegroup_sum_popul=sum(value)) }
+df_ode_solution_tidy = df_ode_solution_tidy %>% mutate(value_fract=value/finalvals$agegroup_sum_popul[agegroup]) %>%
+ mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name)) %>% 
+  mutate(agegroup_name=factor(paste0("age=",agegroup_name,"yr"),levels=unique(paste0("age=",agegroup_name,"yr"))),infection=paste0("infection #",infection)) # 
 list(df_ode_solution,df_ode_solution_tidy) }
 
 ### seasonal forcing term ------------------
@@ -317,7 +308,11 @@ forcing_vector= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_seaso
 fun_shutdown_seasforc=function(timesteps,elem_time_step,forcing_above_baseline,npi_strength,npi_year,peak_week,season_width, # shutdown_scale,
                                npi_on,npi_off,n_prec,n_sd){
   # seasonal forcing without shutdown
-  seas_forcing=fun_seas_forc(timesteps,peak_day=peak_week*7,st_dev_season=season_width*7,forcing_above_baseline); max_time=max(timesteps)
+  max_time=max(timesteps)
+  # fun_seas_forc<-.GlobalEnv$fun_seas_forc
+  seas_forcing=fun_seas_forc(timesteps,peak_day=peak_week*7,st_dev_season=season_width*7,forcing_above_baseline);
+  # dist_from_peak=apply(data.frame( abs(timesteps %% 365-(peak_week*7)),365-(peak_week*7)+(timesteps %% 365) ),1,min)
+  # seas_forcing= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/season_width*7)^2)
   # shutdown
   seas_lims=t(data.frame(lapply(n_sd, 
                           function(n) {lapply(0:(max_time/365),function(x){x+(peak_week+c(-n*season_width,n*season_width))/52})})))
@@ -351,7 +346,7 @@ ggplot(date_forcing) + geom_line(aes(x=date,y=forcing_vector_npi,group=1)) +
     geom_vline(data=seas_lims_date,aes(xintercept=on),color="blue",linetype="dashed",size=0.5) + 
     geom_vline(data=seas_lims_date,aes(xintercept=off),color="blue",linetype="dashed",size=0.5) + 
     geom_rect(aes(xmin=shutdwn_lims_date[1],xmax=shutdwn_lims_date[2],ymin=-Inf,ymax=Inf),fill="pink",color=NA,alpha=0.01) +
-    scale_x_date(date_breaks="2 months",expand=expansion(0,0)) + scale_y_continuous(breaks=(0:40)/10,expand=expansion(0,0.2)) +
+    scale_x_date(date_breaks="2 months",expand=expansion(0,0)) + scale_y_continuous(breaks=(0:1e2)/10,expand=expansion(0,0.2)) +
     theme_bw() + standard_theme + theme(axis.text.x=element_text(vjust=0.5,size=6),axis.text.y=element_text(size=7)) +
     ylab("seasonal forcing") + ggtitle(paste0("NPI: [",paste0(shutdwn_lims_date,collapse=", "),"]")) 
 # "base line:",round(min(seas_force),1),
@@ -475,15 +470,15 @@ ggplot(df_plot,aes(x=season,y=value,group=rev(agegroup_merged))) +
 }
 
 ### fcn calc mean age season ----------------------
-fcn_calc_mean_age <- function(df_calc,season_min){
+fcn_calc_mean_age <- function(df_calc,season_min,dep_name){
 subset(df_calc,grepl("share",name)) %>% group_by(season,name) %>%
   summarise(under2yr=sum(value[agegroup<5]*mean_age[agegroup<5]/sum(value[agegroup<5])),
             under3yr=sum(value[agegroup<6]*mean_age[agegroup<6]/sum(value[agegroup<6])),
             under5yr=sum(value[agegroup<7]*mean_age[agegroup<7]/sum(value[agegroup<7])),all_agegroups=sum(value*mean_age/sum(value)),
             pre_post_shtdn=unique(pre_post_shtdn)) %>% pivot_longer(cols=!c(season,name,pre_post_shtdn),names_to="mean_age_type") %>%
   mutate(mean_age_type=factor(mean_age_type,unique(mean_age_type))) %>% group_by(name,mean_age_type) %>% 
-  mutate(mean_val=mean(value[pre_post_shtdn=="pre-NPI" & season>season_min-1])) %>% 
-  mutate(norm_val=value/mean_val,dep=gsub("exp","previous exposure",gsub("_dep","",gsub("suscept_","",foldername))))
+  mutate(mean_val=mean(value[season==season_min])) %>% # pre_post_shtdn=="pre-NPI" & season>season_min-1
+  mutate(norm_val=value/mean_val,dep=dep_name) # gsub("exp","previous exposure",gsub("_dep","",gsub("suscept_","",foldername)))
 }
 
 ### fcn plot mean age season ----------------------
@@ -540,14 +535,14 @@ c(scale_val,facet2tag,value_type,y_axis_tag,ncol_val,facet_formula,foldername,ca
 }
 
 ## create table of symptomatic cases ----------------------
-fun_symptomcases_table <- function(df_ode_solution_tidy,df_clin_fract,bindcolnames,seas_lims){
+fun_symptomcases_table <- function(df_ode_solution_tidy,df_clin_fract,bindcolnames){
   df_ode_solution_tidy_cases=left_join(df_ode_solution_tidy[grepl('I_',df_ode_solution_tidy$name),],
           df_clin_fract[,!grepl("agegroup_name",colnames(df_clin_fract))],by=bindcolnames) %>%
       mutate(symptom_cases=value*sympt_value,symptom_cases_fract=value_fract*sympt_value)
 # plot sum of 1,2,3rd infections
 df_ode_sol_cases_sum=df_ode_solution_tidy_cases %>% group_by(t,compartment,agegroup,agegroup_name) %>% 
-  summarise(symptom_cases=round(sum(symptom_cases)),symptom_cases_fract=sum(symptom_cases_fract)) %>%
-  mutate(season=findInterval(t/365,c(0,seas_lims$on)))
+  summarise(symptom_cases=round(sum(symptom_cases)),symptom_cases_fract=sum(symptom_cases_fract)) 
+# %>% mutate(season=findInterval(t/365,c(0,seas_lims$on)))
 df_ode_sol_cases_sum
 }
 

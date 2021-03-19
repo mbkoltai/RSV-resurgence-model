@@ -6,21 +6,21 @@
 # functions
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble"), library, character.only=TRUE)
+lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble","qs"),library,character.only=TRUE)
 source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
+### ### ### ### ### ### ### ###
+# constant parameters
 # selected country
 country_sel="United Kingdom"
 # time resolution (in days)
 elem_time_step=0.5
 # population data
-standard_age_groups <- fun_cntr_agestr(country_sel,"2015",seq(0,75,5),c(seq(4,74,5),99))
+standard_age_groups <- fun_cntr_agestr(country_sel,"2020",seq(0,75,5),c(seq(4,74,5),99))
 # RSV age groups (population data from wpp2019)
 rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,10,15, 20); rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3),rep(4,3),79)
 rsv_age_groups=fun_rsv_agegroups(standard_age_groups,rsv_age_groups_low,rsv_age_group_sizes)
-# population by age group
-N_tot=sum(rsv_age_groups$value) # S_by_age=rsv_age_groups$value
 # number of age groups, reinfections and variables (S,I,R)
 n_age=nrow(rsv_age_groups); varname_list=c('S','I','R'); n_compartment=length(varname_list); n_inf=3
 dim_sys=n_age*n_compartment*n_inf; n_days_year=365
@@ -42,21 +42,20 @@ C_m=fun_create_red_C_m(C_m_fullrecipr,rsv_age_groups,
 C_m=fun_recipr_contmatr(C_m,age_group_sizes=rsv_age_groups$value)
 # bc of reinfections we need to input contact matrix repeatedly
 contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))
-
-# build kinetic matrix --------------------------------------------------------
+# build kinetic matrix
 # WANING (immunity) terms: R_i_j -> S_min(i+1,n_inf)_j
 omega=1/150 # 1/runif(1,60,200)
 # RECOVERY
 rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
-### ### ### ### ### ### ### ###
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 birth_rate=713e3/365; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
-# SUSCEPTIBILITY 
-# normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i
+### ### ### ### ### ### ### ###
+# variable parameters  --------------------------------------------------------
+# SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
 # agedep_fact determines strength of age dependence, if agedep_fact>1, decreasing susceptibility with age
-agedep_fact=1; delta_primary=8*c(0.1,0.02,0.004) # rep(0.15,3)
+agedep_fact=1; delta_primary=4*c(0.1,0.02,0.004) # rep(0.15,3)
 delta_susc=sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$value[x])})
 delta_susc_prop=delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T)
 ### PLOT susceptibility: 
@@ -68,7 +67,7 @@ R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf) # scale_f=3; delta_susc_prop=delta_s
 n_years=15.25; max_time=n_years*n_days_year; timesteps <- seq(0,max_time,by=elem_time_step)
 # seasonal forcing (above baseline level of 1) | npi_reduc_strength: reduction from baseline 
 # shutdown season (if x --> (x+1)th season shut down) | preseas_npi_on/postseas_npi_off: on/off NPI week before/after season onset
-forcing_strength=3; npi_reduc_strength=0.3; npi_year=round(n_years-5); preseas_npi_on=3; postseas_npi_off=3
+forcing_strength=3; npi_reduc_strength=0.3; npi_year=round(n_years-5); preseas_npi_on=0; postseas_npi_off=6
 g(forcing_vector_npi,shutdwn_lims,seas_force,seas_lims) %=% fun_shutdown_seasforc(timesteps,elem_time_step=0.5,
       forcing_strength,npi_reduc_strength,npi_year,peak_week=46,season_width=4,preseas_npi_on,postseas_npi_off,n_prec=0.01,n_sd=2) 
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
@@ -87,8 +86,8 @@ initvals_sirs_model=fcn_set_initconds(init_set=prev_or_new,init_cond_src="output
 ### integrate ODE --------------------------------------------------------
 params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,elem_time_step,delta_susc)
 # interpolation fcns for seas forcing & extern introds
-approx_seas_forc<-approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
-approx_introd<-approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*10))
+approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
+approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*10))
 tm<-proc.time(); ode_solution<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); round(proc.time()-tm,2)
 # reshape data | # check size of objs: fcn_objs_mem_use(1)
 g(ode_solution,df_ode_solution_tidy) %=% fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups,neg_thresh=-1e-3)
@@ -105,17 +104,17 @@ xval_breaks=seq(0,max_time/365,by=1/4)
 # tags: y-axis fixed/free | facet by AGE/(age&INFECTION) | abs values/fraction
 # k=7 --> (free scale, infects separate, absval). k=8 --> (free, infects separate, fractional)
 g(scale_val,facet2tag,value_type,y_axis_tag,ncol_val,facet_formula,foldername,caption_txt,subtitle_str,timecourse_filename) %=% 
-    fun_tcourse_plottags(k=8,nval=2,rval=3,n_inf,n_age,colvar,agegr_lim,delta_susc_prop,delta_primary,
+    fun_tcourse_plottags(k=8,nval=2,rval=3,n_inf,n_age,colvar="age",agegr_lim,delta_susc_prop,delta_primary,
           preseas_npi_on,postseas_npi_off,npi_reduc_strength,forcing_strength)
 # PLOT time course absolute values  --------------------------------------------------------
-fcn_plot_allcases_absval_stackedinfs(df_ode_solution_tidy,value_type,xval_lims,t_subset=7,agegrlim=11,ncolval=3,y_axis_tag,
+fcn_plot_allcases_absval_stackedinfs(df_ode_solution_tidy,value_type,x_lims=c(0,13),t_subset=7,agegrlim=11,ncolval=3,y_axis_tag,
                                      scale_val,seas_lims_plot,shutdwn_lims,xval_breaks,subtitle_str,caption_txt)
 ## SAVE
 ggsave(timecourse_filename, width=32,height=28,units="cm")
 
 # PLOT time course normalised by max per age group  --------------------------------------------------------
 xval_lims=c(npi_year-1.27,npi_year+3.25); seas_lims_plot=subset(seas_lims,on>xval_lims[1] & off<xval_lims[2])
-fcn_plot_norm_max_byage(df_ode_solution_tidy,xval_lims,seas_lims_plot,shutdwn_lims,xval_breaks)
+fcn_plot_norm_max_byage(df_ode_solution_tidy,xval_lims,seas_lims_plot,shutdwn_lims,xval_breaks,subtitle_str,caption_txt)
 # SAVE
 ggsave(gsub(".png","_byage_maxnorm.png",timecourse_filename), width=30,height=20,units="cm")
 

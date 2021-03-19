@@ -2,6 +2,7 @@
 simul_output/
 odeint-v2/
 data/
+manuscript/
 hodgson_rsv_model/
 ptmc_performance-master/
 toymodel_rcpp/
@@ -10,3 +11,4 @@ toymodel_rcpp/
 .odg#
 *.RDS
 contact_matrix.R
+param_scan_parallel.R
