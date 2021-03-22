@@ -21,16 +21,6 @@
 # F_vect=matrix(0,dim_sys,1)
 # F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
 # rhs_odes=birth_term + F_vect + K_m%*%X_vars
-# sirs_seasonal_forc <- function(t,X,parms){ 
-#   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
-#   forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; # event_vector=parms[[8]]
-#   # stack I vars
-#   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
-#   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
-#   lambda_vect=diag(forcing_vector_npi[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
-#   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
-#   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
-#   dXdt=birth_term + F_vect + K_m%*%X; list(dXdt) }
 #
 ### clinical fraction as a fcn of age and exposure -----------------------------------
 # list_symptom_agegroups=list(1:2,3:7,8:9,10:11); prop_symptom=1-c(mean(rbeta(1e3,shape1=3,shape2=30)),
@@ -54,28 +44,18 @@ gg_color_hue <- function(n) {
 # Set up SIRS ODE model --------------------------------------------------------
 # see description in "RSV_model_functions.R"
 ## with seasonal forcing by subsetting t (SLOW!!!)
-# sirs_seasonal_forc <- function(t,X,parms){
-#   birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
-#   forcing_vector_npi=parms[[6]]; elem_time_step=parms[[7]]; delta_susc=parms[[8]]
-#   # stack I vars
-#   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
-#   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
-#   lambda_vect=diag(forcing_vector_npi[(t/elem_time_step)+1]*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize
-#   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
-#   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect)
-#   dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
 
 ## with seasonal forcing using interpolation
 sirs_seasonal_forc <- function(t,X,parms){
-  birth_term=parms[[1]];K_m=parms[[2]];contmatr_rowvector=parms[[3]];inf_vars_inds=parms[[4]];susc_vars_inds=parms[[5]]
-  elem_time_step=parms[[6]]; delta_susc=parms[[7]]; dim_sys=nrow(K_m) # forcing_vector_npi=parms[[6]]; 
+  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; K_m=parms[[2]]; contmatr_rowvector=parms[[3]]; inf_vars_inds=parms[[4]]; 
+  susc_vars_inds=parms[[5]]; elem_time_step=parms[[6]]; delta_susc=parms[[7]]; dim_sys=nrow(K_m)
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
   lambda_vect=diag(approx_seas_forc(t)*array(delta_susc))%*%contmatr_rowvector%*%inf_vars_stacked_fullsize 
   infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
   F_vect=matrix(0,dim_sys,1); F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect+approx_introd(t))
-  dXdt=birth_term + F_vect + K_m %*% X; list(dXdt) }
+  dXdt=birthrates + F_vect + K_m %*% X - deathrates*X; list(dXdt) }
 
 # linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
@@ -98,14 +78,13 @@ for (j_age in 1:n_age) {
                fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_age,n_inf))
     # waning_terms_source_target=rbind(waning_terms_source_target,wanevals)
     K_m[wanevals[2],wanevals[1]]=omega } }
-# aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> S_(i+1)_(j+1), I_i_j->I_(i+1)_j
+# aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> R_i_(j+1), I_i_j->I_(i+1)_j
 for (j_age in 1:(n_age-1)) {
   for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
   agevals=rbind( 
   # S_i_j -> S_i_(j+1)
   c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age ),
-  # R_i_j -> S_(i+1)_(j+1) OR R_i_j -> R_i_(j+1)
-  # c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(min(i_inf+1,n_inf),j_age+1,'S',varname_list,n_age,n_inf),j_age)
+  # R_i_j -> R_i_(j+1)
   c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'R',varname_list,n_age,n_inf),j_age),
   # I_i_j -> I_i_(j+1)
   c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'I',varname_list,n_age,n_inf),j_age)
@@ -127,13 +106,14 @@ for (j_age in 1:n_age) {
 
 # diagonal terms
 # outflow terms that represent 'aging out' of the model from the highest age groups
-for (j_age in n_age) {
-  for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
-    ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
-                                           # if infections have the aging term on them too
-                                           fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
-                                           fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
-for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_age_groups$duration[nrow(rsv_age_groups)]) }
+# for (j_age in n_age) {
+#   for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
+#     ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
+#                                            # if infections have the aging term on them too
+#                                            fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
+#                                            fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
+# for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_age_groups$duration[nrow(rsv_age_groups)]) }
+
 # diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
 diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m)))
 
@@ -200,8 +180,12 @@ mem_use_df[mem_use_df$size>min_size,c(2,1)]
 ### functn call covidm contact matrix --------------
 fun_covidm_contactmatrix <- function(country_sel,currentdir_path,cm_path){if (!exists("covid_params")){
   setwd(cm_path); cm_force_rebuild<<-F; cm_build_verbose<<-T; cm_version<<-2; source(file.path(cm_path,"R","covidm.R"))
-  covid_params=cm_parameters_SEI3R(country_sel); setwd(currentdir_path)} 
-  # covidm_contactm=Reduce('+',covid_params$pop[[1]]$matrices)
+  if (country_sel %in% "United Kingdom") {
+    covid_params=cm_parameters_SEI3R(cm_uk_locations("UK", 1)) # $pop[[1]]$matrices
+    print("using England's contact matrix")
+  } else {
+  covid_params=cm_parameters_SEI3R(country_sel)}
+  setwd(currentdir_path)} 
 #  "home"   "work"   "school" "other" 
 covid_params$pop[[1]]$matrices}
 
@@ -255,14 +239,30 @@ fun_create_red_C_m=function(C_m_full,rsv_age_groups,orig_age_groups_duration,ori
     } }
   C_m }
 
+### country full popul struct --------------
+fcn_cntr_fullpop <- function(n_year,country_sel){
+  uk_popul=left_join(subset(popF,name %in% country_sel)[,c("age",n_year)],
+                     subset(popM,name %in% country_sel)[,c("age",n_year)],by="age",suffix=c("F","M"))
+  uk_popul[,"totalpop"]=uk_popul[,2]+uk_popul[,3]
+  uk_popul=uk_popul %>% mutate(lower=as.numeric(gsub("-\\d+","",age)),upper=as.numeric(gsub("\\d+-","",age))+0.9)
+  if (any(is.na(uk_popul$lower))){
+    uk_popul[grepl("95",uk_popul$age),c(paste0(n_year,"F"),paste0(n_year,"M"),"totalpop")]=
+      (uk_popul[grepl("95",uk_popul$age),c(paste0(n_year,"F"),paste0(n_year,"M"),"totalpop")]+
+         uk_popul[uk_popul$age=="100+",c(paste0(n_year,"F"),paste0(n_year,"M"),"totalpop")])
+    uk_popul=uk_popul[-which(uk_popul$age=="100+"),] %>% 
+      mutate(mean_age=(lower+upper+0.1)/2,fraction_pop=totalpop/sum(totalpop)) }
+  uk_popul
+}
+
 ### fcn RSV age groups --------------
-fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group_sizes){
+fun_rsv_agegroups<-function(standard_age_groups,popul_struct,rsv_age_groups_low,rsv_age_group_sizes){
   rsv_age_groups=data.frame(age_low=rsv_age_groups_low,age_high=rsv_age_groups_low+rsv_age_group_sizes)
   truthvals=which(match(rsv_age_groups$age_low,standard_age_groups$age_low)==match(rsv_age_groups$age_high,standard_age_groups$age_high))
   rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=NA
   rsv_age_groups[,c("wpp_agegroup_low","wpp_agegroup_high")]=data.frame(t(sapply(1:length(rsv_age_groups_low), function(x) 
   {c(max(which(rsv_age_groups_low[x]>=standard_age_groups$age_low)),
-   max(which(rsv_age_groups_low[x]+rsv_age_group_sizes[x]>=standard_age_groups$age_low)))})))
+     max(which(rsv_age_groups_low[x]+rsv_age_group_sizes[x]>=standard_age_groups$age_low)))})))
+  
   agelim_diffs=rsv_age_groups$age_high-rsv_age_groups$age_low; agelim_diffs_increm=rep(NA,length(agelim_diffs))
   agelim_diffs_increm[agelim_diffs %% 1==0]=1; agelim_diffs_increm[agelim_diffs %% 1>0]=0.1 
   rsv_age_groups[,"duration"]=(rsv_age_groups$age_high-rsv_age_groups$age_low) + agelim_diffs_increm
@@ -270,9 +270,22 @@ fun_rsv_agegroups<-function(standard_age_groups,rsv_age_groups_low,rsv_age_group
     rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
   popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$values[
     rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])}); rsv_age_groups[,"value"]=NA
-# rsv_age_groups$value[truthvals]=standard_age_groups$value[match(rsv_age_groups$age_low,standard_age_groups$age_low)[truthvals]]
   rsv_age_groups$value=popul_custom_agegroups*scaling_fact; rsv_age_groups[,"fraction"]=round(rsv_age_groups$value/sum(rsv_age_groups$value),4)
   rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_low+rsv_age_groups$duration,sep='-'); rsv_age_groups
+  
+  agegroup_match=data.frame(model_agegroup=1:nrow(rsv_age_groups),age_low=rsv_age_groups$age_low,age_high=rsv_age_groups$age_high,
+                            wpp_agegroup_low=unlist(lapply(rsv_age_groups$age_low,
+                                                           function(x){which(x>=popul_struct$lower & x<=popul_struct$upper)})),
+                            wpp_agegroup_high=unlist(lapply(rsv_age_groups$age_high,
+                                                            function(x){which(x>=popul_struct$lower & x<=popul_struct$upper)}))) %>%
+    mutate(age_high=ifelse(model_agegroup<max(model_agegroup),age_low[model_agegroup+1],age_high),
+           mean_age_arithm=(age_low+age_high)/2, mean_age_weighted=sapply(1:max(model_agegroup),function(x) {
+             sum((popul_struct$totalpop[wpp_agegroup_low[x]:wpp_agegroup_high[x]]*
+                    popul_struct$mean_age[wpp_agegroup_low[x]:wpp_agegroup_high[x]])/
+                   sum(popul_struct$totalpop[wpp_agegroup_low[x]:wpp_agegroup_high[x]]))})) %>%
+    mutate(mean_age_weighted=ifelse(wpp_agegroup_low==wpp_agegroup_high,mean_age_arithm,mean_age_weighted)) %>% 
+    select(-mean_age_arithm)
+  rsv_age_groups %>% mutate(mean_age_weighted=agegroup_match$mean_age_weighted)
 }
 
 ### process simul output -----------------
@@ -305,18 +318,19 @@ dist_from_peak=apply(data.frame( abs(timesteps %% 365-peak_day),365-peak_day+(ti
 forcing_vector= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
 
 # shutdown term ----------------------
-fun_shutdown_seasforc=function(timesteps,elem_time_step,forcing_above_baseline,npi_strength,npi_year,peak_week,season_width, # shutdown_scale,
-                               npi_on,npi_off,n_prec,n_sd){
+fun_shutdown_seasforc=function(timesteps,elem_time_step,seas_lims_real,forcing_above_baseline,npi_strength,npi_year,peak_week,
+                               season_width,npi_on,npi_off,n_prec,n_sd){
   # seasonal forcing without shutdown
   max_time=max(timesteps)
   # fun_seas_forc<-.GlobalEnv$fun_seas_forc
   seas_forcing=fun_seas_forc(timesteps,peak_day=peak_week*7,st_dev_season=season_width*7,forcing_above_baseline);
   # dist_from_peak=apply(data.frame( abs(timesteps %% 365-(peak_week*7)),365-(peak_week*7)+(timesteps %% 365) ),1,min)
-  # seas_forcing= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/season_width*7)^2)
+  # seas_forcing=1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/season_width*7)^2)
   # shutdown
   seas_lims=t(data.frame(lapply(n_sd, 
                           function(n) {lapply(0:(max_time/365),function(x){x+(peak_week+c(-n*season_width,n*season_width))/52})})))
   rownames(seas_lims)=c(); colnames(seas_lims)=c("on","off"); seas_lims=subset(data.frame(seas_lims),on<=max(timesteps)/365)
+  seas_lims$on=floor(seas_lims$on)+seas_lims_real[1]*7/365; seas_lims$off=round(seas_lims$off)+seas_lims_real[2]*7/365
   seas_lims[,"season"]=ceiling(seas_lims$on)
   # forcing with NPI vector
   forcing_vector_npi=seas_forcing
@@ -331,7 +345,8 @@ fun_shutdown_seasforc=function(timesteps,elem_time_step,forcing_above_baseline,n
     onsetpoint=max(which(timesteps/365 < seas_lims$on[1]-0.1)); forcing_vector_npi[1:onsetpoint]=forcing_vector_npi[onsetpoint]
     seas_forcing[1:onsetpoint]=seas_forcing[onsetpoint]
   }
-  list(forcing_vector_npi,timesteps[c(round(shutdown_start_day/elem_time_step),round(shutdown_stop_day/elem_time_step))],seas_forcing,seas_lims)
+  list(forcing_vector_npi,timesteps[c(round(shutdown_start_day/elem_time_step),round(shutdown_stop_day/elem_time_step))],
+       seas_forcing,seas_lims)
 }
 
 ### plot seasonal forcing ----------------------
@@ -436,8 +451,8 @@ suscept_agedep$name=gsub("X","infection #",suscept_agedep$name); suscept_agedep
 
 ### fcn plot agegroup total populs ----------------------
 fcn_plotagegroup_totals <- function(df_ode_solution_tidy,scale_val){
-  ggplot(df_ode_solution_tidy %>% group_by(t,agegroup_name) %>% summarise(agegroup_total=sum(value)),
-       aes(x=t/365,y=round(agegroup_total/1e6,4),group=agegroup_name)) + geom_line() + facet_wrap(~agegroup_name,scales=scale_val) +
+  ggplot(df_ode_solution_tidy %>% group_by(t,agegroup_name) %>% summarise(agegroup_total=sum(value)), # 
+       aes(x=t/365,y=round(agegroup_total/1e6,3),group=agegroup_name)) + geom_line() + facet_wrap(~agegroup_name,scales=scale_val) +
   scale_y_log10() + theme_bw() + standard_theme + xlab("year") + ylab("million persons")
 }
 

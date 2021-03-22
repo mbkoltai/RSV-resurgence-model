@@ -17,10 +17,11 @@ country_sel="United Kingdom"
 # time resolution (in days)
 elem_time_step=0.5
 # population data
-standard_age_groups <- fun_cntr_agestr(country_sel,"2020",seq(0,75,5),c(seq(4,74,5),99))
+standard_age_groups <- fun_cntr_agestr(country_sel,i_year="2020",seq(0,75,5),c(seq(4,74,5),99))
+popul_struct=fcn_cntr_fullpop(n_year="2020",country_sel)
 # RSV age groups (population data from wpp2019)
-rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,10,15, 20); rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3),rep(4,3),79)
-rsv_age_groups=fun_rsv_agegroups(standard_age_groups,rsv_age_groups_low,rsv_age_group_sizes)
+rsv_age_groups=fun_rsv_agegroups(standard_age_groups,popul_struct,rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,10,15, 20),
+                                 rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3),rep(4,3),79))
 # number of age groups, reinfections and variables (S,I,R)
 n_age=nrow(rsv_age_groups); varname_list=c('S','I','R'); n_compartment=length(varname_list); n_inf=3
 dim_sys=n_age*n_compartment*n_inf; n_days_year=365
@@ -31,7 +32,9 @@ l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_i
 # CONTACT MATRIX
 # contact matrix from covidm ("home","work","school","other")
 cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
-list_contmatrs=fun_covidm_contactmatrix(country_sel="Germany",currentdir_path=currentdir_path,cm_path=cm_path)
+# if UK -> England's contact matrix
+list_contmatrs=fun_covidm_contactmatrix(country_sel,currentdir_path,cm_path=cm_path)
+# cm_parameters_SEI3R(cm_uk_locations("UK", 1))$pop[[1]]$matrices 
 C_m_full=Reduce('+',list_contmatrs)
 # make matrix symmetric
 C_m_fullrecipr=fun_recipr_contmatr(C_m_full,age_group_sizes=standard_age_groups$values)
@@ -50,12 +53,27 @@ rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
-birth_rate=713e3/365; birth_term=matrix(c(birth_rate,rep(0,dim_sys-1)),dim_sys,1) # 0.01
+birth_rates=matrix(c(713e3/365,rep(0,dim_sys-1)),dim_sys,1)
+# DEATHS (2019: 530841 deaths [England and Wales!])
+uk_death_rate=read_csv("data/uk_death_rate_byage.csv")[,c("Age","2015")] %>% mutate(deaths_per_personyear=`2015`/1e3 ,
+  agegroups_num=gsub("80\\+","80-99",gsub("Under 1","0-1",Age)),
+  age_low=as.numeric(sapply(strsplit(uk_death_rate$agegroups_num,"-"),"[[",1)),
+  age_high=as.numeric(sapply(strsplit(uk_death_rate$agegroups_num,"-"),"[[",2)))
+rsv_age_groups=rsv_age_groups %>% 
+  mutate(deaths_per_personyear=uk_death_rate$deaths_per_person[sapply(age_high,function(x) {which.max(x<=uk_death_rate$age_high)})])
+deaths_under20=sum((rsv_age_groups$value*rsv_age_groups$deaths_per_personyear)[1:(nrow(rsv_age_groups)-1)])
+rsv_age_groups$deaths_per_personyear[nrow(rsv_age_groups)]=(birth_rates[1,]*365)/rsv_age_groups$value[n_age] # -deaths_under20
+# all deaths can be assigned to 20-99 group, and we want it to balance the births
+olderage_inds=lapply(1:n_age,function(x_age){unlist(lapply(1:n_inf, 
+    function(x_inf) {fun_sub2ind(i_inf=x_inf,j_age=x_age,varname=varname_list,varname_list=varname_list,n_age=11,n_inf=3)})) })
+death_rates=matrix(rep(0,dim_sys),dim_sys,1)
+for (x_age in 1:length(olderage_inds)) {death_rates[olderage_inds[[x_age]],]=rsv_age_groups$deaths_per_personyear[x_age]/365 }
+
 ### ### ### ### ### ### ### ###
 # variable parameters  --------------------------------------------------------
 # SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
 # agedep_fact determines strength of age dependence, if agedep_fact>1, decreasing susceptibility with age
-agedep_fact=1; delta_primary=4*c(0.1,0.02,0.004) # rep(0.15,3)
+agedep_fact=1.25; delta_primary=rep(0.08,3) # c(0.1,0.02,0.004) # rep(0.15,3)
 delta_susc=sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$value[x])})
 delta_susc_prop=delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T)
 ### PLOT susceptibility: 
@@ -68,37 +86,37 @@ n_years=15.25; max_time=n_years*n_days_year; timesteps <- seq(0,max_time,by=elem
 # seasonal forcing (above baseline level of 1) | npi_reduc_strength: reduction from baseline 
 # shutdown season (if x --> (x+1)th season shut down) | preseas_npi_on/postseas_npi_off: on/off NPI week before/after season onset
 forcing_strength=3; npi_reduc_strength=0.3; npi_year=round(n_years-5); preseas_npi_on=0; postseas_npi_off=6
-g(forcing_vector_npi,shutdwn_lims,seas_force,seas_lims) %=% fun_shutdown_seasforc(timesteps,elem_time_step=0.5,
-      forcing_strength,npi_reduc_strength,npi_year,peak_week=46,season_width=4,preseas_npi_on,postseas_npi_off,n_prec=0.01,n_sd=2) 
+g(forcing_vector_npi,shutdwn_lims,seas_force,seas_lims) %=% fun_shutdown_seasforc(timesteps,elem_time_step=0.5,seas_lims_real=c(41,11),
+      forcing_strength,npi_reduc_strength,npi_year,peak_week=46,season_width=4,preseas_npi_on,postseas_npi_off,n_prec=0.01,n_sd=2)
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
-seas_lims$on=floor(seas_lims$on)+41*7/365; seas_lims$off=round(seas_lims$off)+11*7/365
 # PLOT seasonal forcing with NPI
-fcn_plot_seas_forc(timesteps,seas_force,forcing_vector_npi,shutdwn_lims,seas_lims) 
+fcn_plot_seas_forc(timesteps,seas_force,forcing_vector_npi,shutdwn_lims,seas_lims)
 # SAVE: ggsave(paste0("simul_output/NPI_y",npi_year,"_on",preseas_npi_on,"w_off",postseas_npi_off,"w.png"),units="cm",height=10,width=20)
 
 # INITIAL CONDITIONS. # introduce stationary state as init state? | init_set: "previous" or anything else
-prev_or_new=c("previous","fromscratch")[1]; filename="simul_output/df_ode_solution_UK_long.RDS"
+filename="simul_output/df_ode_solution_UK_long.RDS"
 # init_cond_src: "file" or "output"? 
-initvals_sirs_model=fcn_set_initconds(init_set=prev_or_new,init_cond_src="output",ode_solution,init_seed=10,seed_vars="all",filename)
+initvals_sirs_model=fcn_set_initconds(init_set=c("previous","fromscratch")[1],init_cond_src="output",ode_solution,
+                                      init_seed=10,seed_vars="all",filename)
 # manually choose a timepoint from prev simul
 # initvals_sirs_model=matrix(as.numeric(round(ode_solution[min(which(round(timesteps/365,3)==19.5)),2:ncol(ode_solution)])))
 
 ### integrate ODE --------------------------------------------------------
-params=list(birth_term,K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,elem_time_step,delta_susc)
+params=list(list(birth_rates,death_rates),K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,elem_time_step,delta_susc)
 # interpolation fcns for seas forcing & extern introds
 approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
 approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*10))
 tm<-proc.time(); ode_solution<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); round(proc.time()-tm,2)
 # reshape data | # check size of objs: fcn_objs_mem_use(1)
-g(ode_solution,df_ode_solution_tidy) %=% fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups,neg_thresh=-1e-3)
+g(ode_solution,df_ode_solution_tidy)%=%fun_process_simul_output(ode_solution,varname_list,n_age,n_inf,rsv_age_groups,neg_thresh=-0.01)
 ####
-# PLOT how age group totals change (initial vs final popul sizes: fun_agegroup_init_final_pop(df_ode_solution_tidy))
+# PLOT how age group totals change (initial vs final popul sizes: fun_agegroup_init_final_pop(df_ode_solution_tidy) )
 fcn_plotagegroup_totals(df_ode_solution_tidy,scale_val=c('free_y','fixed')[1])
 # ggsave(paste("simul_output/agegroup_totals_",scale_val,"yscale.png",sep=""),width=28,height=16,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 ### Plot time course --------------------------------------------------------
-xval_lims=c(npi_year-1.27,npi_year+4.5); seas_lims_plot=subset(seas_lims,on>xval_lims[1] & off<xval_lims[2]); agegr_lim=8
+xval_lims=c(npi_year-3.27,npi_year+4.5); seas_lims_plot=subset(seas_lims,on>xval_lims[1] & off<xval_lims[2]); agegr_lim=8
 xval_breaks=seq(0,max_time/365,by=1/4)
 # PLOT
 # tags: y-axis fixed/free | facet by AGE/(age&INFECTION) | abs values/fraction
@@ -106,8 +124,8 @@ xval_breaks=seq(0,max_time/365,by=1/4)
 g(scale_val,facet2tag,value_type,y_axis_tag,ncol_val,facet_formula,foldername,caption_txt,subtitle_str,timecourse_filename) %=% 
     fun_tcourse_plottags(k=8,nval=2,rval=3,n_inf,n_age,colvar="age",agegr_lim,delta_susc_prop,delta_primary,
           preseas_npi_on,postseas_npi_off,npi_reduc_strength,forcing_strength)
-# PLOT time course absolute values  --------------------------------------------------------
-fcn_plot_allcases_absval_stackedinfs(df_ode_solution_tidy,value_type,x_lims=c(0,13),t_subset=7,agegrlim=11,ncolval=3,y_axis_tag,
+# PLOT time course absolute/fract values by age group  --------------------------------------------------------
+fcn_plot_allcases_absval_stackedinfs(df_ode_solution_tidy,value_type,x_lims=xval_lims,t_subset=7,agegrlim=11,ncolval=3,y_axis_tag,
                                      scale_val,seas_lims_plot,shutdwn_lims,xval_breaks,subtitle_str,caption_txt)
 ## SAVE
 ggsave(timecourse_filename, width=32,height=28,units="cm")
@@ -136,7 +154,8 @@ agedep_fact=1; clinfract_expos=rep(0.4,n_inf) # c(0.8,0.4,0.2) # rep(0.75,3) # c
 clin_fract_age_exp=fcn_clin_fract_age_exp(agedep_fact,clinfract_expos,rsv_age_groups,n_age,n_inf)
 # plot: fcn_plot_clinfract_table(clin_fract_age_exp)
 ### CALCULATE SYMPTOMATIC CASES & sum of 1,2,3rd infections -------------------------------
-df_ode_sol_cases_sum=fun_symptomcases_table(df_ode_solution_tidy,clin_fract_age_exp,c("infection","agegroup"),seas_lims)
+df_ode_sol_cases_sum=fun_symptomcases_table(df_ode_solution_tidy,clin_fract_age_exp,c("infection","agegroup")) %>%
+  mutate(season=)
 
 # PLOT SYMPTOMATIC CASES -----------------------------------
 # k_plot: free/fixed | fraction/cases
@@ -174,7 +193,7 @@ ggsave(agedistr_filename,width=32,height=16,units="cm")
 ### ### ### ### ### 
 ### mean age of infections ----------------------------
 # mean_age_perseason_exp_dep # =mean_age_perseason
-mean_age_perseason=fcn_calc_mean_age(season_peaks_AUC,season_min=4)
+mean_age_perseason=fcn_calc_mean_age(season_peaks_AUC,season_min=4,dep_name = "age")
 # segment plot
 var_sel="value"; if(grepl("norm",var_sel)) {ylab_tag=" (normalised)"} else {ylab_tag=" (year)"}
 fcn_plot_mean_age(mean_age_perseason,seas_lims,npi_year,shutdwn_lims,yexpand=c(0.2,0),ylab_tag)

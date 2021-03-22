@@ -125,9 +125,25 @@ ggplot(subset(df_ode_sol_sympt_cases,parset_id==min(parset_id) & t>3800 & t<4900
   theme(axis.text.x=element_text(vjust=0.75)) + geom_vline(xintercept=4700,linetype="dashed",size=0.5)
 # symptom cases at given timepoint
 sympt_cases_t=subset(df_ode_sol_sympt_cases,parset_id==min(parset_id) & t==4700)$symptom_cases
+
 uk_popul=left_join(subset(popF,name %in% "United Kingdom")[,c("age","2020")],
-                   subset(popM,name %in% "United Kingdom")[,c("age","2020")],by="age",suffix=c("F","M")) %>% mutate(totalpop=`2020F`+`2020M`)
-rownames(uk_popul)=c()
+      subset(popM,name %in% "United Kingdom")[,c("age","2020")],by="age",suffix=c("F","M")) %>% 
+  mutate(totalpop=`2020F`+`2020M`,lower=as.numeric(gsub("-\\d+","",age)),upper=as.numeric(gsub("\\d+-","",age))+0.9)
+if (any(is.na(uk_popul$lower))){
+uk_popul[grepl("95",uk_popul$age),c("2020F","2020M","totalpop")]=(uk_popul[grepl("95",uk_popul$age),c("2020F","2020M","totalpop")]+
+  uk_popul[uk_popul$age=="100+",c("2020F","2020M","totalpop")]); uk_popul=uk_popul[-which(uk_popul$age=="100+"),] 
+  uk_popul=uk_popul %>% mutate(mean_age=(lower+upper+0.1)/2,fraction_pop=totalpop/sum(totalpop)) }
+
+agegroup_match=data.frame(model_agegroup=1:nrow(rsv_age_groups),age_low=rsv_age_groups$age_low,age_high=rsv_age_groups$age_high,
+  wpp_agegroup_low=unlist(lapply(rsv_age_groups$age_low,function(x){which(x>=uk_popul$lower & x<=uk_popul$upper)})),
+  wpp_agegroup_high=unlist(lapply(rsv_age_groups$age_high,function(x){which(x>=uk_popul$lower & x<=uk_popul$upper)}))) %>%
+  mutate(age_high=ifelse(model_agegroup<max(model_agegroup),age_low[model_agegroup+1],age_high),
+         mean_age_arithm=(age_low+age_high)/2, mean_age_weighted=sapply(1:max(model_agegroup),function(x) {
+           sum((uk_popul$totalpop[wpp_agegroup_low[x]:wpp_agegroup_high[x]]*
+              uk_popul$mean_age[wpp_agegroup_low[x]:wpp_agegroup_high[x]])/
+                 sum(uk_popul$totalpop[wpp_agegroup_low[x]:wpp_agegroup_high[x]]))})) %>%
+  mutate(mean_age_weighted=ifelse(wpp_agegroup_low==wpp_agegroup_high,mean_age_arithm,mean_age_weighted)) %>% select(-mean_age_arithm)
+  
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 # calculate age distributions ----------------------------
