@@ -52,21 +52,32 @@ rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 birth_rates=matrix(c(713e3/365,rep(0,dim_sys-1)),dim_sys,1)
-# DEATHS (2019: 530841 deaths [England and Wales!])
-uk_death_rate=read_csv("data/uk_death_rate_byage.csv")
-g(rsv_age_groups,death_rates) %=% fun_death_rates(rsv_age_groups,uk_death_rate,nage=n_age,ninf=n_inf,dimsys=dim_sys)
+# DEATHS (2019: 530841 deaths [England and Wales!]) # "uk_death_rate_byage_rsv_agegroups.csv" is for 1000 population!
+uk_death_rate=read_csv("data/uk_death_rate_byage_rsv_agegroups.csv")
+# we want population to be stationary (at 2019 or 2020 value), so deaths = births
+rsv_age_groups <- rsv_age_groups %>% mutate(deaths_per_personyear=uk_death_rate$deaths_per_person/1e3,
+                             rect_popul=sum(value)*read_csv("data/final_pop.csv")$final/sum(read_csv("data/final_pop.csv")$final))
+death_corr_ratios=(rsv_age_groups$duration/sum(rsv_age_groups$duration))/rsv_age_groups$fraction
+# 
+init_ratio_birth_death <- sum(death_corr_ratios*uk_death_rate$deaths_per_1000person_peryear*rsv_age_groups$value/1000)/(
+  sum(birth_rates)*365)
+# sum(birth_rates)*365/sum(uk_death_rate$deaths_per_1000person_peryear*rsv_age_groups$value/1e3)
+  # read_csv("data/final_pop.csv")$final/rsv_age_groups$value
+death_rates=matrix(unlist(lapply(( (death_corr_ratios/(init_ratio_birth_death*1.241))*
+  uk_death_rate$deaths_per_1000person_peryear/(365*1000)), function(x) rep(x,n_compartment*n_inf))),ncol=1)
+# g(rsv_age_groups,death_rates) %=% fun_death_rates(rsv_age_groups,uk_death_rate,nage=n_age,ninf=n_inf,dimsys=dim_sys)
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=paste0("age=",rsv_age_groups$agegroup_name,"yr"),
-                                 median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
-
+                               median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
 ### ### ### ### ### ### ### ###
 # variable parameters  --------------------------------------------------------
 # SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
 # agedep_fact determines strength of age dependence, if agedep_fact>1, decreasing susceptibility with age
 agedep_fact=1; delta_primary=c(0.08,0.07,0.06)/2.8 # c(0.09,0.07,0.05)/2.5
 # c(0.27,0.03,0.01)/5 # c(0.21,0.11,0.01)/5 # c(0.09,0.07,0.05)/1.6 # rep(0.15,3) # rep(0.09,3)
-g(delta_susc,delta_susc_prop) %=% list(sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$value[x])}),
-            delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T)); dep_subfolder_name<-fun_subfld(delta_primary,delta_susc_prop)
+delta_susc <- sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$value[x])})
+delta_susc_prop <- delta_susc*matrix(rep(rsv_age_groups$value,3),nrow=3,byrow=T)
+dep_subfolder_name<-fun_subfld(delta_primary,delta_susc_prop)
 ### PLOT susceptibility: 
 # fcn_plot_suscept_table(fcn_suscept_agedeptable(rsv_age_groups,delta_susc,n_inf)) 
 # ggsave(paste0("simul_output/suscept_age_dep/",agedep_fact,"delta_prim",unique(delta_primary),".png"),width=32,height=22,units="cm")
@@ -76,9 +87,10 @@ R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf)
 # DURATION of SIMULATION
 # seasonal forcing (baseline level=1, forcing_strength=2 means 200% above baseline) | npi_reduc_strength: reduction from baseline 
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
-npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1; seasforc_width_wks_wks=4
-g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(10,3),
-              season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week=44,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
+npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1; seasforc_width_wks=4
+g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(10,50),
+        season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week=44,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
+# R0, tags
 R0val=round(R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf),2); filetag <- ifelse(grepl("exp_dep",dep_subfolder_name),
   paste0("susc_",paste0(round(delta_primary,2),collapse="_"),"_R0_",R0val,"_seasforc_",seaspeakval,"_seaswidth_wks",seasforc_width_wks),"")
 # plot seasonal forcing
@@ -87,7 +99,7 @@ fcn_plot_seas_forc(simul_start_end,forcing_vector_npi,seas_lims_wks=c(7,42),npi_
 
 # INITIAL CONDITIONS. # introduce stationary state as init state? | init_set: "previous" or anything else
 if (!exists("ode_solution")) {ode_solution<-NA}
-initvals_sirs_model<-fcn_set_initconds(rsv_age_groups,init_set=c("previous","fromscratch")[1],init_cond_src=c("output","file")[1],
+initvals_sirs_model <- fcn_set_initconds(rsv_age_groups,init_set=c("previous","fromscratch")[1],init_cond_src=c("output","file")[1],
     ode_solution,init_seed=10,seed_vars="all",filename="simul_output/df_ode_solution_UK_multiple_adult_grps.RDS")
 # OR manually choose a timepoint from prev simul
 # t_sel=(df_cases_infs %>% filter(date==ymd("2019-07-01")) %>% group_by(date) %>% summarise(t=unique(t)))$t
@@ -102,11 +114,13 @@ approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_n
 approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*5))
 tm<-proc.time(); ode_sol<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); round(proc.time()-tm,2)
 # reshape data | # check size of objs: fcn_objs_mem_use(1)
-g(final_pop,ode_solution,df_cases_infs) %=% fun_process_simul_output(ode_sol,varname_list,incidvar="newinf",incid_only=TRUE,
+g(final_pop,ode_solution,df_cases_infs) %=% fun_process_simul_output(ode_sol,varname_list,incidvar="newinf",incid_only=F,
                                         init_date=simul_start_end[1],n_age,n_inf,rsv_age_groups,neg_thresh=-0.01)
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # PLOT how age group totals change (for this "incid_only" should be FALSE)
-# fcn_plotagegroup_totals(df_cases_infs,incidvar="newinf",scale_val=c('free_y','fixed')[1])
+fcn_plotagegroup_totals(df_cases_infs,incidvar="newinf",scale_val=c('free_y','fixed')[1])
+# final popul:
+# sum((df_cases_infs %>% filter(!grepl("newinf",name) & t==max(t)))$value)
 # ggsave(paste("simul_output/agegroup_totals_",scale_val,"yscale.png",sep=""),width=28,height=16,units="cm")
 # check if % change between initial and final age group sizes smaller than 0.1 | fun_agegroup_init_final_pop(df_cases_infs)
 # all(abs(1-(final_pop$final/final_pop$init))<0.001)

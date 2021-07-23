@@ -401,10 +401,10 @@ fcn_set_initconds<-function(rsv_agegroups,init_set,init_cond_src,input_from_prev
 }
 
 ### set up death rates
-fun_death_rates<-function(rsv_age_groups,uk_death_rate,nage,ninf,dimsys){
+fun_death_rates <- function(rsv_age_groups,uk_death_rate,nage,ninf,dimsys){
   rsv_age_groups=rsv_age_groups %>% 
     mutate(deaths_per_personyear=uk_death_rate$deaths_per_person[sapply(age_high,function(x) {which.max(x<=uk_death_rate$age_high)})])
-  deaths_under20=sum((rsv_age_groups$value*rsv_age_groups$deaths_per_personyear)[1:(nrow(rsv_age_groups)-1)])
+  # deaths_under20=sum((rsv_age_groups$value*rsv_age_groups$deaths_per_personyear)[1:(nrow(rsv_age_groups)-1)])
   rsv_age_groups$deaths_per_personyear[nrow(rsv_age_groups)]=(birth_rates[1,]*365)/rsv_age_groups$value[nage] # -deaths_under20
   # all deaths can be assigned to 20-99 group, and we want it to balance the births
   olderage_inds=lapply(1:nage,function(x_age){unlist(lapply(1:ninf, 
