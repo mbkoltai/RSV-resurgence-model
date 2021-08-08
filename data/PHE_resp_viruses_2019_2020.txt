@@ -1,0 +1,10 @@
+2019 Week 40-43:
+Age group (years) 	<1 year 	1-4 years 	5-14 years 	15-44 years 	45-64 years 	≥65 years
+RSV 					236 	149 			13 			23 				15 				31
+week 44-48:
+RSV 					2132 	1249 			99		 	177 			243 			485
+
+2020 Week 40-45
+Age group (years) 	<1 year 	1-4 years 	5-14 years 	15-44 years 	45-64 years 	≥65 years
+RSV				 	26 				23 			35 			528 			455 		799
+

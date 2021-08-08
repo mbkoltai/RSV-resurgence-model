@@ -65,59 +65,60 @@ fun_sirs_varnames=function(varname_list,n_age,n_inf){
 }
 
 # set up kinetic matrix ----------------------------------------------------------
-fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups){
-K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
-# S_i_j -> S_1_1 is S, subscript=1, superscript=1. subscript: # infection, superscript= # age group
-# varname_list=c('S','I','R') # conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
-# waning terms: omega=1/1e2. flow: R_i_j -> S_min(i+1,n_inf)_j;  eg. R_1_1 -> S_2_1
-for (j_age in 1:n_age) {
-  for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {waning_terms_source_target=data.frame()}
-    wanevals=c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),
-               fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_age,n_inf))
-    # waning_terms_source_target=rbind(waning_terms_source_target,wanevals)
-    K_m[wanevals[2],wanevals[1]]=omega } }
-# aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> R_i_(j+1), I_i_j->I_(i+1)_j
-for (j_age in 1:(n_age-1)) {
-  for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
-  agevals=rbind( 
-  # S_i_j -> S_i_(j+1)
-  c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age ),
-  # R_i_j -> R_i_(j+1)
-  c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'R',varname_list,n_age,n_inf),j_age),
-  # I_i_j -> I_i_(j+1)
-  c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'I',varname_list,n_age,n_inf),j_age)
-  )
-  # bundle
-  aging_terms_source_target=rbind(aging_terms_source_target,agevals) } }
-for (k in 1:nrow(aging_terms_source_target)) {
-  duration_scale=rsv_age_groups$duration[aging_terms_source_target[k,3]]
-  # print(c(aging_terms_source_target[k,2],aging_terms_source_target[k,1],duration_scale))
-  K_m[aging_terms_source_target[k,2],aging_terms_source_target[k,1]]=1/(365*duration_scale)}
-# recovery terms
-# rho=1/6; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
-for (j_age in 1:n_age) {
-  for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {recov_terms_source_target=data.frame()}
-    recov_vals=c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
-                 fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))
-    recov_terms_source_target=rbind(recov_terms_source_target,recov_vals)
-    K_m[recov_vals[2],recov_vals[1]]=rho } }
-
-# diagonal terms
-# outflow terms that represent 'aging out' of the model from the highest age groups
-# for (j_age in n_age) {
-#   for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
-#     ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
-#                                            # if infections have the aging term on them too
-#                                            fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
-#                                            fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
-# for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_age_groups$duration[nrow(rsv_age_groups)]) }
-
-# diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
-diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m)))
-
-#### return output
-# print(diag(K_m))
-K_m
+fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,agegroup_durations){
+  K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
+  # S_i_j -> S_1_1 is S, subscript=1, superscript=1. subscript: # infection, superscript= # age group
+  # varname_list=c('S','I','R') # conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
+  # waning terms: omega=1/1e2. flow: R_i_j -> S_min(i+1,n_inf)_j;  eg. R_1_1 -> S_2_1
+  for (j_age in 1:n_age) {
+    for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {waning_terms_source_target=data.frame()}
+      wanevals=c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),
+                 fun_sub2ind(min(i_inf+1,n_inf),j_age,'S',varname_list,n_age,n_inf))
+      # waning_terms_source_target=rbind(waning_terms_source_target,wanevals)
+      K_m[wanevals[2],wanevals[1]]=omega } }
+  # aging terms between AGE GROUPS: S_i_j -> S_i_(j+1), R_i_j -> R_i_(j+1), I_i_j->I_(i+1)_j
+  for (j_age in 1:(n_age-1)) {
+    for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
+      agevals=rbind( 
+        # S_i_j -> S_i_(j+1)
+        c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age ),
+        # R_i_j -> R_i_(j+1)
+        c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'R',varname_list,n_age,n_inf),j_age),
+        # I_i_j -> I_i_(j+1)
+        c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'I',varname_list,n_age,n_inf),j_age)
+      )
+      # bundle
+      aging_terms_source_target=rbind(aging_terms_source_target,agevals) } }
+  for (k in 1:nrow(aging_terms_source_target)) {
+    duration_scale=agegroup_durations[aging_terms_source_target[k,3]]
+    # print(c(aging_terms_source_target[k,2],aging_terms_source_target[k,1])) # ,duration_scale
+    K_m[aging_terms_source_target[k,2],aging_terms_source_target[k,1]]=1/(365*duration_scale)}
+  # print(aging_terms_source_target) # [,1:2]
+  # recovery terms
+  # rho=1/6; # 1/rho=rweibull(1, shape=4.1,scale=8.3)
+  for (j_age in 1:n_age) {
+    for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {recov_terms_source_target=data.frame()}
+      recov_vals=c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
+                   fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))
+      recov_terms_source_target=rbind(recov_terms_source_target,recov_vals)
+      K_m[recov_vals[2],recov_vals[1]]=rho } }
+  
+  # diagonal terms
+  # outflow terms that represent 'aging out' of the model from the highest age groups
+  # for (j_age in n_age) {
+  #   for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
+  #     ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
+  #                                            # if infections have the aging term on them too
+  #                                            fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
+  #                                            fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
+  # for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_agegroups$duration[nrow(rsv_agegroups)]) }
+  
+  # diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
+  diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m)))
+  
+  #### return output
+  # print(diag(K_m))
+  K_m
 }
 
 ### R0 calculation --------------
@@ -131,6 +132,42 @@ R0_calc_SIRS <- function(C_m,delta_susc_prop,rho,n_inf) {
   # ngm = po$u * t(t(cm) * (    po$y * (po$fIp * dIp + po$fIs * dIs) + (1 - po$y) * po$fIa * dIa) )
   ngm=Reduce('+',lapply(susc_matrs, function(x) {x* C_m}))*(1/rho)*(1/n_inf)
   abs(eigen(ngm)$values[1])
+}
+
+### fcn susceptibility matrices
+fcn_delta_susc <- function(deltaprim,n_agegr,n_infect,agedepfact,total_pop){
+  # delta_susc=sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$stationary_popul[x])})
+  # delta_susc_prop=delta_susc*matrix(rep(rsv_age_groups$stationary_popul,3),nrow=3,byrow=T)
+list(sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])}),
+     sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])})*matrix(rep(total_pop,3),nrow=n_infect,byrow=T))
+}
+
+### create param table with right suscept values for desired R0 ------------
+fcn_create_partable <- function(partab,nstep,scale_age_exp,popul_struct,susc_denomin,susc_min,nage,ninf,rhoval){
+  partab <- partab %>% mutate(delta1=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,
+                                            scale_age_exp[2]*(susc_min+dep_val/susc_denomin)),
+                      delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
+                      delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
+                      agedep_val=ifelse(dep_type=="age",NA,1))
+  # set suscept params to get desired R0
+  for (k_par in 1:nrow(partab) ) {
+    r0_max <- partab$R0[k_par]; r0_min<-0.995*r0_max
+    if (partab$dep_type[k_par]=="age"){ 
+      agedep_fact=1+partab$dep_val[k_par]/nstep; deltaprim=as.numeric(partab[k_par,] %>% select(contains("delta")))
+      r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf)
+      while (r0_try>r0_max | r0_try<r0_min) { deltaprim=deltaprim*ifelse(r0_try>r0_max,0.995,1.005)
+      r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf) }
+    } # print(r0_try)
+    # exposure dependent
+    else { agedep_fact=1; deltaprim=as.numeric(partab[k_par,] %>% select(contains("delta")))
+    r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf)
+    # find delta_prim values so that R0 is within given interval
+    while (r0_try>r0_max | r0_try<r0_min) { deltaprim=deltaprim*ifelse(r0_try>r0_max,0.995,1.005)
+    r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf) }   }
+    # assign
+    partab[k_par,c("delta1","delta2","delta3")] <- as.list(deltaprim); partab$agedep_val[k_par]=agedep_fact
+  }
+  partab
 }
 
 ### ode w/o seasonal forcing --------------
@@ -200,9 +237,9 @@ fun_recipr_contmatr<-function(C_m_full,age_group_sizes){
 }
 
 # create reduced contact matrix --------------
-fun_create_red_C_m=function(C_m_full,rsv_age_groups,orig_age_groups_duration,orig_age_groups_sizes){
-  C_m=matrix(0,nrow=nrow(rsv_age_groups),ncol=nrow(rsv_age_groups)); rownames(C_m)=rsv_age_groups$agegroup_name
-  colnames(C_m)=rsv_age_groups$agegroup_name
+fun_create_red_C_m=function(C_m_full,rsv_agegroups,orig_age_groups_duration,orig_age_groups_sizes){
+  C_m=matrix(0,nrow=nrow(rsv_agegroups),ncol=nrow(rsv_agegroups)); rownames(C_m)=rsv_agegroups$agegroup_name
+  colnames(C_m)=rsv_agegroups$agegroup_name
   for (i_row in 1:n_age){
     for (j_col in 1:n_age){
       # we are merging or splitting age groups, there are 3 possibilities for a new age group:
@@ -210,33 +247,34 @@ fun_create_red_C_m=function(C_m_full,rsv_age_groups,orig_age_groups_duration,ori
       # (it is an *average* of contacts per person, and we have no resolution within age bands)
       #
       # if the 'i' group (C[i,j]) is the *same* as original or *smaller*, this (in itself) does not change the contact rate
-      if (rsv_age_groups$wpp_agegroup_low[i_row]==rsv_age_groups$wpp_agegroup_high[i_row]) {
+      if (rsv_agegroups$wpp_agegroup_low[i_row]==rsv_agegroups$wpp_agegroup_high[i_row]) {
         # 'j' group same or smaller as original
-        if (rsv_age_groups$wpp_agegroup_low[j_col]==rsv_age_groups$wpp_agegroup_high[j_col]) {
-            f_dur=rsv_age_groups$duration[j_col]/orig_age_groups_duration[rsv_age_groups$wpp_agegroup_high[j_col]]
-            C_m[i_row,j_col]=(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row],rsv_age_groups$wpp_agegroup_low[j_col]])*f_dur
+        if (rsv_agegroups$wpp_agegroup_low[j_col]==rsv_agegroups$wpp_agegroup_high[j_col]) {
+          f_dur=rsv_agegroups$duration[j_col]/orig_age_groups_duration[rsv_agegroups$wpp_agegroup_high[j_col]]
+          C_m[i_row,j_col]=(C_m_full[rsv_agegroups$wpp_agegroup_low[i_row],rsv_agegroups$wpp_agegroup_low[j_col]])*f_dur
         } else { # if 'j' is larger than original group
-          group_span=rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]
+          group_span=rsv_agegroups$wpp_agegroup_low[j_col]:rsv_agegroups$wpp_agegroup_high[j_col]
           agegroup_weights=orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span])
           C_m[i_row,j_col]=sum(agegroup_weights*C_m_full[i_row,group_span])
         } # end of 'i' smaller or same as original
       } else { # if 'i' in C[i,j] is a bigger age band -> weighted average of the contact rates of constituent groups
-        group_span=rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row]
+        group_span=rsv_agegroups$wpp_agegroup_low[i_row]:rsv_agegroups$wpp_agegroup_high[i_row]
         agegroup_weights=orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span])
         # if 'j' is same/smaller -> contact rate with original group proportionally divided
-        if (rsv_age_groups$wpp_agegroup_low[j_col]==rsv_age_groups$wpp_agegroup_high[j_col]) {
-          f_dur=rsv_age_groups$duration[j_col]/orig_age_groups_duration[rsv_age_groups$wpp_agegroup_high[j_col]]
-  C_m[i_row,j_col]=sum((orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span]))*C_m_full[group_span,j_col])*f_dur
+        if (rsv_agegroups$wpp_agegroup_low[j_col]==rsv_agegroups$wpp_agegroup_high[j_col]) {
+          f_dur=rsv_agegroups$duration[j_col]/orig_age_groups_duration[rsv_agegroups$wpp_agegroup_high[j_col]]
+          C_m[i_row,j_col]=sum((orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span]))*C_m_full[group_span,j_col])*f_dur
         } else {# if 'j' larger -> weighted average of the contact rates of the constituent groups
           print(c(i_row,j_col)); print(agegroup_weights); print(group_span)
           C_m[i_row,j_col]=sum(rep(agegroup_weights,length(agegroup_weights))*unlist(
             lapply(group_span,function(x) {agegroup_weights*C_m_full[x,group_span]})))
         }
       }
-      # C_m[i_row,j_col]=mean(C_m_full[rsv_age_groups$wpp_agegroup_low[i_row]:rsv_age_groups$wpp_agegroup_high[i_row],
-      #                                rsv_age_groups$wpp_agegroup_low[j_col]:rsv_age_groups$wpp_agegroup_high[j_col]])   
+      # C_m[i_row,j_col]=mean(C_m_full[rsv_agegroups$wpp_agegroup_low[i_row]:rsv_agegroups$wpp_agegroup_high[i_row],
+      #                                rsv_agegroups$wpp_agegroup_low[j_col]:rsv_agegroups$wpp_agegroup_high[j_col]])   
     } }
   C_m }
+
 
 ### country full popul struct --------------
 fcn_cntr_fullpop <- function(n_year,country_sel){
@@ -287,6 +325,22 @@ fun_rsv_agegroups<-function(standard_age_groups,popul_struct,rsv_age_groups_low,
   rsv_age_groups %>% mutate(mean_age_weighted=agegroup_match$mean_age_weighted)
 }
 
+### calculate stationary population age structure -----------------
+fcn_calc_stat_popul <- function(rsv_agegroups,agegroup_time_size,dailybirth,dailydeath_per_agegrp,output_type){
+  # dailybirth=2314
+  # all rates PER DAY
+  D_m = -diag(dailydeath_per_agegrp) # # uk_death_rate$deaths_per_1000person_peryear/(365*1e3)
+  B_m = matrix(0,nrow = nrow(rsv_agegroups),ncol=nrow(rsv_agegroups))
+  diag(B_m) = -c(1/(agegroup_time_size[1:(nrow(rsv_agegroups)-1)]*365),0)
+  # subdiag terms
+  subdiag_inds=(nrow(rsv_agegroups)+1)*(0:(nrow(rsv_agegroups)-2))+2
+  B_m[subdiag_inds]=1/(agegroup_time_size[1:(nrow(rsv_agegroups)-1)]*365)
+  K_matr=D_m+B_m
+  # has almost zero determinant
+  if (output_type=="matrix") {-round(inv(K_matr) %*% matrix(c(dailybirth,rep(0,nrow(rsv_agegroups)-1))) )} else {
+    c(-round(inv(K_matr) %*% matrix(c(dailybirth,rep(0,nrow(rsv_agegroups)-1))) ))}
+}
+
 ### process simul output -----------------
 fun_process_simul_output=function(ode_solution,varnamelist,incidvar,incid_only,init_date,n_age,n_inf,rsvagegroups,neg_thresh){
   # init_date=as.Date(paste0(as.numeric(format(Sys.Date(),"%Y"))-(npiyear+1),"-01-01"))
@@ -310,7 +364,7 @@ fun_process_simul_output=function(ode_solution,varnamelist,incidvar,incid_only,i
   if (any(is.na(finalvals$agegroup_sum_popul))) {
     finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==0) %>% summarise(agegroup_sum_popul=sum(value)) }
   df_ode_solution_tidy = df_ode_solution_tidy %>% mutate(value_fract=value/finalvals$agegroup_sum_popul[agegroup]) %>%
-    mutate(agegroup_name=paste0("age=",rsvagegroups$agegroup_name[agegroup],"yr"),date=init_date+t,
+    mutate(agegroup_name=paste0(rsvagegroups$agegroup_name[agegroup]),date=init_date+t, # ,"yr"
            agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% group_by(name) %>%
     mutate(infection=paste0("infection #",infection)) %>% mutate(value=ifelse(compartment==incidvar,c(0,diff(value)),value),
         value_fract=ifelse(compartment==incidvar,c(0,diff(value_fract)),value_fract))
@@ -318,6 +372,14 @@ fun_process_simul_output=function(ode_solution,varnamelist,incidvar,incid_only,i
   finpop=fun_agegroup_init_final_pop(df_ode_solution,n_age*n_inf*length(varnamelist))
   
   list(finpop,df_ode_solution,df_ode_solution_tidy) }
+
+### process incidence only, fast
+fcn_process_odesol_incid <- function(odesol,n_agegr,n_infect,n_comp,date_start_end){
+  odesol[,c(1,(n_agegr*n_infect*n_comp+2):ncol(odesol))] %>% as.data.frame() %>% 
+  setNames(c("t",paste0(rep(1:3,n_agegr),"_", unlist(lapply(1:n_agegr, function(x) rep(x,n_infect)))))) %>%
+  pivot_longer(!t) %>% group_by(name) %>% mutate(value=value-lag(value,n=1,order_by=t),date=t+date_start_end[1],
+          agegroup=as.numeric(sapply(strsplit(name,"_"),"[[",2)),infection=as.numeric(sapply(strsplit(name,"_"),"[[",1)))
+}
 
 ### seasonal forcing term ------------------
 fun_seas_forc=function(time_input,peak_day,st_dev_season,forcing_above_baseline,day_num){
@@ -386,18 +448,41 @@ fun_subfld <- function(deltaprim,delta_suscprop) {
             length(unique(deltaprim))==1 & length(unique(round(delta_suscprop[1,],4)))>1 ~ "suscept_age_dep/")}
 
 ### set up initial condition ------------------
-fcn_set_initconds<-function(rsv_agegroups,init_set,init_cond_src,input_from_prev_simul,init_seed,seed_vars,filename){
+fcn_set_initconds<-function(rsv_agegroup_sizes,init_set,init_cond_src,input_from_prev_simul,init_seed,seed_vars,filename){
   if (grepl("previous",init_set)){     # print("using init cond from previous simulation")
     initvals_sirs_model=fcn_init_susc_vals(stationary_init=TRUE,from_file_or_output=init_cond_src,simul_output=input_from_prev_simul,
-                                           susc_vars_inds,agegr_sizes=rsv_agegroups$value,sim_filepath=filename) } else {
+                                           susc_vars_inds,agegr_sizes=rsv_agegroup_sizes,sim_filepath=filename) } else {
     # INITIAL INFECTION (taking stationary sol should contain [I]s so no need to re-seed it)
     # set up susceptibles from scratch
-    initvals_sirs_model=matrix(0,nrow=dim_sys*4/3); initvals_sirs_model[sapply(susc_vars_inds,'[[',1)]=rsv_agegroups$value
+    initvals_sirs_model=matrix(0,nrow=dim_sys*4/3); initvals_sirs_model[sapply(susc_vars_inds,'[[',1)]=rsv_agegroup_sizes
     # all first infection groups: sapply(inf_vars_inds, '[[',1) | first infection in first age group: inf_vars_inds[[1]][1]
     if (seed_vars=="all") {seed_vars=sapply(inf_vars_inds,'[[',1)} else {seed_vars=inf_vars_inds[[1]][1]}
     initvals_sirs_model[seed_vars]=init_seed
   }
   round(initvals_sirs_model)
+}
+
+### simple lineplot of dynamics by agegroup ----------
+fcn_plot_timecourse_by_agegr <- function(df_plot,varname,sel_agelim,npidates,date_break_val,selweeks,alphaval,vline_w){
+  
+  if (!any(grepl("agegroup_name",colnames(df_plot)))) {df_plot <- df_plot %>% mutate(agegroup_name=rsv_age_groups$agegroup_name[agegroup])}
+  ggplot(df_plot) + 
+    geom_area(aes(x=date,y=get(varname)*ifelse(grepl("fract",varname),1e2,1),fill=factor(infection)),position=position_stack(reverse=T),
+              alpha=0.3,color="black",size=0.25) + facet_wrap(~agegroup_name,scales="free_y") + xlab("") + 
+    geom_vline(data=selweeks %>% filter(agegroup<=sel_agelim),aes(xintercept=date,linetype=ifelse(week==49,"solid","dashed"),
+        size=ifelse(week==49,"a","b")),show.legend=F) + scale_size_manual(breaks=c("a","b"),values=vline_w) +
+    scale_x_date(date_breaks=date_break_val,expand=expansion(0.01,0)) + scale_y_continuous(expand=expansion(0.01,0)) +
+    geom_rect(xmin=npidates[1],xmax=npidates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=alphaval) +
+    theme_bw() + standard_theme + ylab(ifelse(varname=="value","# cases","% age group")) 
+}
+
+### plot sum of all infections
+fcn_plot_timecourse_sum <- function(df_plot,npidates){
+selweek=df_plot %>% mutate(year=year(date),week=week(date)) %>% filter(week==49) %>% group_by(year) %>% summarise(date=min(date))
+  ggplot(df_plot,aes(x=date,y=value,fill=infection)) + geom_area(position=position_stack(reverse=T),alpha=0.3,color="black",size=0.25) + 
+  theme_bw() + standard_theme + scale_y_continuous(expand=expansion(0.01,0))+scale_x_date(date_breaks="3 months",expand=expansion(0.01,0)) +
+  geom_rect(xmin=npidates[1],xmax=npidates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=0.01) + ylab("# new infections") +
+    geom_vline(data=selweek,aes(xintercept=date,linetype="solid"),size=1/4,show.legend=F)
 }
 
 ### set up death rates
@@ -819,13 +904,13 @@ fcn_plot_mean_age_byinfs <- function(df,plot_flag,plotvar,low_thresh,x_lims,vert
                                      shutdwn_lims,subtitle_str,caption_txt){
 if (grepl("seas",plot_flag)) {
   df_plot = subset(df %>% group_by(epi_year,on_off,infection) %>% 
-    summarise(season_mean=ifelse(mean(suminfs)>low_thresh,mean(mean_age_at_t),NA)),epi_year>floor(x_lims[1]) & epi_year<ceiling(x_lims[2]))
+    summarise(season_mean=ifelse(mean(suminfs)>low_thresh,mean(mean_age_at_t),NA)),epi_year>floor(x_lims[1])&epi_year<ceiling(x_lims[2]))
   segm_offset=1-unique(round(seas_lims$on %% 1,3))
-ggplot(df_plot) + geom_segment(aes(x=epi_year-segm_offset,xend=epi_year+1-segm_offset-0.02,y=season_mean,yend=season_mean,color=on_off),size=2) + 
-  facet_wrap(~infection,scales="free") + 
+ggplot(df_plot) + geom_segment(aes(x=epi_year-segm_offset,xend=epi_year+1-segm_offset-0.02,y=season_mean,yend=season_mean,color=on_off),
+                               size=2) + facet_wrap(~infection,scales="free") + 
   geom_rect(aes(xmin=highl_lims[1]/365,xmax=highl_lims[2]/365,ymin=-Inf,ymax=Inf),fill="pink",color=NA,alpha=0.02) +
-  geom_vline(data=subset(vertline_x %>% pivot_longer(cols=!season),name %in% "on"),aes(xintercept=value),color="blue",linetype="dashed",size=0.3) +
-  scale_x_continuous(expand=expansion(0,0)) + scale_y_continuous(expand=expansion(0.02,0)) + # breaks=xvalbreaks,
+  geom_vline(data=subset(vertline_x %>% pivot_longer(cols=!season),name %in% "on"),aes(xintercept=value),color="blue",linetype="dashed",
+             size=0.3) + scale_x_continuous(expand=expansion(0,0)) + scale_y_continuous(expand=expansion(0.02,0)) + # breaks=xvalbreaks,
   theme_bw() + standard_theme + theme(axis.text.x=element_text(size=12,vjust=0.75),axis.text.y=element_text(size=12), 
         legend.title=element_text(size=12),legend.text=element_text(size=12)) + xlab("epi-year") + ylab("<age>") + 
     labs(caption=caption_txt,color="")
@@ -912,6 +997,7 @@ ggplot(x,aes(x=t/365,y=value_fract_inf_smooth)) + # ,fill=NA
     do.call('<-', list(l[[II]], r[[II]]), envir=Envir)
   }
 }
+
 extendToMatch <- function(source, destin) {
   s <- length(source)
   d <- length(destin)

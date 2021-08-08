@@ -1,7 +1,8 @@
 # gitignore
 simul_output/
 odeint-v2/
-data/
+data/*.png
+data/Region_Mobility_Report_CSVs/
 manuscript/
 hodgson_rsv_model/
 ptmc_performance-master/
