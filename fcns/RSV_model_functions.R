@@ -43,17 +43,39 @@ gg_color_hue <- function(n) {
 # Set up SIRS ODE model --------------------------------------------------------
 ## with seasonal forcing using interpolation
 sirs_seasonal_forc <- function(t,X,parms){
-  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; K_m=parms[[2]]; contmatr_rowvector=parms[[3]]; inf_vars_inds=parms[[4]]; 
-  susc_vars_inds=parms[[5]]; delta_susc=parms[[6]]; dim_sys=nrow(K_m) # elem_time_step=parms[[6]]; 
+  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
+  suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; dimsys=nrow(Km) # elem_time_step=parms[[6]]; 
   # stack I vars
-  inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X[x]}))
+  inf_vars_stacked=do.call(cbind,lapply(infvars_inds, function(x){X[x]}))
   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
-  lambda_vect=diag(approx_seas_forc(t)*array(delta_susc)) %*% contmatr_rowvector %*% inf_vars_stacked_fullsize 
-  infection_vect=diag(X[unlist(susc_vars_inds)])%*%lambda_vect
-  F_vect=matrix(0,dim_sys,1)
-  F_vect[c(unlist(susc_vars_inds),unlist(inf_vars_inds))]=rbind(-infection_vect,infection_vect+approx_introd(t))
+  lambda_vect=diag(approx_seas_forc(t)*array(deltasusc)) %*% contmatr_row %*% inf_vars_stacked_fullsize 
+  infection_vect=diag(X[unlist(suscvars_inds)])%*%lambda_vect
+  F_vect=matrix(0,dimsys,1)
+  F_vect[c(unlist(suscvars_inds),unlist(infvars_inds))]=rbind(-infection_vect,infection_vect+approx_introd(t))
   # append infection vector for incidence
-  dXdt=birthrates + F_vect + K_m %*% X[1:dim_sys] - deathrates*X[1:dim_sys]; list(rbind(dXdt,infection_vect)) }
+  dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) }
+
+## model with MATERNAL IMMUNITY
+sirs_seasonal_forc_mat_immun <- function(t,X,parms){
+  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
+  suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
+  prot_inf_ind=parms[[7]][[1]]; prot_adults_childb=parms[[7]][[2]]; susc_adults_childb=parms[[7]][[3]]
+  dimsys=nrow(Km); proport_adult_susc=sum(X[susc_adults_childb])/(sum(X[susc_adults_childb])+sum(X[prot_adults_childb]))
+  birthrates[prot_inf_ind,]=(1-proport_adult_susc)*birthrates[1,]; birthrates[1,]=proport_adult_susc*birthrates[1,]
+  # stack I vars
+  inf_vars_stacked=do.call(cbind,lapply(infvars_inds, function(x){X[x]}))
+  inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+  lambda_vect=diag(approx_seas_forc(t)*array(deltasusc)) %*% contmatr_row %*% inf_vars_stacked_fullsize 
+  infection_vect=diag(X[unlist(suscvars_inds)])%*%lambda_vect
+  F_vect=matrix(0,dimsys,1)
+  F_vect[c(unlist(suscvars_inds),unlist(infvars_inds))]=rbind(-infection_vect,infection_vect+approx_introd(t))
+  # append infection vector for incidence
+  dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) }
+# protected infants: fun_sub2ind(1,1,"R",c("S","I","R"),11,3)
+# S adults (15-45): fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3)
+# I: fun_sub2ind(i_inf=c(1,2,3),j_age=9,c("I"),c("S","I","R"),11,3)
+# R: fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),11,3)
+
 
 # linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
