@@ -463,6 +463,7 @@ fcn_plot_seas_forc <- function(simul_startend,forcingvector_npi,seas_lims_wks,np
     geom_vline(data=df_seas_forc_npi %>% filter(week %in% seas_lims_wks) %>% group_by(week,year) %>% filter(date==min(date)),
       aes(xintercept=date),linetype="dashed",color="blue",size=1/4) + scale_x_date(date_breaks=date_resol,expand=expansion(0.01,0)) +
     geom_rect(xmin=npidates[1],xmax=npidates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=0.01) + theme_bw() + standard_theme }
+
 ### function subfolder name ----
 fun_subfld <- function(deltaprim,delta_suscprop) {
   case_when(length(unique(deltaprim))>1 & length(unique(round(delta_suscprop[1,],4)))==1 ~ "suscept_exp_dep/", 
