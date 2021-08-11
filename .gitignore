@@ -1,6 +1,9 @@
 # gitignore
 odeint-v2/
 data/*.png
+data/*.pdf
+data/*.xlsx
+data/*.txt
 data/Region_Mobility_Report_CSVs/
 manuscript/
 other_models/
