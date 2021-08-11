@@ -165,27 +165,27 @@ list(sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])}
 }
 
 ### create param table with right suscept values for desired R0 ------------
-fcn_create_partable <- function(partab,nstep,scale_age_exp,popul_struct,susc_denomin,susc_min,nage,ninf,rhoval){
+fcn_create_partable <- function(partab,nstep,scale_age_exp,pop_struct,susc_denomin,susc_min,nage,ninf,rhoval){
   partab <- partab %>% mutate(delta1=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,
                                             scale_age_exp[2]*(susc_min+dep_val/susc_denomin)),
-                      delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
-                      delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
-                      agedep_val=ifelse(dep_type=="age",NA,1))
+                              delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
+                              delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
+                              agedep_val=ifelse(dep_type=="age",NA,1))
   # set suscept params to get desired R0
   for (k_par in 1:nrow(partab) ) {
     r0_max <- partab$R0[k_par]; r0_min<-0.995*r0_max
     if (partab$dep_type[k_par]=="age"){ 
       agedep_fact=1+partab$dep_val[k_par]/nstep; deltaprim=as.numeric(partab[k_par,] %>% select(contains("delta")))
-      r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf)
+      r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,pop_struct)[[2]],rhoval,ninf)
       while (r0_try>r0_max | r0_try<r0_min) { deltaprim=deltaprim*ifelse(r0_try>r0_max,0.995,1.005)
-      r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf) }
+      r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,pop_struct)[[2]],rhoval,ninf) }
     } # print(r0_try)
     # exposure dependent
     else { agedep_fact=1; deltaprim=as.numeric(partab[k_par,] %>% select(contains("delta")))
-    r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf)
+    r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,pop_struct)[[2]],rhoval,ninf)
     # find delta_prim values so that R0 is within given interval
     while (r0_try>r0_max | r0_try<r0_min) { deltaprim=deltaprim*ifelse(r0_try>r0_max,0.995,1.005)
-    r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,popul_struct)[[2]],rhoval,ninf) }   }
+    r0_try=R0_calc_SIRS(C_m,fcn_delta_susc(deltaprim,nage,ninf,agedep_fact,pop_struct)[[2]],rhoval,ninf) }   }
     # assign
     partab[k_par,c("delta1","delta2","delta3")] <- as.list(deltaprim); partab$agedep_val[k_par]=agedep_fact
   }

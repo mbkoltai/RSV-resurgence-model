@@ -5,7 +5,6 @@ rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
 lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble","pracma","qs","ungeviz"),
          library,character.only=TRUE)
-source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
 ### ### ### ### ### ### ### ###
@@ -77,7 +76,7 @@ R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf)
 # DURATION of SIMULATION
 # seasonal forcing (baseline level=1, forcing_strength=2 means 200% above baseline) | npi_reduc_strength: reduction from baseline 
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
-npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1/3; seasforc_width_wks=3
+npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1/3; seasforc_width_wks=8
 g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(5,3),
      season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week=44,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
 # R0, tags
