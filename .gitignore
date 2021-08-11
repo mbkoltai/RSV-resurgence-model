@@ -5,6 +5,10 @@ data/*.pdf
 data/*.xlsx
 data/*.txt
 data/Region_Mobility_Report_CSVs/
+data/datamart_weekly_rsv_data_2012wk40-2021wk24.csv 
+data/data_NSW_RSV.rds
+data/nature_plot_covid_npi_resp_virus.jpeg 
+data/resp_detects_weekly_all_age_means_shares.csv 
 manuscript/
 other_models/
 old/
