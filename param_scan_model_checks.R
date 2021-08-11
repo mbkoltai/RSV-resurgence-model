@@ -196,7 +196,7 @@ ggsave(paste0(foldername,"parscan_modelcheck_highlight.png"),width=35,height=30,
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# get dynamics of selected parsets, we set the effective scaling by NPIs
+# Generate dynamics of selected parsets for the 2020- period
 # calc or read in
 parsets_filtered <- parsets_filtered_allyears %>% filter(epi_year==2019) %>% group_by(dep_type,dep_val) %>% mutate(n_dep_val=n()) %>%
   filter(n_dep_val>1) %>% group_by(dep_type) %>% mutate(dep_val_sel=as.numeric(factor(dep_val)))
@@ -395,26 +395,22 @@ full_output_mean_age = npi_scan_sum_infs_by_age %>% group_by(dep_type) %>% mutat
   group_by(par_id,npi_str) %>% mutate(
    `shift in average age of infection <5y`=ifelse(epi_year>=2021,mean_age_under_5[epi_year==2021]-mean(mean_age_under_5[epi_year<2020]),NA),
    `shift in average age of infection <15y`=ifelse(epi_year>=2021,mean_age_under_15[epi_year==2021]-mean(mean_age_under_15[epi_year<2020]),NA))
-      # mean_age_ratio=ifelse(epi_year>=2021,mean_age[epi_year==2021]/mean(mean_age[epi_year<2020]),NA),
-      # mean_age_ratio_under_5=ifelse(epi_year>=2021,mean_age_under_5[epi_year==2021]/mean(mean_age_under_5[epi_year<2020]),NA),
-      # mean_age_ratio_under_15=ifelse(epi_year>=2021,mean_age_under_15[epi_year==2021]/mean(mean_age_under_15[epi_year<2020]),NA),
-      # mean_age_diff=ifelse(epi_year>=2021,mean_age[epi_year==2021]-mean(mean_age[epi_year<2020]),NA),
    
 # subset data
 df_plot_mean_age_shift <- full_output_mean_age %>% pivot_longer(!c(epi_year,par_id,dep_type,dep_val,R0,seasforce_peak,npi_str)) %>%
-  group_by(name,epi_year,par_id,dep_val,dep_type,R0,seasforce_peak) %>% 
+  group_by(name,epi_year,par_id,dep_val,dep_type,R0) %>% # ,seasforce_peak
   summarise(mean_val=mean(value),min_npi_val=min(value),max_npi_val=max(value)) %>% filter(epi_year==2021 & grepl("shift",name)) %>% 
   mutate(dep_type=ifelse(grepl("age",dep_type),"~age","~immunity")) %>% ungroup() 
-# %>% filter(dep_val %in% joint_dep_vals) %>% mutate(dep_val=as.numeric(factor(dep_val)))
 # plot params
-ratio_diff_flag <- "shift"
+ratio_diff_flag <- "shift"; dodge_val=1
 title_str=ifelse(ratio_diff_flag=="shift","shift (in months) from 2019 to 2021","(mean age in 2021)/(mean age in 2019)")
+# uniq_R0=(df_plot_mean_age_shift %>% group_by(dep_type) %>% summarise(n=length(unique(R0))))$n; dodge_val=1
 # colorpal=c(colorRampPalette(colors=c("orange","red"))(uniq_R0[1]),colorRampPalette(colors=c("darkgrey","black"))(uniq_R0[2]))
 # PLOT mean age shift by large age groups
 ggplot(df_plot_mean_age_shift %>% filter(grepl("<",name)) %>% 
     mutate(name=factor(name,levels=c("shift in average age of infection <5y","shift in average age of infection <15y"))) %>% 
     mutate(type_R0=paste0(dep_type,", R0=",R0)), 
-    aes(x=factor(dep_val),y=mean_val*12,group=interaction(seasforce_peak,type_R0),size=seasforce_peak)) +
+    aes(x=factor(dep_val),y=mean_val*12,group=interaction(type_R0))) + # ,size=seasforce_peak seasforce_peak,
   geom_point(aes(color=type_R0),position=position_dodge(width=dodge_val)) + scale_size(range=c(0.7,2)/2.5) +
   geom_pointrange(aes(color=type_R0,ymin=min_npi_val*12,ymax=max_npi_val*12),position=position_dodge(width=dodge_val)) +
   facet_wrap(~name,scales="free") + scale_color_manual(values=colorpal) + geom_vline(xintercept=0.5+0:8,linetype="dashed",size=1/3) +
@@ -423,7 +419,8 @@ ggplot(df_plot_mean_age_shift %>% filter(grepl("<",name)) %>%
   theme(legend.position="top",axis.title.x=element_text(size=15),axis.text.x=element_text(size=15),axis.text.y=element_text(size=15),
         strip.text=element_text(size=15),legend.text=element_text(size=13),legend.title=element_text(size=14))
 # save
-ggsave(paste0(foldername,"resurgence_mean_age_",ratio_diff_flag,"_2021_2019.png"),width=43,height=25,units="cm") 
+# ggsave(paste0(foldername,"resurgence_mean_age_",ratio_diff_flag,"_2021_2019.png"),width=43,height=25,units="cm") 
+# ggsave(paste0(foldername,"resurgence_mean_age_",ratio_diff_flag,"_2021_2019_seasfor_aver.png"),width=43,height=25,units="cm") 
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
