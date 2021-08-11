@@ -281,18 +281,18 @@ for (k_par in 1:nrow(parsets_filtered)){
 joint_dep_vals=(df_suscept %>% group_by(dep_type) %>% summarise(dep_val=unique(dep_val)) %>% group_by(dep_val) %>% 
                   summarise(n=n()) %>% filter(n==2))$dep_val
 # plot susceptibility age dependencies
-ggplot(df_suscept %>% # filter(dep_val %in% joint_dep_vals) %>% mutate(dep_val_sel=as.numeric(factor(dep_val))) %>% 
-         group_by(dep_type,dep_val_sel,agegroup) %>% filter(R0==min(R0)) %>% pivot_longer(c(`inf #1`,`inf #2`,`inf #3`)) %>%
-         mutate(name=gsub("inf","infection",name)) %>% rename(`strength of dependence`=dep_val_sel)) + 
-  geom_hpline(aes(x=agegroup,y=value,group=interaction(`strength of dependence`,name),color=factor(name)),
+ggplot(df_suscept %>% group_by(dep_type,dep_val_sel,agegroup) %>% filter(R0==min(R0)) %>% pivot_longer(c(`inf #1`,`inf #2`,`inf #3`)) %>%
+         mutate(name=gsub("inf","infection",name)) %>% rename(dependence=dep_val_sel)) + 
+  geom_hpline(aes(x=agegroup,y=value,group=interaction(dependence,name),color=factor(name)),
               width=0.95/3,size=1,position=position_dodge(width=1)) + 
-  facet_grid(`strength of dependence`~dep_type,labeller=labeller(`strength of dependence`=label_both)) + 
+  facet_grid(dependence~dep_type,labeller=labeller(dependence=label_both)) + 
   geom_vline(xintercept=0.5+(0:11),size=1/3,linetype="dashed") + 
   scale_y_log10(expand=expansion(0.04,0)) + scale_x_discrete(expand=expansion(0.02,0)) + 
-  theme_bw() + standard_theme + theme(legend.text=element_text(size=14)) + ylab("susceptibility to infection") + labs(color="",linetype="") + 
-  guides(color=guide_legend(byrow=TRUE)) # ncol=3,
+  theme_bw() + standard_theme + ylab("susceptibility to infection") + labs(color="",linetype="") + 
+  guides(color=guide_legend(byrow=TRUE))  + theme(legend.text=element_text(size=14),legend.title=element_text(size=14),
+      axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),strip.text=element_text(size=15))
 # save
-ggsave(paste0(foldername,"susceptibility_params.png"),width=28,height=16,units="cm")
+ggsave(paste0(foldername,"susceptibility_params.png"),width=28,height=22,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # plot dynamics separately by NPI strength
@@ -459,13 +459,13 @@ ggplot(df_plot_yr_cum_inf,aes(x=factor(dep_val),y=mean_val,color=type_R0,group=i
   geom_pointrange(aes(ymin=min_npi_val,ymax=max_npi_val),position=position_dodge(width=dodge_val)) +
   facet_wrap(~age_yr,scales="free",nrow=3) + scale_color_manual(values=colorpal) + 
   geom_vline(xintercept=0.5+(0:8),linetype="dashed",size=1/3) + # guides(color=guide_legend(ncol=5,byrow=TRUE)) + 
-  xlab("dependence on age/immunity") + ylab(title_str) + labs(size="seasonal forcing (above baseline)",color="") + 
+  xlab("dependence on age/immunity") + ylab(title_str) + labs(size="seasonal forcing (+ baseline)",color="") + 
   theme_bw() + standard_theme  + scale_x_discrete(expand=expansion(0.1,0)) + theme(legend.position="top",
       axis.title.x=element_text(size=16),axis.title.y=element_text(size=16),axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),
       strip.text=element_text(size=15),legend.text=element_text(size=13),legend.title=element_text(size=14))
 # save
 # ggsave(paste0(foldername,"resurgence_",varname,"_2021_2019_agegr_yrly_seasfor_averaged.png"),width=35,height=25,units="cm")
-# ggsave(paste0(foldername,"resurgence_",varname,"_2021_2019_agegr_yrly_seasfor_sep.png"),width=40,height=30,units="cm") 
+# ggsave(paste0(foldername,"resurgence_",varname,"_2021_2019_agegr_yrly_seasfor_sep.png"),width=45,height=30,units="cm") 
 
 ### ### ### ### ### 
 # season timing
@@ -473,12 +473,11 @@ ggplot(df_plot_yr_cum_inf,aes(x=factor(dep_val),y=mean_val,color=type_R0,group=i
 sel_var<-"shift_seasonstart_week" # !!sym(sel_var)
 df_plot_yr_seas_timing <- sum_max_ratio_by_yearly_agegr %>% filter(epi_year==2021 & !grepl(">15y",age_yr)) %>% 
   mutate(dep_type=ifelse(grepl("age",dep_type),"~age","~immunity")) %>% ungroup() %>%
-  group_by(age_yr,dep_type,dep_val,R0) %>% # ,seasforce_peak
+  group_by(age_yr,dep_type,dep_val,R0,seasforce_peak) %>% # 
   summarise(mean_val=abs(mean(!!sym(sel_var))),min_npi_val=abs(min(!!sym(sel_var))),max_npi_val=abs(max(!!sym(sel_var))) ) %>% ungroup() %>%
   mutate(type_R0=factor(paste0(dep_type,", R0=",R0)) )
-#  filter(dep_val %in% joint_dep_vals) %>% mutate(dep_val=as.numeric(factor(dep_val))) %>% 
 # seas timing
-ggplot(df_plot_yr_seas_timing,aes(x=factor(dep_val),y=mean_val,color=type_R0,group=interaction(type_R0))) + #,size=seasforce_peak
+ggplot(df_plot_yr_seas_timing,aes(x=factor(dep_val),y=mean_val,color=type_R0,group=interaction(seasforce_peak,type_R0),size=seasforce_peak)) + #
   geom_point(position=position_dodge(width=dodge_val)) + scale_size(range=c(0.7,2)/3.5) +
   geom_pointrange(aes(ymin=min_npi_val,ymax=max_npi_val),position=position_dodge(width=dodge_val)) +
   facet_wrap(~age_yr,scales="free",nrow=3) + scale_color_manual(values=colorpal) + 
@@ -488,10 +487,11 @@ ggplot(df_plot_yr_seas_timing,aes(x=factor(dep_val),y=mean_val,color=type_R0,gro
   theme(legend.position="top",axis.title.x=element_text(size=18),axis.title.y=element_text(size=18),legend.title=element_text(size=14),
         axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),strip.text=element_text(size=15),legend.text=element_text(size=13))
 # SAVE
-# ggsave(paste0(foldername,"resurgence_shift_",ifelse(grepl("start",sel_var),"start","peak"),"week_2021_2019_agegr_yrly_seasfor_separate.png"),
-#       width=40,height=30,units="cm")
-ggsave(paste0(foldername,"resurgence_shift_",ifelse(grepl("start",sel_var),"start","peak"),"week_2021_2019_agegr_yrly_seasfor_aver.png"),
-     width=40,height=30,units="cm")
+# ggsave(paste0(foldername,"resurgence_shift_",ifelse(grepl("start",sel_var),"start","peak"),"week_2021_2019_agegr_yrly_seasfor_sep.png"),
+#       width=45,height=30,units="cm")
+#
+# ggsave(paste0(foldername,"resurgence_shift_",ifelse(grepl("start",sel_var),"start","peak"),"week_2021_2019_agegr_yrly_seasfor_aver.png"),
+#      width=40,height=30,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # plot seas forcing
@@ -513,8 +513,8 @@ ggplot(df_seas_forc_npi %>% filter(date<=as.Date("2022-07-01")),aes(x=date,y=val
              aes(xintercept=date),linetype="dashed",color="black",size=1/4,show.legend=F) + labs(color="contacts during NPIs (% normal)") + 
   scale_x_date(date_breaks="2 month",expand=expansion(0.01,0)) + theme_bw() + standard_theme + xlab("") + ylab("strength of forcing") +
   geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="grey",alpha=0.01,show.legend=F,color=NA) + 
-  theme(axis.text.x = element_text(size=14),axis.text.y=element_text(size=14),legend.text=element_text(size=14),legend.position="top",
-        legend.title=element_text(size=16))
+  theme(axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),legend.text=element_text(size=14),legend.position="top",
+        legend.title=element_text(size=16),axis.title.y=element_text(size=15))
 # save
 ggsave(paste0(foldername,"seasonal_forcing_NPI_contactlevel.png"),width=32,height=22,units="cm")
 

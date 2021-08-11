@@ -53,13 +53,14 @@ resp_virus_data_uk_tidy[,"year_week"]=gsub("mean-","",paste0(resp_virus_data_uk_
 resp_virus_data_uk_tidy$year_week=factor(resp_virus_data_uk_tidy$year_week,unique(resp_virus_data_uk_tidy$year_week))
 # PLOT all years
 ggplot(subset(resp_virus_data_uk_tidy,name %in% "RSV" & grepl("indiv",type)),aes(x=date,y=value,group=Age)) + 
-  # geom_area(aes(fill=Age),position=position_stack(reverse=T)) +
-  geom_line(aes(color=Age)) + geom_point(size=0.4) + facet_wrap(~Age,ncol=2,scales="free") + # 
+  geom_area(aes(fill=Age),position=position_stack(reverse=T),color="black",size=1/4) +
+  # geom_line(aes(color=Age)) + geom_point(size=0.4) + facet_wrap(~Age,ncol=2,scales="free") + # 
   scale_x_date(breaks="2 month",expand=expansion(0.01,0)) + scale_y_continuous(expand=expansion(0.01,0)) + 
-  ylab("number of reported RSV cases (4-week period)") + theme_bw() + standard_theme + # xlab("Year, week")  + 
-  theme(axis.text.x=element_text(size=10),axis.text.y=element_text(size=11),legend.position="bottom")
+  ylab("number of reported RSV cases") + theme_bw() + standard_theme + xlab("")  + labs(fill="") +
+  theme(axis.text.x=element_text(size=13),axis.text.y=element_text(size=14),legend.position="bottom",legend.text=element_text(size=15),
+        axis.title.y=element_text(size=16))
 #  labs(caption="source: gov.uk/health-and-social-care/health-protection-infectious-diseases")
-# ggsave("simul_output/uk_rsv_data2014_2020.png",width=32,height=16,units="cm")
+ggsave("data/uk_rsv_data2014_2020.png",width=32,height=22,units="cm")
 # ggsave("simul_output/uk_rsv_data2014_2020_age_facet.png",width=32,height=16,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
