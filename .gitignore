@@ -16,6 +16,5 @@ simul_output/
 *.pdf
 *.odg
 *.png
-*.RDS
 param_scan_parallel.R
 refresh_gitignore.sh
