@@ -1,4 +1,4 @@
-# RSV resurgence 
+# Transmission model of RSV resurgence and inferring the role of age versus immunity in susceptibility to infection
 Code for modelling RSV resurgence after COVID-19-related Nonpharmaceutical Interventions (NPIs) and how it can be used to infer the dependence of susceptibility to RSV infection on age versus immunity acquired by previous infections.
 
 Files and folders:
