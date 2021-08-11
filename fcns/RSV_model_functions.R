@@ -168,9 +168,9 @@ list(sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])}
 fcn_create_partable <- function(partab,nstep,scale_age_exp,pop_struct,susc_denomin,susc_min,nage,ninf,rhoval){
   partab <- partab %>% mutate(delta1=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,
                                             scale_age_exp[2]*(susc_min+dep_val/susc_denomin)),
-                              delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
-                              delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
-                              agedep_val=ifelse(dep_type=="age",NA,1))
+                          delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
+                          delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
+                          agedep_val=ifelse(dep_type=="age",NA,1))
   # set suscept params to get desired R0
   for (k_par in 1:nrow(partab) ) {
     r0_max <- partab$R0[k_par]; r0_min<-0.995*r0_max

@@ -38,11 +38,12 @@ if (!any(grepl("death",colnames(rsv_age_groups)))){
 l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_inf_susc[[1]]; susc_vars_inds=l_inf_susc[[2]]
 # CONTACT MATRIX
 # contact matrix from covidm ("home","work","school","other")
-cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
+# cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
 # if UK -> England's contact matrix # check: cm_parameters_SEI3R(cm_uk_locations("UK", 1))$pop[[1]]$matrices 
-list_contmatrs=fun_covidm_contactmatrix(country_sel,currentdir_path,cm_path=cm_path) 
+# list_contmatrs=fun_covidm_contactmatrix(country_sel,currentdir_path,cm_path=cm_path) 
 # make matrix reciprocal
-C_m_polymod=Reduce('+',list_contmatrs) # fun_recipr_contmatr(Reduce('+',list_contmatrs),age_group_sizes=standard_age_groups$values)
+# C_m_polymod=Reduce('+',list_contmatrs) # fun_recipr_contmatr(Reduce('+',list_contmatrs),age_group_sizes=standard_age_groups$values)
+C_m_polymod<-readRDS("data/UK_contact_matrix_sum.RDS")
 # create for our age groups
 C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
                                         orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
