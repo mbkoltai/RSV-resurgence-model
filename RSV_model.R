@@ -66,7 +66,7 @@ init_ratio_birth_death <- sum(death_corr_ratios*uk_death_rate$deaths_per_1000per
 death_rates=matrix(unlist(lapply(( (death_corr_ratios/(init_ratio_birth_death*1.241))*
   uk_death_rate$deaths_per_1000person_peryear/(365*1000)), function(x) rep(x,n_compartment*n_inf))),ncol=1)
 # g(rsv_age_groups,death_rates) %=% fun_death_rates(rsv_age_groups,uk_death_rate,nage=n_age,ninf=n_inf,dimsys=dim_sys)
-# estimated attack rates
+# estimated attack rates 
 estim_attack_rates <- data.frame(agegroup_name=paste0("age=",rsv_age_groups$agegroup_name,"yr"),
                                median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
 ### ### ### ### ### ### ### ###
