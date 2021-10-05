@@ -101,7 +101,8 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
                seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) } }
 } # end loop
 colnames(ode_sols)[1]<-"var_vals"
-write_csv(ode_sols,paste0("simul_output/parscan/parallel/parsets_start",paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
+write_csv(ode_sols,paste0("simul_output/parscan/parallel/parsets_start",
+                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
 # full simul output
 write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/parsets",
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))

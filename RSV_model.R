@@ -57,7 +57,30 @@ omega=1/350 # 1/runif(1,60,200)
 # RECOVERY
 rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
+<<<<<<< HEAD
+K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
+# BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
+birth_rates=matrix(c(713e3/365,rep(0,dim_sys-1)),dim_sys,1)
+# DEATHS (2019: 530841 deaths [England and Wales!]) # "uk_death_rate_byage_rsv_agegroups.csv" is for 1000 population!
+uk_death_rate=read_csv("data/uk_death_rate_byage_rsv_agegroups.csv")
+# we want population to be stationary (at 2019 or 2020 value), so deaths = births
+rsv_age_groups <- rsv_age_groups %>% mutate(deaths_per_personyear=uk_death_rate$deaths_per_person/1e3,
+                             rect_popul=sum(value)*read_csv("data/final_pop.csv")$final/sum(read_csv("data/final_pop.csv")$final))
+death_corr_ratios=(rsv_age_groups$duration/sum(rsv_age_groups$duration))/rsv_age_groups$fraction
+# 
+init_ratio_birth_death <- sum(death_corr_ratios*uk_death_rate$deaths_per_1000person_peryear*rsv_age_groups$value/1000)/(
+  sum(birth_rates)*365)
+# sum(birth_rates)*365/sum(uk_death_rate$deaths_per_1000person_peryear*rsv_age_groups$value/1e3)
+  # read_csv("data/final_pop.csv")$final/rsv_age_groups$value
+death_rates=matrix(unlist(lapply(( (death_corr_ratios/(init_ratio_birth_death*1.241))*
+  uk_death_rate$deaths_per_1000person_peryear/(365*1000)), function(x) rep(x,n_compartment*n_inf))),ncol=1)
+# g(rsv_age_groups,death_rates) %=% fun_death_rates(rsv_age_groups,uk_death_rate,nage=n_age,ninf=n_inf,dimsys=dim_sys)
+# estimated attack rates 
+estim_attack_rates <- data.frame(agegroup_name=paste0("age=",rsv_age_groups$agegroup_name,"yr"),
+                               median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
+=======
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,agegroup_durations=rsv_age_groups$duration)
+>>>>>>> 88e94ebe2f8196627b6771bf343a7ae380222a3f
 ### ### ### ### ### ### ### ###
 # variable parameters  --------------------------------------------------------
 # SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)

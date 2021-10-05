@@ -6,3 +6,5 @@ nohup Rscript --vanilla parscan_starter_cmd_line.R 4 7 14 > simul_output/parscan
 nohup Rscript --vanilla parscan_starter_cmd_line.R 5 7 14 > simul_output/parscan/parallel/nohup_starter_5.out & 
 nohup Rscript --vanilla parscan_starter_cmd_line.R 6 7 14 > simul_output/parscan/parallel/nohup_starter_6.out & 
 nohup Rscript --vanilla parscan_starter_cmd_line.R 7 7 14 > simul_output/parscan/parallel/nohup_starter_7.out
+
+Rscript collect_save_initconds.R

@@ -45,7 +45,7 @@ system("sh start_parallel_scan.sh")
 # collect results
 parall_foldername="simul_output/parscan/parallel/"
 write_csv(bind_rows(lapply(list.files(path=parall_foldername,pattern="parsets_start*"),
-                        function(x) read_csv(paste0(parall_foldername,x)))),file=paste0(foldername,"initconds_all.csv"))
+                  function(x) read_csv(paste0(parall_foldername,x)))),path=paste0(parall_foldername,"initconds_all.csv"))
 # run main calculation
 system("sh run_parallel_scan.sh")
 # check results
