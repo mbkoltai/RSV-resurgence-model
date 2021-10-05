@@ -1,7 +1,3 @@
-# rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
-# library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-# lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble","pracma","qs","ungeviz"),
-#       library,character.only=TRUE) # library(doParallel)
 # load constant parameters and functions
 source("load_params.R")
 # cmd line inputs
@@ -18,12 +14,13 @@ p_table <- bind_rows(expand.grid(list(dep_type="age",dep_val=seq(0.5,4,by=0.5)[s
     seasforce_peak=seq(1.1,1.5,by=0.1))),bind_rows(lapply(selsets, function(x) expand.grid(list(dep_type="exp",dep_val=x,
       seasforce_peak=list(c(0.8,1,1.2),c(1.125,1.25,1.375),c(1,1.25,1.5),c(1,1.25,1.5),
       c(1,1.125,1.25),c(1.25,1.375,1.5),c(1.25,1.375,1.5),c(1.25,1.375,1.5))[[x]],
-R0=list( (12:14)/10,(12:14)/10,seq(13,16,1.5)/10,seq(15,18,1.5)/10, seq(14,20,2)/10, seq(15,18,1)/10,(18:20)/10,(24:26)/10)[[x]]))))) %>% 
+R0=list( (12:14)/10,(12:14)/10,seq(13,16,1.5)/10,seq(15,18,1.5)/10, seq(14,20,2)/10, 
+         seq(15,18,1)/10,(18:20)/10,(24:26)/10)[[x]]))))) %>% 
   arrange(dep_type,dep_val,R0,seasforce_peak) %>% rowid_to_column("par_id")
 # p_table <- read_csv("simul_output/parscan/sel_parsets/sel_parsets.csv") %>% rowid_to_column("par_id")
 partable <- fcn_create_partable(p_table,nstep=10, scale_age_exp=c(0.35,0.29),pop_struct=rsv_age_groups$stationary_popul,
-    susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val)) %>%
-    group_by(dep_type,R0) %>% mutate(R0_no=row_number()) %>% filter(R0_no==1)
+  susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val)) %>%
+  group_by(dep_type,R0) %>% mutate(R0_no=row_number()) %>% filter(R0_no==1)
 partable_nrow <- nrow(partable)
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
