@@ -166,11 +166,11 @@ list(sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])}
 
 ### create param table with right suscept values for desired R0 ------------
 fcn_create_partable <- function(partab,nstep,scale_age_exp,pop_struct,susc_denomin,susc_min,nage,ninf,rhoval){
-  partab <- partab %>% mutate(delta1=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,
-                                            scale_age_exp[2]*(susc_min+dep_val/susc_denomin)),
-                          delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
-                          delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
-                          agedep_val=ifelse(dep_type=="age",NA,1))
+  partab <- partab %>% 
+    mutate(delta1=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min+dep_val/susc_denomin)),
+                  delta2=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*susc_min),
+                  delta3=ifelse(dep_type=="age",scale_age_exp[1]*(dep_val+1)/nstep,scale_age_exp[2]*(susc_min-dep_val/susc_denomin)),
+                  agedep_val=ifelse(dep_type=="age",NA,1))
   # set suscept params to get desired R0
   for (k_par in 1:nrow(partab) ) {
     r0_max <- partab$R0[k_par]; r0_min<-0.995*r0_max
@@ -415,6 +415,7 @@ fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,i
                                   peak_week,forcing_above_baseline,npireduc_strength){
   start_end=as.Date(c(paste0(year(npidates[1]-years_pre_post_npi[1]*365),"-",init_mt_day),
                             paste0(year(npidates[2]+years_pre_post_npi[2]*365),"-",init_mt_day)))
+  print(start_end)
   simul_dates=seq(start_end[1],start_end[2],by=1)
   forcingvector_npi=fun_seas_forc(yday(simul_dates),peak_day=peak_week*7,
                                   st_dev_season=season_width_wks*7,forcing_above_baseline,day_num=T)

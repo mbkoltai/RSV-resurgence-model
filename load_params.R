@@ -1,8 +1,8 @@
 # functions
-rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
+rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble","pracma","qs","ungeviz"),
-       library,character.only=TRUE)
+lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo"), #
+       library,character.only=TRUE) # as.Date <- zoo::as.Date
 source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------

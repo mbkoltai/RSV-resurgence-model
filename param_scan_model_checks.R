@@ -21,7 +21,8 @@ p_table <- bind_rows(expand.grid(list(dep_type="age",dep_val=seq(0.5,4,by=0.5)[s
     seq(15,18,1)/10,(18:20)/10,(24:26)/10)[[x]]))))) %>% arrange(dep_type,dep_val,R0,seasforce_peak) %>% rowid_to_column("par_id")
 # p_table <- read_csv("simul_output/parscan/sel_parsets/sel_parsets.csv") %>% rowid_to_column("par_id")
 partable <- fcn_create_partable(p_table,nstep=10, scale_age_exp=c(0.35,0.29),pop_struct=rsv_age_groups$stationary_popul,
-                    susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val))
+      susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val)) %>%
+      group_by(dep_type,R0) %>% mutate(R0_no=row_number())
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
 # NPI dates
@@ -29,31 +30,53 @@ npi_dates=as.Date(c("2020-03-26","2021-05-17"))
 # width of season (from peak)
 seasforc_width_wks<-8
 # length of simulations
-simul_length_yr=18
+simul_length_yr=7
 # agegroup indices for maternal immunity
 mat_imm_flag <- TRUE
-mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),11,3),
+mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
+                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),11,3),
                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# parallelisation (write file that'll run scripts)
+n_core=7; initcond_file <- "simul_output/parscan/parallel/initconds_all.csv"
+system(paste0(c("Rscript write_run_file.R",n_core,nrow(partable),simul_length_yr,3,initcond_file),collapse=" ") )
+# run first simuls
+system("sh start_parallel_scan.sh")
+# collect results
+parall_foldername="simul_output/parscan/parallel/"
+write_csv(bind_rows(lapply(list.files(path=parall_foldername,pattern="parsets_start*"),
+                        function(x) read_csv(paste0(parall_foldername,x)))),file=paste0(foldername,"initconds_all.csv"))
+# run main calculation
+system("sh run_parallel_scan.sh")
+# check results
+dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets1_2.csv") %>%
+  mutate(date=t+as.Date(paste0(c(2020-3,"-06-01"),collapse="")))
+ggplot(dyn_parsets1_2) + geom_line(aes(x=date,y=value,color=factor(infection))) + facet_wrap(~agegroup,scales="free_y") + 
+  theme_bw() + standard_theme + scale_x_date(date_breaks="year")
+#
+parsets1_2 <- read_csv("simul_output/parscan/parallel/parsets1_2.csv")
+View(parsets1_2)
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 serial_loop=TRUE; if (!serial_loop) {all_sum_inf_epiyear_age=list(); cl=parallel::makeCluster(6); registerDoParallel(cl)}
 # LOOP
 tm<-proc.time()
 # foreach (k_par=1:nrow(partable),.packages=c("dplyr","deSolve","tidyr","lubridate")) %dopar% { # 
-for (k_par in 1:nrow(partable)){
+for (k_par in 1:nrow(partable)){ # nrow(partable)
     ### ### ###
     # assign SUSCEPT params
     delta_primary<-as.numeric(partable[k_par,] %>% select(contains("delta")))
     l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
     if (serial_loop) {    g(delta_susc,delta_susc_prop) %=% l_susc} else { delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]] }
     # set initial conds
-    R0_rank_withinn_deptype_depval=(partable %>% group_by(dep_type,R0) %>% mutate(R0_no=row_number()))$R0_no[k_par]
-    if (R0_rank_withinn_deptype_depval==1){ 
+    R0_rank_within_deptype_depval=partable$R0_no[k_par]
+    if (R0_rank_within_deptype_depval==1){
       initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
-        init_cond_src=c("output","file")[1],ode_solution,init_seed=10,seed_vars="all",filename="") } else {
+        init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="") } else {
         initvals_sirs_model <- matrix(ode_solution[nrow(ode_solution)-1,2:ncol(ode_solution)]) }
     # set length of simulation and seasonality
     l_seas<-fun_shutdown_seasforc(npi_dates,
-        years_pre_post_npi=c(ifelse(R0_rank_withinn_deptype_depval==1,simul_length_yr,round(simul_length_yr*0.5)),0),
+        years_pre_post_npi=c(ifelse(R0_rank_within_deptype_depval==1,simul_length_yr,round(simul_length_yr*0.5)),0),
             season_width_wks=seasforc_width_wks,init_mt_day="06-01",ifelse(grepl("exp",partable$dep_type[k_par]),45,49),
             forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=0.5)
     if (serial_loop){ g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas} else { 
@@ -72,7 +95,7 @@ for (k_par in 1:nrow(partable)){
     df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end)
     # print progress
     print(paste0(round(1e2*k_par/nrow(partable)),"% , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),
-          ", suscept=",paste0(round(delta_primary,3),collapse=","),", seas peak rel. baseline=",(partable$seasforce_peak[k_par]+1)*100,"%") )
+      ", suscept=",paste0(round(delta_primary,3),collapse=","),", seas peak rel. baseline=",(partable$seasforce_peak[k_par]+1)*100,"%") )
     sel_t_point <- unique((df_cases_infs %>% filter(date == as.Date("2019-07-01")))$t)
     stat_sol_allparsets[,k_par] <- matrix(ode_solution[sel_t_point,2:ncol(ode_solution)]) # nrow(ode_solution)-1
     # final population (it's stationary, shldnt change)
