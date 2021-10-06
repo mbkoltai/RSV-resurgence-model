@@ -39,20 +39,16 @@ mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # parallelisation (write file that'll run scripts)
 n_core=7; initcond_file <- "simul_output/parscan/parallel/initconds_all.csv"
-system(paste0(c("Rscript write_run_file.R",n_core,nrow(partable),simul_length_yr,3,initcond_file),collapse=" ") )
-# run first simuls
-system("sh start_parallel_scan.sh")
+system(paste0(c("Rscript write_run_file.R",n_core,nrow(partable),simul_length_yr,3,initcond_file),collapse=" "))
+# run calculation
+system("sh run_all_parallel_scan.sh")
 # collect results
-parall_foldername="simul_output/parscan/parallel/"
-write_csv(bind_rows(lapply(list.files(path=parall_foldername,pattern="parsets_start*"),
-                  function(x) read_csv(paste0(parall_foldername,x)))),path=paste0(parall_foldername,"initconds_all.csv"))
-# run main calculation
-system("sh run_parallel_scan.sh")
+
 # check results
-dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets1_2.csv") %>%
-  mutate(date=t+as.Date(paste0(c(2020-3,"-06-01"),collapse="")))
+dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets_starter1_6_11.csv") %>%
+  mutate(date=t+as.Date(paste0(c(2020-14,"-06-01"),collapse="")))
 ggplot(dyn_parsets1_2) + geom_line(aes(x=date,y=value,color=factor(infection))) + facet_wrap(~agegroup,scales="free_y") + 
-  theme_bw() + standard_theme + scale_x_date(date_breaks="year")
+  theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("")
 #
 parsets1_2 <- read_csv("simul_output/parscan/parallel/parsets1_2.csv")
 View(parsets1_2)

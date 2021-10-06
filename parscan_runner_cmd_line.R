@@ -110,9 +110,10 @@ params<-list(list(birth_rates,matrix(unlist(lapply(uk_death_rate,function(x) rep
 } # end loop
 
 # summary of simuls
-write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/parsets",
+write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_main",
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
 # dynamics
-write_csv(df_cases_infs_all,paste0("simul_output/parscan/parallel/dyn_parsets",
-                                         paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
+par_id_vals=partable$par_id
+write_csv(df_cases_infs_all,paste0("simul_output/parscan/parallel/dyn_parsets_main",
+                                   paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv") )
 

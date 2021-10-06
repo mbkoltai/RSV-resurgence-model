@@ -36,14 +36,14 @@ mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),fun_sub2
                    fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 serial_loop=TRUE; if (!serial_loop) {all_sum_inf_epiyear_age=list(); cl=parallel::makeCluster(6); registerDoParallel(cl)}
-as.Date <- base::as.Date
+# as.Date <- base::as.Date
 # LOOP
 # tm<-proc.time()
 l_sel_rows<-split(1:partable_nrow,ceiling((1:partable_nrow)/round(partable_nrow/arg_vals_section_length_simuldur[2])))
 k_start_end=l_sel_rows[[arg_vals_section_length_simuldur[1]]]
 print(paste0(c("this is rows",k_start_end),collapse=" "))
 partable <- partable[k_start_end,]; ode_sols <- data.frame()
-# foreach (k_par=1:nrow(partable),.packages=c("dplyr","deSolve","tidyr","lubridate")) %dopar% { # 
+all_sum_inf_epiyear_age <- data.frame(); df_cases_infs_all <- data.frame()
 for (k_par in 1:nrow(partable)){ # nrow(partable)
   # assign SUSCEPT params
   delta_primary<-as.numeric(partable[k_par,] %>% ungroup() %>% select(contains("delta")))
@@ -84,25 +84,23 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # calc attack rates
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),
                                           year(date),year(date)-1),in_out_season=ifelse(week(date)<=9 | week(date)>=41,"in","out")) %>%
-                   group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value)),inf_in_seas=round(sum(value[in_out_season=="in"])),
-    max_incid_week=mean(week(date[value==max(value,na.rm=T)]))) %>% group_by(agegroup) %>% filter(epi_year>min(epi_year)),final_pop,
-    by="agegroup") %>% mutate(attack_rate_perc=100*inf_tot/final,
+  group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value)),inf_in_seas=round(sum(value[in_out_season=="in"])),
+  max_incid_week=mean(week(date[value==max(value,na.rm=T)]))) %>% group_by(agegroup) %>% 
+    filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(attack_rate_perc=100*inf_tot/final,
            seas_share=inf_in_seas/inf_tot,dep_val=partable$dep_val[k_par],par_id=partable$par_id[k_par],
            seasforce_peak=partable$seasforce_peak[k_par],dep_type=partable$dep_type[k_par],R0=partable$R0[k_par])
-  # store parameters # list_delta_primary[[k_par]]=delta_primary
   # store outputs
-  # if (serial_loop){ 
-  if (k_par==1) {all_sum_inf_epiyear_age=sum_inf_epiyear_age} else {
-    all_sum_inf_epiyear_age=rbind(all_sum_inf_epiyear_age,sum_inf_epiyear_age)
-    if (k_par==nrow(partable)) { 
-      all_sum_inf_epiyear_age <- left_join(all_sum_inf_epiyear_age %>%
+  all_sum_inf_epiyear_age=bind_rows(all_sum_inf_epiyear_age,sum_inf_epiyear_age)
+    if (k_par==nrow(partable)) { all_sum_inf_epiyear_age <- left_join(all_sum_inf_epiyear_age %>%
             mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
         mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
-               seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) } }
+               seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) }
+  df_cases_infs_all=bind_rows(df_cases_infs_all,df_cases_infs)
 } # end loop
-colnames(ode_sols)[1]<-"var_vals"
-write_csv(ode_sols,paste0("simul_output/parscan/parallel/parsets_start",
-                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
-# full simul output
-write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/parsets",
+# summary simul output
+write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_start",
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
+# dynamics
+par_id_vals=partable$par_id
+write_csv(df_cases_infs_all,
+          paste0("simul_output/parscan/parallel/dyn_parsets_start",paste0(par_id_vals,collapse="_"),".csv") )
