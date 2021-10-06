@@ -45,7 +45,7 @@ system("sh run_all_parallel_scan.sh")
 # collect results
 
 # check results
-dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets_starter1_6_11.csv") %>%
+dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets_start1_6_11.csv") %>%
   mutate(date=t+as.Date(paste0(c(2020-14,"-06-01"),collapse="")))
 ggplot(dyn_parsets1_2) + geom_line(aes(x=date,y=value,color=factor(infection))) + facet_wrap(~agegroup,scales="free_y") + 
   theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("")

@@ -48,10 +48,10 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # assign SUSCEPT params
   delta_primary<-as.numeric(partable[k_par,] %>% ungroup() %>% select(contains("delta")))
   l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
-  if (serial_loop) { g(delta_susc,delta_susc_prop) %=% l_susc} else { delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]] }
+  if (serial_loop) { g(delta_susc,delta_susc_prop) %=% l_susc} else { delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]]}
   # set initial conds
   initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
-                                           init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="")
+                                    init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="")
   # set length of simulation and seasonality
   l_seas<-fun_shutdown_seasforc(npi_dates, years_pre_post_npi=c(simul_length_yr,0),
             season_width_wks=seasforc_width_wks,init_mt_day="06-01",ifelse(grepl("exp",partable$dep_type[k_par]),45,49),
@@ -77,13 +77,15 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   stat_sol_allparsets[,k_par] <- matrix(ode_solution[sel_t_point,2:ncol(ode_solution)]) # nrow(ode_solution)-1
   # final population (it's stationary, shldnt change)
   final_pop <- data.frame(agegroup=1:n_age,final=round(unlist(lapply(lapply((0:(n_age-1))*(n_inf*n_compartment), 
-      function(x) (1:(n_inf*n_compartment))+x ), function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
+      function(x) (1:(n_inf*n_compartment))+x), 
+      function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
   ode_sols <- bind_rows(ode_sols,data.frame(ode_solution[nrow(ode_solution)-1,2:ncol(ode_solution)]) %>% 
-              mutate(var_id=row_number(),par_id=partable$par_id[k_par],dep_type=partable$dep_type[k_par],R0=partable$R0[k_par]) )
+      mutate(var_id=row_number(),par_id=partable$par_id[k_par],dep_type=partable$dep_type[k_par],R0=partable$R0[k_par]))
+                     colnames(ode_sols)[1] <- "value"
   # full simul output
   # calc attack rates
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),
-                                          year(date),year(date)-1),in_out_season=ifelse(week(date)<=9 | week(date)>=41,"in","out")) %>%
+             year(date),year(date)-1),in_out_season=ifelse(week(date)<=9 | week(date)>=41,"in","out")) %>%
   group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value)),inf_in_seas=round(sum(value[in_out_season=="in"])),
   max_incid_week=mean(week(date[value==max(value,na.rm=T)]))) %>% group_by(agegroup) %>% 
     filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(attack_rate_perc=100*inf_tot/final,
@@ -104,3 +106,6 @@ write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_par
 par_id_vals=partable$par_id
 write_csv(df_cases_infs_all,
           paste0("simul_output/parscan/parallel/dyn_parsets_start",paste0(par_id_vals,collapse="_"),".csv") )
+# init conds
+write_csv(ode_sols,paste0("simul_output/parscan/parallel/init_cond_start",paste0(par_id_vals,collapse="_"),".csv"))
+

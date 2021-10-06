@@ -17,5 +17,6 @@ string_start_run <- paste0("#!/bin/bash\n",paste0(unlist(lapply(1:(k_length-1),
  " > simul_output/parscan/parallel/nohup_starter_",x,".out",ifelse(x<(k_length-1)," & \n",""),collapse=""))),collapse="") )
 
 # write to file
-write.table(paste0(c(string_start_run,"Rscript collect_save_initconds.R",string_main_run,
-  "Rscript collect_save_fullruns.R"),collapse="\n\n"),file="run_all_parallel_scan.sh",col.names=F,row.names=F,quote=F)
+write.table(paste0(c(string_start_run,"PID=$!","wait $PID","Rscript collect_save_initconds.R",
+  string_main_run,"PID=$!","wait $PID","Rscript collect_save_fullruns.R"),collapse="\n\n"),
+  file="run_all_parallel_scan.sh",col.names=F,row.names=F,quote=F)

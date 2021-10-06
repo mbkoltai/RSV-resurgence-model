@@ -53,11 +53,13 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # assign SUSCEPT params
   delta_primary <- as.numeric(partable[k_par,] %>% ungroup() %>% select(contains("delta")))
   l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
-  if (serial_loop) { g(delta_susc,delta_susc_prop) %=% l_susc} else { delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]] }
+  if (serial_loop) {g(delta_susc,delta_susc_prop) %=% l_susc} else {delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]]}
   R0_rank_within_deptype_depval=partable$R0_no[k_par]
   # set initial conds
   initvals_sirs_model <- t(t(((init_conds %>% filter(dep_type==partable$dep_type[k_par] & R0==partable$R0[k_par]))[,1])))
-# set length of simulation and seasonality
+  print(paste0("PARSET: ",partable$par_id[k_par]))
+  print("LOAD INITVALS")
+  # set length of simulation and seasonality
 l_seas<-fun_shutdown_seasforc(npi_dates,
           years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
           season_width_wks=seasforc_width_wks,init_mt_day="06-01",ifelse(grepl("exp",partable$dep_type[k_par]),45,49),
