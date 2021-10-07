@@ -98,15 +98,16 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
                seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) }
   df_cases_infs_all=bind_rows(df_cases_infs_all,df_cases_infs)
 } # end loop
-
+# rename column name
 colnames(ode_sols)[1] <- "value"
+# 
+par_id_vals=partable$par_id
+
 # summary simul output
 write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_start",
-                                         paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
+                                         paste0(par_id_vals,collapse="_"),".csv"))
 # dynamics
-par_id_vals=partable$par_id
 write_csv(df_cases_infs_all,
           paste0("simul_output/parscan/parallel/dyn_parsets_start",paste0(par_id_vals,collapse="_"),".csv") )
 # init conds
 write_csv(ode_sols,paste0("simul_output/parscan/parallel/init_cond_start",paste0(par_id_vals,collapse="_"),".csv"))
-
