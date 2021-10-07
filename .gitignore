@@ -3,6 +3,9 @@ odeint-v2/
 data/*.png
 data/*.pdf
 data/*.xlsx
+data/*.xlsx
+data/*.jpeg
+data/*.odt
 data/*.txt
 data/Region_Mobility_Report_CSVs/
 data/datamart_weekly_rsv_data_2012wk40-2021wk24.csv 
