@@ -81,7 +81,6 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
       function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
   ode_sols <- bind_rows(ode_sols,data.frame(ode_solution[nrow(ode_solution)-1,2:ncol(ode_solution)]) %>% 
       mutate(var_id=row_number(),par_id=partable$par_id[k_par],dep_type=partable$dep_type[k_par],R0=partable$R0[k_par]))
-                     colnames(ode_sols)[1] <- "value"
   # full simul output
   # calc attack rates
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),
@@ -99,6 +98,8 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
                seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) }
   df_cases_infs_all=bind_rows(df_cases_infs_all,df_cases_infs)
 } # end loop
+
+colnames(ode_sols)[1] <- "value"
 # summary simul output
 write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_start",
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
