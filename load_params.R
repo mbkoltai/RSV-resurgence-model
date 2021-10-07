@@ -1,8 +1,13 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo"), #
-       library,character.only=TRUE) # as.Date <- zoo::as.Date
+x1<-c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo")
+x2 <- x1 %in% row.names(installed.packages())
+if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
+# Load all packages    
+lapply(x1, library, character.only = TRUE)
+
+lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
 source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
@@ -31,22 +36,23 @@ daily_births=2314; birth_rates=matrix(c(daily_births,rep(0,dim_sys-1)),dim_sys,1
 # we want population to be stationary (at 2019 or 2020 value), so deaths = births
 if (!any(grepl("death",colnames(rsv_age_groups)))){
   rsv_age_groups <- rsv_age_groups %>% mutate(deaths_per_person_per_day=uk_death_rate,
-                      stationary_popul=fcn_calc_stat_popul(rsv_age_groups,rsv_age_groups$duration,daily_births,uk_death_rate,output_type="") ) }
+ stationary_popul=fcn_calc_stat_popul(rsv_age_groups,rsv_age_groups$duration,daily_births,uk_death_rate,output_type="")) }
 # query variables: fun_sub2ind(1:3,11,"R",varname_list,n_age,n_inf)
 # force of infection terms
 # linear indices of the I & S variables
-l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_inf_susc[[1]]; susc_vars_inds=l_inf_susc[[2]]
+l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list);inf_vars_inds=l_inf_susc[[1]];susc_vars_inds=l_inf_susc[[2]]
 # CONTACT MATRIX
 # contact matrix from covidm ("home","work","school","other")
 # cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
 # if UK -> England's contact matrix # check: cm_parameters_SEI3R(cm_uk_locations("UK", 1))$pop[[1]]$matrices 
 # list_contmatrs=fun_covidm_contactmatrix(country_sel,currentdir_path,cm_path=cm_path) 
 # make matrix reciprocal
-# C_m_polymod=Reduce('+',list_contmatrs) # fun_recipr_contmatr(Reduce('+',list_contmatrs),age_group_sizes=standard_age_groups$values)
+# C_m_polymod=Reduce('+',list_contmatrs) # fun_recipr_contmatr(Reduce('+',list_contmatrs),
+#   age_group_sizes=standard_age_groups$values)
 C_m_polymod<-readRDS("data/UK_contact_matrix_sum.RDS")
 # create for our age groups
 C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
-                                        orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
+        orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
 # make it reciprocal for the larger group
 C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
 # bc of reinfections we need to input contact matrix repeatedly
@@ -57,4 +63,5 @@ omega=1/350 # 1/runif(1,60,200)
 # RECOVERY
 rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
-K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,agegroup_durations=rsv_age_groups$duration)
+K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,
+                          agegroup_durations=rsv_age_groups$duration)
