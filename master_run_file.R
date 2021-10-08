@@ -48,3 +48,33 @@ dyn_parsets_all <- bind_rows(lapply(list.files(path=results_folder,pattern="dyn_
                  function(x) read_csv(paste0(parall_foldername,x))))
 summ_parsets_all <- bind_rows(lapply(list.files(path=results_folder,pattern="summ_parsets*"),
                                     function(x) read_csv(paste0(parall_foldername,x))))
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# sneak peak of dynamics
+ggplot(dyn_parsets_all %>% filter(par_id>=101 & par_id<=155 & date>as.Date("2019-10-01") & date<as.Date("2022-10-01") & agegroup<=3)) + 
+  geom_line(aes(x=date,y=value,color=par_id)) + 
+  facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
+  scale_color_gradientn(colours=wes_palette("Zissou1",55, type = "continuous")) +
+  theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("") + ylab("") + labs(color="# infection")
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# plot attack rates by age group and years
+check_crit=10/11; n_sel_yr=4; peak_week_lims <- c(47,2)
+all_sum_inf_epiyear_age_filtered <- all_sum_inf_epiyear_age %>% filter(epi_year>=2016 & epi_year<=2019) %>% 
+  group_by(seasforce_peak,dep_val,R0,dep_type) %>% filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
+    sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) & (max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2]) )
+# plot
+uni_dep_vals=(all_sum_inf_epiyear_age_filtered %>% group_by(dep_type) %>% summarise(n=length(unique(R0))))$n
+colorpal=c(colorRampPalette(colors=c("orange","red"))(uni_dep_vals[1]),colorRampPalette(colors=c("grey","black"))(uni_dep_vals[2]))
+# PLOT
+ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
+  agegroup_name=factor(agegroup_name,levels=unique(agegroup_name)),dep_type_R0=factor(paste0(dep_type,", R0=",R0),
+  levels=unique(paste0(all_sum_inf_epiyear_age_filtered$dep_type,", R0=",all_sum_inf_epiyear_age_filtered$R0)))) ) +
+  geom_hpline(aes(x=factor(epi_year),y=attack_rate_perc,color=dep_type_R0),width=0.9,size=1/2) + scale_color_manual(values=colorpal) + 
+  facet_grid(dep_val~agegroup_name,scales="free_y",labeller=labeller(seasforce_peak=label_both)) + # ,linetype=dep_type
+  geom_hline(data=estim_attack_rates %>% pivot_longer(!agegroup_name) %>% filter(name!="median_est"&!grepl("all_inf",name)),
+             aes(yintercept=value),linetype="dashed",size=1/3) +
+  geom_hline(data=estim_attack_rates %>% pivot_longer(!agegroup_name) %>% filter(name=="median_est"&!grepl("all_inf",name)),
+     aes(yintercept=value),size=1/3) + ylab("attack rate % age group") + scale_y_log10() + theme(legend.position="top") +
+  theme_bw() + standard_theme + labs(color="") + xlab("") 
+# ,caption=paste0("model check minimum=",round(check_crit,2)*1e2,"%")
+

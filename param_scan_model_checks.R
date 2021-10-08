@@ -42,16 +42,6 @@ n_core=7; initcond_file <- "simul_output/parscan/parallel/initconds_all.csv"
 system(paste0(c("Rscript write_run_file.R",n_core,nrow(partable),simul_length_yr,3,initcond_file),collapse=" "))
 # run calculation
 system("sh run_all_parallel_scan.sh")
-
-# check results
-dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets_start1_6_11.csv") %>%
-  mutate(date=t+as.Date(paste0(c(2020-14,"-06-01"),collapse="")))
-ggplot(dyn_parsets1_2) + geom_line(aes(x=date,y=value,color=factor(infection))) + facet_wrap(~agegroup,scales="free_y") + 
-  theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("")
-#
-parsets1_2 <- read_csv("simul_output/parscan/parallel/parsets1_2.csv")
-View(parsets1_2)
-
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 serial_loop=TRUE; if (!serial_loop) {all_sum_inf_epiyear_age=list(); cl=parallel::makeCluster(6); registerDoParallel(cl)}
 # LOOP
