@@ -69,7 +69,8 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # run simul
   if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params) } else {
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
-  df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end)
+  df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>%
+    mutate(partable$par_id[k_par])
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable)),"% , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),
       ", suscept=",paste0(round(delta_primary,3),collapse=","),", seas peak rel. baseline=",(partable$seasforce_peak[k_par]+1)*100,"%") )
@@ -107,7 +108,7 @@ par_id_vals=partable$par_id
 write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_start",
                                          paste0(par_id_vals,collapse="_"),".csv"))
 # dynamics
-write_csv(df_cases_infs_all,
+write_csv(df_cases_infs_all %>% select(!name),
           paste0("simul_output/parscan/parallel/dyn_parsets_start",paste0(par_id_vals,collapse="_"),".csv") )
 # init conds
 write_csv(ode_sols,paste0("simul_output/parscan/parallel/init_cond_start",paste0(par_id_vals,collapse="_"),".csv"))

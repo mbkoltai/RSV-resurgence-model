@@ -6,8 +6,8 @@ rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path
 source("load_params.R")
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
-                        median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
-                        median_all_inf=c(rep(70,4),rep(60,4),50,30,20),min_est_all_inf=median_all_inf*0.5,max_est_all_inf=median_all_inf*1.5)
+    median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
+    median_all_inf=c(rep(70,4),rep(60,4),50,30,20),min_est_all_inf=median_all_inf*0.5,max_est_all_inf=median_all_inf*1.5)
 # % cases within season (filtering parameter sets)
 seas_conc_lim=0.8
 # parameter sets to search through
@@ -42,7 +42,6 @@ n_core=7; initcond_file <- "simul_output/parscan/parallel/initconds_all.csv"
 system(paste0(c("Rscript write_run_file.R",n_core,nrow(partable),simul_length_yr,3,initcond_file),collapse=" "))
 # run calculation
 system("sh run_all_parallel_scan.sh")
-# collect results
 
 # check results
 dyn_parsets1_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets_start1_6_11.csv") %>%

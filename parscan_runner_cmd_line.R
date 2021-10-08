@@ -11,15 +11,17 @@ seas_conc_lim=0.8
 # parameter sets to search through
 selsets<-c(2,4:8)
 p_table <- bind_rows(expand.grid(list(dep_type="age",dep_val=seq(0.5,4,by=0.5)[selsets],R0=seq(12,14,0.5)/10,
-        seasforce_peak=seq(1.1,1.5,by=0.1))),bind_rows(lapply(selsets, function(x) expand.grid(list(dep_type="exp",dep_val=x,
+        seasforce_peak=seq(1.1,1.5,by=0.1))),
+        bind_rows(lapply(selsets, function(x) expand.grid(list(dep_type="exp",dep_val=x,
     seasforce_peak=list(c(0.8,1,1.2),c(1.125,1.25,1.375),c(1,1.25,1.5),c(1,1.25,1.5),
     c(1,1.125,1.25),c(1.25,1.375,1.5),c(1.25,1.375,1.5),c(1.25,1.375,1.5))[[x]],
     R0=list( (12:14)/10,(12:14)/10,seq(13,16,1.5)/10,seq(15,18,1.5)/10, seq(14,20,2)/10, 
-      seq(15,18,1)/10,(18:20)/10,(24:26)/10)[[x]]))))) %>% arrange(dep_type,dep_val,R0,seasforce_peak) %>% rowid_to_column("par_id")
+      seq(15,18,1)/10,(18:20)/10,(24:26)/10)[[x]]))))) %>% 
+  arrange(dep_type,dep_val,R0,seasforce_peak) %>% rowid_to_column("par_id")
 # p_table <- read_csv("simul_output/parscan/sel_parsets/sel_parsets.csv") %>% rowid_to_column("par_id")
 partable <- fcn_create_partable(p_table,nstep=10, scale_age_exp=c(0.35,0.29),pop_struct=rsv_age_groups$stationary_popul,
-  susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val)) %>%
-  group_by(dep_type,R0) %>% mutate(R0_no=row_number())
+  susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% 
+  mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val)) %>% group_by(dep_type,R0) %>% mutate(R0_no=row_number())
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
 # NPI dates
@@ -43,8 +45,8 @@ partable <- partable[k_start_end[1]:k_start_end[2],] %>% filter(R0_no!=1)
 init_cond_file_name <- commandArgs(trailingOnly=TRUE)[5]
 init_conds <- read_csv(init_cond_file_name)
 serial_loop=TRUE
-print(paste0("size of partable: ",nrow(partable)))
-print("STARTING LOOP")
+# print(paste0("size of partable: ",nrow(partable)))
+# print("STARTING LOOP")
 all_sum_inf_epiyear_age <- data.frame(); df_cases_infs_all <- data.frame()
 for (k_par in 1:nrow(partable)){ # nrow(partable)
   ### ### ###
@@ -77,7 +79,8 @@ params<-list(list(birth_rates,matrix(unlist(lapply(uk_death_rate,function(x) rep
   # run simul
   if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params) } else {
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
-  df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end)
+  df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
+    mutate(partable$par_id[k_par])
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable)),"% "))
   # , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),", suscept=",paste0(round(delta_primary,3),
@@ -116,6 +119,6 @@ write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_par
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
 # dynamics
 par_id_vals=partable$par_id
-write_csv(df_cases_infs_all,paste0("simul_output/parscan/parallel/dyn_parsets_main",
+write_csv(df_cases_infs_all %>% select(!name),paste0("simul_output/parscan/parallel/dyn_parsets_main",
                                    paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv") )
 
