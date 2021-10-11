@@ -47,8 +47,7 @@ all_sum_inf_epiyear_age <- data.frame(); df_cases_infs_all <- data.frame()
 for (k_par in 1:nrow(partable)){ # nrow(partable)
   # assign SUSCEPT params
   delta_primary<-as.numeric(partable[k_par,] %>% ungroup() %>% select(contains("delta")))
-  l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
-  if (serial_loop) { g(delta_susc,delta_susc_prop) %=% l_susc} else { delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]]}
+  delta_susc=sapply(1:n_age, function(x) {delta_primary/((partable$agedep_val[k_par]^(x-1)))})
   # set initial conds
   initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
                                     init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="")

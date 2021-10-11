@@ -7,7 +7,7 @@
 # K_m: kinetic matrix for linear terms (aging, recovery, waning of immunity)
 #
 # steps of constructing infection terms (lambda):
-# linear list of state variables
+# linear list of state variables (norm rand numbers just to fill up)
 # X_vars=matrix(abs(rnorm(n_inf*n_age*n_compartment)),n_inf*n_age*n_compartment,1) # matrix(0,n_inf*n_age*n_compartment,1)
 # inf_vars_stacked=do.call(cbind,lapply(inf_vars_inds, function(x){X_vars[x]})) # do.call(cbind,inf_vars_inds)
 # inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked) 
@@ -43,7 +43,7 @@ gg_color_hue <- function(n) {
 # Set up SIRS ODE model --------------------------------------------------------
 ## with seasonal forcing using interpolation
 sirs_seasonal_forc <- function(t,X,parms){
-  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
+  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]];infvars_inds=parms[[4]]
   suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; dimsys=nrow(Km) # elem_time_step=parms[[6]]; 
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(infvars_inds, function(x){X[x]}))
@@ -144,13 +144,13 @@ fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varna
 }
 
 ### R0 calculation --------------
-R0_calc_SIRS <- function(C_m,delta_susc_prop,rho,n_inf) {
+R0_calc_SIRS <- function(C_m,deltasusc,rho,n_inf) {
   # po = parameters$pop[[population]];
   # dIp = sum(po$dIp * seq(0, by = parameters$time_step, length.out = length(po$dIp)));
   # dIs = sum(po$dIs * seq(0, by = parameters$time_step, length.out = length(po$dIs)));
   # dIa = sum(po$dIa * seq(0, by = parameters$time_step, length.out = length(po$dIa)));
   # cm = Reduce('+', mapply(function(c, m) c * m, po$contact, po$matrices, SIMPLIFY = F));
-  susc_matrs=lapply(1:n_inf, function(x) {matrix(rep(delta_susc_prop[x,],ncol(delta_susc_prop)),ncol = ncol(delta_susc_prop))})
+  susc_matrs=lapply(1:n_inf, function(x) {matrix(rep(deltasusc[x,],ncol(deltasusc)),ncol = ncol(deltasusc))})
   # ngm = po$u * t(t(cm) * (    po$y * (po$fIp * dIp + po$fIs * dIs) + (1 - po$y) * po$fIa * dIa) )
   ngm=Reduce('+',lapply(susc_matrs, function(x) {x* C_m}))*(1/rho)*(1/n_inf)
   abs(eigen(ngm)$values[1])
@@ -159,7 +159,7 @@ R0_calc_SIRS <- function(C_m,delta_susc_prop,rho,n_inf) {
 ### fcn susceptibility matrices
 fcn_delta_susc <- function(deltaprim,n_agegr,n_infect,agedepfact,total_pop){
   # delta_susc=sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$stationary_popul[x])})
-  # delta_susc_prop=delta_susc*matrix(rep(rsv_age_groups$stationary_popul,3),nrow=3,byrow=T)
+  # deltasusc=delta_susc*matrix(rep(rsv_age_groups$stationary_popul,3),nrow=3,byrow=T)
 list(sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])}),
      sapply(1:n_agegr, function(x) {deltaprim/((agedepfact^(x-1))*total_pop[x])})*matrix(rep(total_pop,3),nrow=n_infect,byrow=T))
 }
@@ -701,7 +701,7 @@ list(susc_start_end_seas,susc_start_end_seas_allinf)
 # }
 
 ### fun timecourse plot tags ----------------------
-fun_tcourse_plottags <- function(k,nval,rval,n_inf,n_age,colvar,agegr_lim,delta_susc_prop,delta_primary,agedep_fact,
+fun_tcourse_plottags <- function(k,nval,rval,n_inf,n_age,colvar,agegr_lim,deltasusc,delta_primary,agedep_fact,
                                  npi_on,npi_off,shutdown_scale,forcing_above_baseline){
 
 all_perms=permutations(n=nval,r=rval,repeats.allowed=T)
@@ -718,11 +718,11 @@ facet_formula=paste('~',gsub("^\\+","",paste(facet2tag,'+agegroup_name',sep=''))
   ncol_val=n_inf # round(agegr_lim/as.numeric(height_div))
   facet_formula=paste('~',paste("agegroup_name+",gsub("^\\+","",facet2tag),sep=''),sep='') }
 # name of folder: susceptibility
-if (length(unique(round(delta_susc_prop[,1],4)))==1) { 
-  if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str="suscept~f(age)"} else {
+if (length(unique(round(deltasusc[,1],4)))==1) { 
+  if (length(unique(round(deltasusc[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str="suscept~f(age)"} else {
     foldername="suscept_const"; subtitle_str="suscept~const"}
 } else {
-  if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_ageexp_dep"; subtitle_str="suscept~f(age,expos)"} else {
+  if (length(unique(round(deltasusc[1,],4)))>1) { foldername="suscept_ageexp_dep"; subtitle_str="suscept~f(age,expos)"} else {
     foldername="suscept_exp_dep"; subtitle_str="suscept~f(expos)"}
 }
 # if (grepl("_noagedep",foldername)) {subtitle_str="suscept~f(expos)"} else {subtitle_str="suscept~f(age,expos)"}
@@ -759,7 +759,7 @@ df_ode_sol_cases_sum
 }
 
 ### fun sumcase plot tags
-fun_sumcase_plot_tags <- function(n_val,r_val,k_plot,df_symptom_prop,delta_susc_prop,delta_primary,npi_on,
+fun_sumcase_plot_tags <- function(n_val,r_val,k_plot,df_symptom_prop,deltasusc,delta_primary,npi_on,
                                   npi_off,shutdown_scale,forcing_above_baseline){
   plot_perms=permutations(n=n_val,r=r_val,repeats.allowed=T)
 scale_val=c("free","fixed")[plot_perms[k_plot,1]]; plotvar=c("symptom_cases_fract","symptom_cases")[plot_perms[k_plot,2]]
@@ -773,11 +773,11 @@ if (symptvals_by_age>1 & symptvals_by_exp>1){dep_tag="_age_exp_dep"; subtitle_st
     dep_tag="_age_dep"; subtitle_str_exp="clin.fract~f(age)"} else if (symptvals_by_age==1 & symptvals_by_exp>1) {
     dep_tag="_exp_dep"; subtitle_str_exp="clin.fract~f(expos)"} else {dep_tag="_const"; subtitle_str_exp="clin.fract~const"}}
 
-if (length(unique(round(delta_susc_prop[,1],4)))==1) { # ncol(matrix(apply(delta_susc_prop,2,unique))
-  if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str_susc="suscept~f(age)"} else {
+if (length(unique(round(deltasusc[,1],4)))==1) { # ncol(matrix(apply(deltasusc,2,unique))
+  if (length(unique(round(deltasusc[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str_susc="suscept~f(age)"} else {
     foldername="suscept_const"; subtitle_str_susc="suscept~const"}
 } else {
-  if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_ageexp_dep"; subtitle_str_susc="suscept~f(age,expos)"} else {
+  if (length(unique(round(deltasusc[1,],4)))>1) { foldername="suscept_ageexp_dep"; subtitle_str_susc="suscept~f(age,expos)"} else {
     foldername="suscept_exp_dep"; subtitle_str_susc="suscept~f(expos)"}
 }
 
@@ -805,13 +805,13 @@ timecourse_filename
 }
 
 ### fcn age distrib plot tags -----------------
-fcn_agedistrib_plot_tags <- function(delta_susc_prop,delta_primary,plot_season_peaks,df_symptom_prop,
+fcn_agedistrib_plot_tags <- function(deltasusc,delta_primary,plot_season_peaks,df_symptom_prop,
                                      npi_on,npi_off,npi_strength,seas_case_threshold){
-if (length(unique(round(delta_susc_prop[,1],4)))==1) { # ncol(matrix(apply(delta_susc_prop,2,unique))
-    if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str_susc="suscept~f(age)"} else {
+if (length(unique(round(deltasusc[,1],4)))==1) { # ncol(matrix(apply(deltasusc,2,unique))
+    if (length(unique(round(deltasusc[1,],4)))>1) { foldername="suscept_age_dep"; subtitle_str_susc="suscept~f(age)"} else {
       foldername="suscept_const"; subtitle_str_susc="suscept~const"}
 } else {
-    if (length(unique(round(delta_susc_prop[1,],4)))>1) { foldername="suscept_ageexp_dep"; subtitle_str_susc="suscept~f(age,expos)"} else {
+    if (length(unique(round(deltasusc[1,],4)))>1) { foldername="suscept_ageexp_dep"; subtitle_str_susc="suscept~f(age,expos)"} else {
       foldername="suscept_exp_dep"; subtitle_str_susc="suscept~f(expos)"}
 }
   

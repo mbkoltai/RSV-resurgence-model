@@ -54,7 +54,8 @@ C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
 # make it reciprocal for the larger group
 C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
 # bc of reinfections we need to input contact matrix repeatedly
-contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))
+contmatr_rowvector=t(do.call(cbind, 
+              lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))/rsv_age_groups$stationary_popul
 # build kinetic matrix
 # WANING (immunity) terms: R_i_j -> S_min(i+1,n_inf)_j
 omega=1/350 # 1/runif(1,60,200)

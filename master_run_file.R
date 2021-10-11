@@ -54,7 +54,7 @@ ggplot(dyn_parsets_all %>% filter(par_id>=101 & par_id<=155 & date>as.Date("2019
   geom_line(aes(x=date,y=value,color=par_id)) + 
   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
   scale_color_gradientn(colours=wes_palette("Zissou1",55, type = "continuous")) +
-  theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("") + ylab("") + labs(color="# infection")
+  theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("") + ylab("") + labs(color="# par ID")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # plot attack rates by age group and years

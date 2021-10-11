@@ -49,15 +49,15 @@ C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
       orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
 # make it reciprocal for the larger group
 C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
-# bc of reinfections we need to input contact matrix repeatedly
-contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))
+# bc of reinfections we need to input contact matrix repeatedly, and each column needs to be divided by age group 
+# size so that in the force of infection terms infections coming from each age group normalised by the age group size
+contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))/rsv_age_groups$stationary_popul
 # build kinetic matrix
 # WANING (immunity) terms: R_i_j -> S_min(i+1,n_inf)_j
 omega=1/350 # 1/runif(1,60,200)
 # RECOVERY
 rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
-<<<<<<< HEAD
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,rsv_age_groups)
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 birth_rates=matrix(c(713e3/365,rep(0,dim_sys-1)),dim_sys,1)
@@ -78,23 +78,21 @@ death_rates=matrix(unlist(lapply(( (death_corr_ratios/(init_ratio_birth_death*1.
 # estimated attack rates 
 estim_attack_rates <- data.frame(agegroup_name=paste0("age=",rsv_age_groups$agegroup_name,"yr"),
                                median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
-=======
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,agegroup_durations=rsv_age_groups$duration)
->>>>>>> 88e94ebe2f8196627b6771bf343a7ae380222a3f
+
 ### ### ### ### ### ### ### ###
 # variable parameters  --------------------------------------------------------
 # SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
 # agedep_fact determines strength of age dependence, if agedep_fact>1, decreasing susceptibility with age
 agedep_fact=1; delta_primary=c(0.09,0.07,0.05)/3 # c(0.09,0.07,0.05)/2.5
 # c(0.27,0.03,0.01)/5 # c(0.21,0.11,0.01)/5 # c(0.09,0.07,0.05)/1.6 # rep(0.15,3) # rep(0.09,3)
-delta_susc <- sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1))*rsv_age_groups$stationary_popul[x])})
-delta_susc_prop <- delta_susc*matrix(rep(rsv_age_groups$stationary_popul,3),nrow=3,byrow=T)
-dep_subfolder_name<-fun_subfld(delta_primary,delta_susc_prop)
+delta_susc <- sapply(1:n_age, function(x) {delta_primary/((agedep_fact^(x-1)))}) #*rsv_age_groups$stationary_popul[x]
+dep_subfolder_name<-fun_subfld(delta_primary,delta_susc)
 ### PLOT susceptibility: 
 # fcn_plot_suscept_table(fcn_suscept_agedeptable(rsv_age_groups,delta_susc,n_inf)) 
 # ggsave(paste0("simul_output/suscept_age_dep/",agedep_fact,"delta_prim",unique(delta_primary),".png"),width=32,height=22,units="cm")
 # calculate R0 (at max seasonal forcing=1)
-R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf)
+R0_calc_SIRS(C_m,delta_susc,rho,n_inf)
 ####
 # DURATION of SIMULATION
 # seasonal forcing (baseline level=1, forcing_strength=2 means 200% above baseline) | npi_reduc_strength: reduction from baseline 
@@ -103,7 +101,7 @@ npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1/3; seasforc_width
 g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(5,3),
      season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week=44,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
 # R0, tags
-R0val=round(R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf),2); filetag <- ifelse(grepl("exp_dep",dep_subfolder_name),paste0("susc_",
+R0val=round(R0_calc_SIRS(C_m,delta_susc,rho,n_inf),2); filetag <- ifelse(grepl("exp_dep",dep_subfolder_name),paste0("susc_",
   paste0(round(delta_primary,2),collapse="_"),"_R0_",R0val,"_seasforc_",round(seaspeakval,2),"_seaswidth_wks",seasforc_width_wks),"")
 # plot seasonal forcing
 fcn_plot_seas_forc(simul_start_end,forcing_vector_npi,seas_lims_wks=c(7,42),npi_dates,date_resol="3 month")
@@ -182,7 +180,7 @@ ggplot(sum_inf_epiyear_age %>% mutate(seas_share=ifelse(epi_year==2020,NA,seas_s
   geom_rect(xmin=which(unique(sum_inf_epiyear_age$epi_year)==2020)-0.5,xmax=which(unique(sum_inf_epiyear_age$epi_year)==2020)+1/2,
             ymin=-Inf,ymax=Inf,fill="pink",alpha=0.1) + theme_bw() + standard_theme + xlab("epiyear") + ylab("infections within season") +
   labs(caption=paste0("seas peak=",round(max(forcing_vector_npi),2),"x baseline, NPI contact red.=-",
-    round((1-min(forcing_vector_npi))*1e2),"%, R0 (baseline)=",round(R0_calc_SIRS(C_m,delta_susc_prop,rho,n_inf),2) )) + 
+    round((1-min(forcing_vector_npi))*1e2),"%, R0 (baseline)=",round(R0_calc_SIRS(C_m,delta_susc,rho,n_inf),2) )) + 
   ggtitle("% infections within season",subtitle=paste0("suscept=[",paste0(round(delta_primary,3),collapse=","),"]")) + 
   geom_hline(yintercept=c(80,100),size=1/3,color="red")
 # save
@@ -204,7 +202,7 @@ xval_lims=c(npi_year-2.23,npi_year+4); xval_breaks=seq(0,max_time/365,by=1/4)
 # tags: y-axis fixed/free | facet by AGE/(age&INFECTION) | abs values/fraction
 # k=7 --> (free scale, infects separate, absval). k=8 --> (free, infects separate, fraction)
 g(scale_val,facet2tag,value_type,y_axis_tag,ncol_val,facet_formula,foldername,caption_txt,subtitle_str,timecourse_filename) %=% 
-    fun_tcourse_plottags(k=8,nval=2,rval=3,n_inf,n_age,colvar="age",agegr_lim=7,delta_susc_prop,delta_primary,agedep_fact,
+    fun_tcourse_plottags(k=8,nval=2,rval=3,n_inf,n_age,colvar="age",agegr_lim=7,delta_susc,delta_primary,agedep_fact,
           preseas_npi_on,postseas_npi_off,npi_reduc_strength,forcing_strength)
 # PLOT time course absolute/fract values by age group  --------------------------------------------------------
 fcn_plot_allcases_absval_stackedinfs(df_cases_infs,by_date=T,sel_var="newinf",value_type,x_lims=xval_lims,t_subset=7,agegrlim=9,ncolval=3,
@@ -305,7 +303,7 @@ df_sympt_cases=fun_symptomcases_table(df_cases_infs,clin_fract_age_exp,c("infect
 # PLOT time course SYMPTOMATIC CASES -----------------------------------
 # k_plot: free/fixed | fraction/cases
 g(scale_val,y_axis_tag,plotvar,foldername,symptcases_filename,caption_txt,subtitle_str) %=% fun_sumcase_plot_tags(n_val=2,r_val=2,
-      k_plot=1,clin_fract_age_exp,delta_susc_prop,delta_primary,preseas_npi_on,postseas_npi_off,npi_reduc_strength,forcing_strength)
+      k_plot=1,clin_fract_age_exp,delta_susc,delta_primary,preseas_npi_on,postseas_npi_off,npi_reduc_strength,forcing_strength)
 xval_lims=c(npi_year-2.5,npi_year+3.5); seas_lims_plot=subset(seas_lims,on>xval_lims[1]&off<xval_lims[2]) %>% pivot_longer(col=!season)
 # plot
 fcn_plot_symptomcases_agefacet(df_sympt_cases %>% filter(agegroup<=6),xval_lims,y_plotvar=plotvar,y_axis_tag,scale_val,seas_lims_plot,
@@ -363,7 +361,7 @@ if (length(unique(plot_season_agedist$pre_post_shtdn))==3) {colorvals=c(2,1,3)} 
 # bar plot
 fcn_plot_agedistrib_perseas(plot_season_agedist,nrowval=2,yexpval=c(0,0.02),xval_lims,subtitle_str,caption_txt,textsize=3.5)
 # SAVE
-agedistr_filename=fcn_agedistrib_plot_tags(delta_susc_prop,delta_primary,plot_season_agedist,clin_fract_age_exp,
+agedistr_filename=fcn_agedistrib_plot_tags(delta_susc,delta_primary,plot_season_agedist,clin_fract_age_exp,
                                            preseas_npi_on,postseas_npi_off,npi_reduc_strength,seas_case_threshold=1e2)
 ggsave(agedistr_filename,width=32,height=16,units="cm")
 

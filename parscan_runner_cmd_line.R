@@ -54,8 +54,9 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # print(paste0("R0_no CURRENT VALUE: ",partable$R0_no[k_par]))
   # assign SUSCEPT params
   delta_primary <- as.numeric(partable[k_par,] %>% ungroup() %>% select(contains("delta")))
-  l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
-  if (serial_loop) {g(delta_susc,delta_susc_prop) %=% l_susc} else {delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]]}
+  # l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,agedepfact=partable$agedep_val[k_par],total_pop=rsv_age_groups$stationary_popul)
+  # if (serial_loop) {g(delta_susc,delta_susc) %=% l_susc} else {delta_susc=l_susc[[1]]; delta_susc=l_susc[[2]]}
+  delta_susc=sapply(1:n_age, function(x) {delta_primary/((partable$agedep_val[k_par]^(x-1)))})
   R0_rank_within_deptype_depval=partable$R0_no[k_par]
   # set initial conds
   initvals_sirs_model <- t(t(((init_conds %>% filter(dep_type==partable$dep_type[k_par] & R0==partable$R0[k_par]))[,1])))
