@@ -2,11 +2,11 @@
 # contact data from https://bisaloo.github.io/contactdata/index.html (Prem 2017)
 # functions
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
-# library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble","pracma","qs","ungeviz"),
-         library,character.only=TRUE)
+lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate",
+         "tsibble","pracma","qs","ungeviz"),library,character.only=TRUE)
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
+source("load_params.R")
 ### ### ### ### ### ### ### ###
 # constant parameters
 # selected country
@@ -78,9 +78,9 @@ death_rates=matrix(unlist(lapply(( (death_corr_ratios/(init_ratio_birth_death*1.
 # g(rsv_age_groups,death_rates) %=% fun_death_rates(rsv_age_groups,uk_death_rate,nage=n_age,ninf=n_inf,dimsys=dim_sys)
 # estimated attack rates 
 estim_attack_rates <- data.frame(agegroup_name=paste0("age=",rsv_age_groups$agegroup_name,"yr"),
-                               median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
-K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,agegroup_durations=rsv_age_groups$duration)
-
+              median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.5,max_est=median_est*1.5)
+K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,
+                          agegroup_durations=rsv_age_groups$duration)
 ### ### ### ### ### ### ### ###
 # variable parameters  --------------------------------------------------------
 # SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
@@ -98,7 +98,7 @@ R0_calc_SIRS(C_m,delta_susc,rho,n_inf)
 # DURATION of SIMULATION
 # seasonal forcing (baseline level=1, forcing_strength=2 means 200% above baseline) | npi_reduc_strength: reduction from baseline 
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
-npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1/3; seasforc_width_wks=8
+npi_dates=as.Date(c("2020-03-26","2021-04-01")); seaspeakval=1; seasforc_width_wks=8
 g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(5,3),
      season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week=44,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
 # R0, tags
@@ -109,13 +109,14 @@ fcn_plot_seas_forc(simul_start_end,forcing_vector_npi,seas_lims_wks=c(7,42),npi_
 # SAVE: ggsave(paste0("simul_output/NPI_y",npi_year,"_on",preseas_npi_on,"w_off",postseas_npi_off,"w.png"),units="cm",height=10,width=20)
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=paste0("age=",rsv_age_groups$agegroup_name,"yr"),
-                                 median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*1.75)
+            median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*1.75)
 
 # INITIAL CONDITIONS. # introduce stationary state as init state? | init_set: "previous" or anything else
 if (!exists("ode_solution")) {ode_solution<-NA}
+initvals_type<-c(1,1)
 initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,
-    init_set=c("previous","fromscratch")[1],init_cond_src=c("output","file")[1],ode_solution,init_seed=10,
-    seed_vars="all",filename="simul_output/df_ode_solution_UK_multiple_adult_grps.RDS")
+    init_set=c("previous","fromscratch")[initvals_type[1]],init_cond_src=c("output","file")[initvals_type[2]],
+    ode_solution,init_seed=10,seed_vars="all",filename="simul_output/df_ode_solution_UK_multiple_adult_grps.RDS")
 # OR manually choose a timepoint from prev simul
 # t_sel=(df_cases_infs %>% filter(date==ymd("2019-07-01")) %>% group_by(date) %>% summarise(t=unique(t)))$t
 # initvals_sirs_model=matrix(as.numeric(round(ode_solution[t_sel,2:ncol(ode_solution)])))
@@ -130,8 +131,9 @@ approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_n
 approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*5))
 tm<-proc.time(); ode_sol<-lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params); round(proc.time()-tm,2)
 # reshape data | # check size of objs: fcn_objs_mem_use(1)
-g(final_pop,ode_solution,df_cases_infs) %=% fun_process_simul_output(ode_sol,varname_list,incidvar="newinf",incid_only=T,
-                                        init_date=simul_start_end[1],n_age,n_inf,rsv_age_groups,neg_thresh=-0.01)
+# g(final_pop,ode_solution,df_cases_infs) %=% fun_process_simul_output(ode_sol,varname_list,incidvar="newinf",incid_only=T,
+#                                         init_date=simul_start_end[1],n_age,n_inf,rsv_age_groups,neg_thresh=-0.01)
+df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end)
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # PLOT how age group totals change (for this "incid_only" should be FALSE)
 # fcn_plotagegroup_totals(df_cases_infs,incidvar="newinf",scale_val=c('free_y','fixed')[1])
@@ -141,14 +143,15 @@ g(final_pop,ode_solution,df_cases_infs) %=% fun_process_simul_output(ode_sol,var
 # all(abs(1-(final_pop$final/final_pop$init))<0.1/100)
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # simple lineplot
-sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>% filter(week %in% c(9,41,49)) %>% group_by(year,agegroup,week) %>%
-  filter(date==min(date) & infection=="infection #1"); varname=c("value_fract","value")[2]; sel_age_lim=9
-# PLOT
-fcn_plot_timecourse_by_agegr(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")),
-                    sel_age_lim,varname="value",npidates=npi_dates)
-
-fcn_plot_timecourse_sum(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2023-04-01")) %>% 
-                          group_by(date,infection) %>% summarise(value=sum(value)),npi_dates)
+sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>% filter(week %in% c(9,41,49)) %>%
+  group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
+fcn_plot_timecourse_by_agegr(df_cases_infs %>% # df_cases_infs_mat_imm
+     filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")),
+     sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",selweeks=sel_weeks,alphaval=0.01,
+     vline_w=c(1/4,1/8))
+# sum
+fcn_plot_timecourse_sum(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & 
+    date<as.Date("2023-04-01")) %>% group_by(date,infection) %>% summarise(value=sum(value)),npi_dates)
 
 # labs(caption=paste0("seas peak=",round(max(forcing_vector_npi),2),"x baseline, NPI contact red.=-",round((1-min(forcing_vector_npi))*1e2),
 #                     "%, R0 (baseline)=",R0val)) + ggtitle("",subtitle=paste0("suscept=[",paste0(round(delta_primary,3),collapse=","),"]") ) +

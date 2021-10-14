@@ -120,14 +120,16 @@ write_csv(all_sum_inf_epiyear_age,paste0(foldername,"all_sum_inf_epiyear_age_sel
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # PLOT dynamics by age groups (one simulation)
- # sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>% filter(week %in% c(9,41,49)) %>%
- #   group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
- # fcn_plot_timecourse_by_agegr(df_cases_infs_mat_imm %>% 
-#           filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")),
- #           sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",selweeks=sel_weeks,alphaval=0.01,vline_w=c(1/4,1/8))
+sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>% filter(week %in% c(9,41,49)) %>%
+  group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
+fcn_plot_timecourse_by_agegr(df_cases_infs %>% # df_cases_infs_mat_imm
+      filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")),
+      sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",selweeks=sel_weeks,alphaval=0.01,
+      vline_w=c(1/4,1/8))
+
 # # sum of all cases
-# fcn_plot_timecourse_sum(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2023-04-01")) %>%
-#                           group_by(date,infection) %>% summarise(value=sum(value)),npi_dates)
+# fcn_plot_timecourse_sum(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & 
+#       date<as.Date("2023-04-01")) %>% group_by(date,infection) %>% summarise(value=sum(value)),npi_dates)
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # plot attack rates by age group and years

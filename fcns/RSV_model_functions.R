@@ -287,7 +287,7 @@ fun_create_red_C_m=function(C_m_full,rsv_agegroups,orig_age_groups_duration,orig
           f_dur=rsv_agegroups$duration[j_col]/orig_age_groups_duration[rsv_agegroups$wpp_agegroup_high[j_col]]
           C_m[i_row,j_col]=sum((orig_age_groups_sizes[group_span]/sum(orig_age_groups_sizes[group_span]))*C_m_full[group_span,j_col])*f_dur
         } else {# if 'j' larger -> weighted average of the contact rates of the constituent groups
-          print(c(i_row,j_col)); print(agegroup_weights); print(group_span)
+          # print(c(i_row,j_col)); print(agegroup_weights); print(group_span)
           C_m[i_row,j_col]=sum(rep(agegroup_weights,length(agegroup_weights))*unlist(
             lapply(group_span,function(x) {agegroup_weights*C_m_full[x,group_span]})))
         }
@@ -415,7 +415,7 @@ fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,i
                                   peak_week,forcing_above_baseline,npireduc_strength){
   start_end=as.Date(c(paste0(year(npidates[1]-years_pre_post_npi[1]*365),"-",init_mt_day),
                             paste0(year(npidates[2]+years_pre_post_npi[2]*365),"-",init_mt_day)))
-  print(start_end)
+  # print(start_end)
   simul_dates=seq(start_end[1],start_end[2],by=1)
   forcingvector_npi=fun_seas_forc(yday(simul_dates),peak_day=peak_week*7,
                                   st_dev_season=season_width_wks*7,forcing_above_baseline,day_num=T)
@@ -487,13 +487,15 @@ fcn_set_initconds<-function(rsv_agegroup_sizes,init_set,init_cond_src,input_from
 }
 
 ### simple lineplot of dynamics by agegroup ----------
-fcn_plot_timecourse_by_agegr <- function(df_plot,varname,sel_agelim,npidates,date_break_val,selweeks,alphaval,vline_w){
-  
-  if (!any(grepl("agegroup_name",colnames(df_plot)))) {df_plot <- df_plot %>% mutate(agegroup_name=rsv_age_groups$agegroup_name[agegroup])}
-  ggplot(df_plot) + 
-    geom_area(aes(x=date,y=get(varname)*ifelse(grepl("fract",varname),1e2,1),fill=factor(infection)),position=position_stack(reverse=T),
+fcn_plot_timecourse_by_agegr <- function(df_plot,agegroup_name,varname,sel_agelim,npidates,date_break_val,selweeks,
+                                         alphaval,vline_w){
+  if (!any(grepl("agegroup_name",colnames(df_plot)))) {
+    df_plot <- df_plot %>% mutate(agegroup_name=factor(agegroup_name[agegroup],unique(agegroup_name)))}
+  ggplot(df_plot) + geom_area(aes(x=date,y=get(varname)*ifelse(grepl("fract",varname),1e2,1),
+    fill=factor(infection)),position=position_stack(reverse=T),
               alpha=0.3,color="black",size=0.25) + facet_wrap(~agegroup_name,scales="free_y") + xlab("") + 
-    geom_vline(data=selweeks %>% filter(agegroup<=sel_agelim),aes(xintercept=date,linetype=ifelse(week==49,"solid","dashed"),
+    geom_vline(data=selweeks %>% filter(agegroup<=sel_agelim),
+               aes(xintercept=date,linetype=ifelse(week==unique(selweeks$week)[2],"solid","dashed"),
         size=ifelse(week==49,"a","b")),show.legend=F) + scale_size_manual(breaks=c("a","b"),values=vline_w) +
     scale_x_date(date_breaks=date_break_val,expand=expansion(0.01,0)) + scale_y_continuous(expand=expansion(0.01,0)) +
     geom_rect(xmin=npidates[1],xmax=npidates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=alphaval) +

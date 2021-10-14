@@ -48,6 +48,7 @@ l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list);inf_vars_inds=l_in
 # C_m_polymod=Reduce('+',list_contmatrs) # fun_recipr_contmatr(Reduce('+',list_contmatrs),
 #   age_group_sizes=standard_age_groups$values)
 C_m_polymod<-readRDS("data/UK_contact_matrix_sum.RDS")
+
 # create for our age groups
 C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
         orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
@@ -64,3 +65,4 @@ rho=1/7 # 1/rho=rweibull(1, shape=4.1,scale=8.3)
 # KINETIC MATRIX (aging terms need to be scaled by duration of age groups!)
 K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,
                           agegroup_durations=rsv_age_groups$duration)
+print("end of load_params.R")
