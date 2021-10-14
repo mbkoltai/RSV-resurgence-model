@@ -22,7 +22,7 @@ partable <- bind_rows(expand.grid( list(exp_dep=(1:8)/4,age_dep=(1:8)/8,seasforc
 l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
                     function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
 partable <- partable %>% mutate(const_delta=1.2/unlist(lapply(l_delta_susc, function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),
-                                npi_start=npi_dates[1],npi_stop=npi_dates[2],seasforce_peak=1/2,par_id=row_number())
+                seas_conc_lim=0.8,npi_start=npi_dates[1],npi_stop=npi_dates[2],seasforce_peak=1/2,par_id=row_number())
 # R0 values: unlist(lapply(1:length(l_delta_susc), function(x) R0_calc_SIRS(C_m,partable$const_delta[x]*l_delta_susc[[x]],rho,n_inf)))
 
 # %>% arrange(dep_type,dep_val,R0,seasforce_peak) %>% rowid_to_column("par_id")
