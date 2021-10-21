@@ -31,8 +31,9 @@
 
 # set plotting theme
 standard_theme=theme(# panel.grid=element_line(linetype="solid",colour="black",size=0.1),
-                     plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),
-                     axis.text.y=element_text(size=9),axis.title=element_text(size=14), text=element_text(family="Calibri"))
+  plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),
+           axis.text.y=element_text(size=9),axis.title=element_text(size=14), text=element_text(family="Calibri"),
+  panel.grid.minor=element_blank())
 
 # standard cols
 gg_color_hue <- function(n) {

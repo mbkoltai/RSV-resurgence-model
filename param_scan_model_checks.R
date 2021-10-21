@@ -1,162 +1,121 @@
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
-# library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-# lapply(c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","plotly","Rcpp","zoo","lubridate","tsibble","pracma","qs","ungeviz"),
-#       library,character.only=TRUE) # library(doParallel)
 # load constant parameters and functions
-source("load_params.R")
+source("load_params.R"); library(wesanderson)
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
-    median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
-    median_all_inf=c(rep(70,4),rep(60,4),50,30,20),min_est_all_inf=median_all_inf*0.5,max_est_all_inf=median_all_inf*1.5)
+      median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
+      median_all_inf=c(rep(70,4),rep(60,4),50,30,20),min_est_all_inf=median_all_inf/2,max_est_all_inf=median_all_inf*2)
+# write estim_attack_rates
+write_csv(estim_attack_rates,file="data/estim_attack_rates.csv")
 # % cases within season (filtering parameter sets)
-seas_conc_lim=0.8
-# parameter sets to search through
-selsets<-c(2,4:8) 
-p_table <- bind_rows(expand.grid(list(dep_type="age",dep_val=seq(0.5,4,by=0.5)[selsets],R0=seq(12,14,0.5)/10,
-                                      seasforce_peak=seq(1.1,1.5,by=0.1))),
-  bind_rows(lapply(selsets, function(x) expand.grid(list(dep_type="exp",dep_val=x,
-      seasforce_peak=list(c(0.8,1,1.2),c(1.125,1.25,1.375),c(1,1.25,1.5),c(1,1.25,1.5),
-            c(1,1.125,1.25),c(1.25,1.375,1.5),c(1.25,1.375,1.5),c(1.25,1.375,1.5))[[x]],
-    R0=list( (12:14)/10,(12:14)/10,seq(13,16,1.5)/10,seq(15,18,1.5)/10, seq(14,20,2)/10, 
-    seq(15,18,1)/10,(18:20)/10,(24:26)/10)[[x]]))))) %>% arrange(dep_type,dep_val,R0,seasforce_peak) %>% rowid_to_column("par_id")
-# p_table <- read_csv("simul_output/parscan/sel_parsets/sel_parsets.csv") %>% rowid_to_column("par_id")
-partable <- fcn_create_partable(p_table,nstep=10, scale_age_exp=c(0.35,0.29),pop_struct=rsv_age_groups$stationary_popul,
-      susc_denomin=100,susc_min=0.11,nage=11,ninf=3,rhoval=rho) %>% mutate(dep_val=ifelse(dep_type=="age",dep_val*2,dep_val)) %>%
-      group_by(dep_type,R0) %>% mutate(R0_no=row_number())
-# save the stat sol of all param sets
-stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
-# NPI dates
-npi_dates=as.Date(c("2020-03-26","2021-05-17"))
-# width of season (from peak)
-seasforc_width_wks<-8
-# length of simulations
-simul_length_yr=7
+# seas_conc_lim=0.8
+npi_dates<-as.Date(c("2020-03-26","2021-05-17"))
+partable <- bind_rows(expand.grid(list(exp_dep=(1:8)/4,age_dep=(1:8)/8,seasforc_width_wks=c(4,6,8),
+                                       peak_week=c(48,50,52),seasforce_peak=c(1/4,1/2,1))))
+l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
+                function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
+R0_sel=1.2
+partable <- partable %>% mutate(R0=R0_sel,
+      const_delta=1.2/unlist(lapply(l_delta_susc, function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),seas_conc_lim=0.8,
+      npi_start=npi_dates[1],npi_stop=npi_dates[2],par_id=row_number(),seas_start_wk=42,seas_stop_wk=8)
+simul_length_yr<-15; n_post_npi_yr<-3
 # agegroup indices for maternal immunity
-mat_imm_flag <- TRUE
-mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
-                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),11,3),
-                  fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
+mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),n_age,3),
+                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
+                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),n_age,3))
+
+# filtering param sets
+# from 1st fit: selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
+partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<0.2) %>%
+  select(!age_dep_fit)
+  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# parallelisation (write file that'll run scripts)
-n_core=7; initcond_file <- "simul_output/parscan/parallel/initconds_all.csv"
-system(paste0(c("Rscript write_run_file.R",n_core,nrow(partable),simul_length_yr,3,initcond_file),collapse=" "))
+# RUN SIMULATIONS 
+# write file that'll run scripts
+partable_filename<-"simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); n_core=8
+system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_length_yr,n_post_npi_yr,
+                partable_filename,"data/estim_attack_rates.csv"),collapse=" "))
 # run calculation
 system("sh run_all_parallel_scan.sh")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-serial_loop=TRUE; if (!serial_loop) {all_sum_inf_epiyear_age=list(); cl=parallel::makeCluster(6); registerDoParallel(cl)}
-# LOOP
-tm<-proc.time()
-# foreach (k_par=1:nrow(partable),.packages=c("dplyr","deSolve","tidyr","lubridate")) %dopar% { # 
-for (k_par in 1:nrow(partable)){ # nrow(partable)
-    ### ### ###
-    # assign SUSCEPT params
-    delta_primary<-as.numeric(partable[k_par,] %>% select(contains("delta")))
-    l_susc=fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
-    if (serial_loop) {    g(delta_susc,delta_susc_prop) %=% l_susc} else { delta_susc=l_susc[[1]]; delta_susc_prop=l_susc[[2]] }
-    # set initial conds
-    R0_rank_within_deptype_depval=partable$R0_no[k_par]
-    if (R0_rank_within_deptype_depval==1){
-      initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
-        init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="") } else {
-        initvals_sirs_model <- matrix(ode_solution[nrow(ode_solution)-1,2:ncol(ode_solution)]) }
-    # set length of simulation and seasonality
-    l_seas<-fun_shutdown_seasforc(npi_dates,
-        years_pre_post_npi=c(ifelse(R0_rank_within_deptype_depval==1,simul_length_yr,round(simul_length_yr*0.5)),0),
-            season_width_wks=seasforc_width_wks,init_mt_day="06-01",ifelse(grepl("exp",partable$dep_type[k_par]),45,49),
-            forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=0.5)
-    if (serial_loop){ g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas} else { 
-      timesteps=l_seas[[2]]; simul_start_end=l_seas[[3]]; forcing_vector_npi=l_seas[[4]] }
-    # set params 
-    params<-list(list(birth_rates,matrix(unlist(lapply(uk_death_rate,function(x) rep(x,n_inf*n_compartment))))),
-                 K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,delta_susc)
-    # maternal immunity?
-    if (mat_imm_flag){ params[[7]] <- mat_imm_inds}
-    # interpolation fcns for seas forcing & extern introds
-    approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
-    approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*10))
-    # run simul
-    if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params) } else {
-      ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
-    df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end)
-    # print progress
-    print(paste0(round(1e2*k_par/nrow(partable)),"% , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),
-      ", suscept=",paste0(round(delta_primary,3),collapse=","),", seas peak rel. baseline=",(partable$seasforce_peak[k_par]+1)*100,"%") )
-    sel_t_point <- unique((df_cases_infs %>% filter(date == as.Date("2019-07-01")))$t)
-    stat_sol_allparsets[,k_par] <- matrix(ode_solution[sel_t_point,2:ncol(ode_solution)]) # nrow(ode_solution)-1
-    # final population (it's stationary, shldnt change)
-    final_pop <- data.frame(agegroup=1:n_age,final=round(unlist(lapply(lapply((0:(n_age-1))*(n_inf*n_compartment), 
-            function(x) (1:(n_inf*n_compartment))+x ), function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
-    # calc attack rates
-    sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),
-          year(date),year(date)-1),in_out_season=ifelse(week(date)<=9 | week(date)>=41,"in","out")) %>%
-          group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value)),inf_in_seas=round(sum(value[in_out_season=="in"])),
-          max_incid_week=mean(week(date[value==max(value,na.rm=T)]))) %>% group_by(agegroup) %>% filter(epi_year>min(epi_year)),
-          final_pop,by="agegroup") %>% 
-          mutate(attack_rate_perc=100*inf_tot/final,
-                seas_share=inf_in_seas/inf_tot,dep_val=partable$dep_val[k_par],par_id=partable$par_id[k_par],
-                seasforce_peak=partable$seasforce_peak[k_par],dep_type=partable$dep_type[k_par],R0=partable$R0[k_par])
-    # store parameters # list_delta_primary[[k_par]]=delta_primary
-    # store outputs
-    # if (serial_loop){ 
-      if (k_par==1) {all_sum_inf_epiyear_age=sum_inf_epiyear_age} else {
-        all_sum_inf_epiyear_age=rbind(all_sum_inf_epiyear_age,sum_inf_epiyear_age)
-  if (k_par==nrow(partable)) { 
-    all_sum_inf_epiyear_age <- left_join(all_sum_inf_epiyear_age %>%
-      mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
-   mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
-          seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) } }
-    # } else { all_sum_inf_epiyear_age[[k_par]]=sum_inf_epiyear_age } 
-    # parallel # left_join(,partable %>% select(par_id,dep_val,seasforce_peak),by=c("dep_val","seasforce_peak"))
-} # end loop
-round(proc.time()-tm,2)
-if (!serial_loop) {stopCluster(cl)}
-### ### ### ### ### ### ### ### ### ### ### ###
-# post-processing
-foldername=paste0("simul_output/parscan/sel_parsets/mat_imm/") # ",dep_type,"/r0max",r0_max,"/
-if (!dir.exists(paste0("simul_output/parscan/",dep_type))) {dir.create(paste0("simul_output/parscan/",dep_type))}
-if (!dir.exists(foldername)) {dir.create(foldername)}
-# write_csv(all_sum_inf_epiyear_age,paste0(foldername,"all_sum_inf_epiyear_age_r0max",r0_max,"_peakwk",peak_week,".csv"))
-write_csv(all_sum_inf_epiyear_age,paste0(foldername,"all_sum_inf_epiyear_age_selected.csv"))
+# READ IN RESULTS
+peak_week_lims <- c(47,2)
+results_dyn_all<-read_csv("simul_output/parscan/parallel/results_dyn_all.csv") %>% rename(par_id=`partable$par_id[k_par]`)
+results_summ_all <- read_csv("simul_output/parscan/parallel/results_summ_all.csv") %>%
+  mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# check dynamics of SINGLE/SELECTED SIMUL
+ggplot(results_dyn_all %>% filter(par_id>=11 & par_id<=15 & date>as.Date("2019-07-01") & 
+          date<as.Date("2023-04-01") & agegroup<=5)) + geom_line(aes(x=date,y=value,color=factor(par_id))) + 
+  facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
+  scale_color_brewer(palette = "YlOrRd") + # scale_color_discrete() + 
+  geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="grey",alpha=0.01) +
+  geom_vline(xintercept=as.Date(paste0(2019:2022,"-12-13"))-56,linetype="dashed",size=1/4) +
+  geom_vline(xintercept=as.Date(paste0(2019:2022,"-12-13"))+56,linetype="dashed",size=1/4) +
+  theme_bw() + standard_theme + scale_x_date(date_breaks="4 month") + xlab("") + ylab("") + labs(color="# par ID")
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ###  agegroup_name
 # PLOT dynamics by age groups (one simulation)
-sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>% filter(week %in% c(9,41,49)) %>%
-  group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
-fcn_plot_timecourse_by_agegr(df_cases_infs %>% # df_cases_infs_mat_imm
-      filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")),
-      sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",selweeks=sel_weeks,alphaval=0.01,
-      vline_w=c(1/4,1/8))
-
+n_sel=14
+sel_weeks <- results_dyn_all %>% filter(par_id==n_sel) %>% mutate(week=week(date),year=year(date)) %>% 
+  filter(week %in% c(9,41,49)) %>%  group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
+fcn_plot_timecourse_by_agegr(results_dyn_all %>% filter(par_id==n_sel) %>% # df_cases_infs_mat_imm
+    filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")),
+    agegroup_name=rsv_age_groups$agegroup_name,sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",
+    selweeks=sel_weeks,alphaval=0.01,vline_w=c(1/4,1/8))
 # # sum of all cases
-# fcn_plot_timecourse_sum(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & 
-#       date<as.Date("2023-04-01")) %>% group_by(date,infection) %>% summarise(value=sum(value)),npi_dates)
+fcn_plot_timecourse_sum(results_dyn_all %>% filter(t %% 7==0 & par_id==n_sel & agegroup<=9 & date>as.Date("2017-07-01") &
+       date<as.Date("2023-04-01")) %>% group_by(date,infection) %>% summarise(value=sum(value)) %>% 
+         mutate(infection=factor(infection)),npi_dates)
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # plot attack rates by age group and years
-check_crit=10/11; n_sel_yr=4; peak_week_lims <- c(47,2)
-all_sum_inf_epiyear_age_filtered <- all_sum_inf_epiyear_age %>% filter(epi_year>=2016 & epi_year<=2019) %>% 
-  group_by(seasforce_peak,dep_val,R0,dep_type) %>% filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
-              sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) & (max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2]) )
+check_crit=9/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
+# unlist(lapply(1:length(l_delta_susc), function(x) R0_calc_SIRS(C_m,partable$const_delta[x]*l_delta_susc[[x]],rho,n_inf)))
+all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_year %in% sel_yrs),
+              partable %>% rename(forcing_peak_week=peak_week),by=c("par_id","seasforce_peak")) %>% 
+  group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
+  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
+           sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) ) 
+# sum(max_incid_week_check) >=round(n_age*n_sel_yr*check_crit)
+# (max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[3])
 # write_csv(all_sum_inf_epiyear_age_filtered,paste0(foldername,"all_sum_inf_epiyear_age_filtered.csv"))
 ###
-# plot attack rates
-uni_dep_vals=(all_sum_inf_epiyear_age_filtered %>% group_by(dep_type) %>% summarise(n=length(unique(R0))))$n
-colorpal=c(colorRampPalette(colors=c("orange","red"))(uni_dep_vals[1]),colorRampPalette(colors=c("grey","black"))(uni_dep_vals[2]))
+foldername="simul_output/parscan/parallel/"
+# plot attack rates, seasonal share & peak week
+# uni_dep_vals=(all_sum_inf_epiyear_age_filtered %>% group_by(dep_type) %>% summarise(n=length(unique(R0))))$n
+# colorpal=c(colorRampPalette(colors=c("orange","red"))(uni_dep_vals[1]),
+# colorRampPalette(colors=c("grey","black"))(uni_dep_vals[2]))
 # PLOT
-ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
-        agegroup_name=factor(agegroup_name,levels=unique(agegroup_name)),dep_type_R0=factor(paste0(dep_type,", R0=",R0),
-                levels=unique(paste0(all_sum_inf_epiyear_age_filtered$dep_type,", R0=",all_sum_inf_epiyear_age_filtered$R0)))) ) +
-  geom_hpline(aes(x=factor(epi_year),y=attack_rate_perc,color=dep_type_R0),width=0.9,size=1/2) + scale_color_manual(values=colorpal) + 
-  facet_grid(dep_val~agegroup_name,scales="free_y",labeller=labeller(seasforce_peak=label_both)) + # ,linetype=dep_type
-  geom_hline(data=estim_attack_rates %>% pivot_longer(!agegroup_name) %>% filter(name!="median_est"&!grepl("all_inf",name)),
-             aes(yintercept=value),linetype="dashed",size=1/3) +
-  geom_hline(data=estim_attack_rates %>% pivot_longer(!agegroup_name) %>% filter(name=="median_est"&!grepl("all_inf",name)),
-             aes(yintercept=value),size=1/3) + ylab("attack rate % age group") + scale_y_log10() + theme(legend.position="top") +
-  theme_bw() + standard_theme + labs(color="") + xlab("") # ,caption=paste0("model check minimum=",round(check_crit,2)*1e2,"%")
-# xlab("epi_year") + 
-# save
-ggsave(paste0(foldername,"parscan_attack_rates_filtered.png"),width=32,height=16,units="cm")
+sel_var<-c("attack_rate_perc","seas_share","max_incid_week")
+# plot_labels=c("attack rate % age group","seasonal share of infections","peak week")
+estim_rates <- estim_attack_rates %>% select(agegroup_name,median_est,min_est,max_est) %>% 
+  pivot_longer(!c(agegroup_name)) %>% rename(type=name) %>% mutate(name="attack_rate_perc")
+estim_rates <- bind_rows(estim_rates, 
+estim_rates %>% filter(type!="median_est") %>% mutate(name="max_incid_week",value=ifelse(grepl("min",type),3,48)),
+estim_rates %>% filter(type=="median_est") %>% mutate(name="seas_share",value=0.75))
 
+ggplot( all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
+  agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(epi_year,
+  agegroup_name,attack_rate_perc,seas_share,max_incid_week)) %>% pivot_longer(!c(epi_year,agegroup_name)) ) +
+    geom_hpline(aes(x=factor(epi_year),y=value),width=0.9,size=1/2) + facet_grid(name~agegroup_name,scales="free_y") +
+  geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/2,color="blue")+
+  xlab("") + ylab("") + theme(legend.position="top") + theme_bw() + standard_theme + labs(color="")
+# save
+ggsave(paste0(foldername,"parscan_attack_rates_filtered.png"),width=32,height=10,units="cm")
+
+######
+# which parsets selected?
+partable %>% mutate(sel_par=ifelse(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id),TRUE,FALSE) ) %>%
+  filter(sel_par==TRUE) %>% ggplot(aes(x=exp_dep,y=age_dep)) + geom_point(aes(fill=sel_par,color=sel_par,size=1.2)) + 
+  geom_smooth(method="loess",se=F) + geom_smooth(method="lm",color="black",size=1/2,se=F) + geom_point(data=partable %>% 
+               mutate(sel_par=ifelse(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id),TRUE,FALSE) ) %>%
+      filter(sel_par==FALSE),aes(x=exp_dep,y=age_dep),color="grey") + labs(color="accepted") + theme_bw() + 
+  scale_x_continuous(breaks=2*(1:8)/8) + xlab("exposure") + ylab("age") + standard_theme + theme(legend.position="none",
+        axis.text.x=element_text(size=12),axis.text.y=element_text(size=12))
+# selected parameter sets
+ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=24,height=20,units="cm")
 # plot concentr in seasons
 # seas_conc_lim=0.8
 # ggplot(all_sum_inf_epiyear_age %>% mutate(seas_share=ifelse(epi_year==2020,NA,seas_share)) %>% filter(epi_year>=2016 & epi_year<2020) %>% 
@@ -381,7 +340,7 @@ ggplot(cumul_inf_pre_post_npi %>% mutate(dep_val=dep_val_sel) %>%
 # ggsave(paste0(foldername,"resurgence_",ifelse(grepl("sum",sel_var),"cumul_inf",sel_var),"_rel_to_2019_large_agegroups_seasfor_sep.png"),
 #         width=30,height=20,units="cm")
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # shift in mean age by large age groups
 output_files <- list.files(foldername,pattern="df_cases_infs_npi_contactlevel_")
 for (k_npi in 0:4){
@@ -526,114 +485,3 @@ ggplot(df_seas_forc_npi %>% filter(date<=as.Date("2022-07-01")),aes(x=date,y=val
 # save
 ggsave(paste0(foldername,"seasonal_forcing_NPI_contactlevel.png"),width=32,height=22,units="cm")
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-# all paramsets
-# for (k_par in 1:nrow(partable)){
-#   if (k_par==1) {susc_all=data.frame()}
-#   delta_primary <- as.numeric(partable[k_par,] %>% ungroup() %>% select(contains("delta")) )
-#   g(delta_susc,delta_susc_prop) %=% fcn_delta_susc(delta_primary,n_age,n_inf,partable$agedep_val[k_par],rsv_age_groups$stationary_popul)
-#   df <- data.frame(t(round(delta_susc_prop,5))); colnames(df) <-c("inf #1","inf #2","inf #3")
-#   df <- bind_cols(df,partable[k_par,]) %>% rowid_to_column("agegr_no") %>% 
-#     mutate(agegroup=factor(rsv_age_groups$agegroup_name,levels=unique(rsv_age_groups$agegroup_name)))
-#   if (k_par==1) {susc_all=df} else {susc_all=rbind(susc_all,df)
-#   } 
-# }
-# 
-# ggplot(susc_all %>% group_by(dep_type,dep_val,agegroup) %>% filter(R0==min(R0)) %>% pivot_longer(c(`inf #1`,`inf #2`,`inf #3`)) %>%
-#          mutate(name=gsub("inf","infection",name)) %>% rename(dependence=dep_val)) + 
-#   geom_hpline(aes(x=agegroup,y=value,group=interaction(dependence,name),color=factor(name)),
-#               width=0.95/3,size=1,position=position_dodge(width=1)) + 
-#   facet_grid(dependence~dep_type,labeller=labeller(dependence=label_both)) + 
-#   geom_vline(xintercept=0.5+(0:11),size=1/3,linetype="dashed") + 
-#   scale_y_log10(expand=expansion(0.04,0)) + scale_x_discrete(expand=expansion(0.02,0)) + 
-#   theme_bw() + standard_theme+ ylab("susceptibility to infection") + labs(color="",linetype="") + 
-#   guides(color=guide_legend(byrow=TRUE))  + theme(legend.text=element_text(size=14),
-#     axis.title.x=element_text(size=16),axis.title.y=element_text(size=16),axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),
-#     strip.text.x=element_text(size=16),strip.text.y=element_text(size=15))
-# #
-# ggsave(paste0(foldername,"susceptibility_params_ALL.png"),width=35,height=30,units="cm")
-
-# colorpal <- npi_str_scan_df_cases_infs %>% group_by(dep_type) %>% summarise(dep_val=unique(dep_val)) %>% arrange(dep_type,dep_val) %>%
-#   mutate(dep_type_val=paste0(dep_type,", dep=",dep_val)) %>% group_by(dep_type) %>% mutate(num_type=as.numeric(factor(dep_type_val)),
-#            color=ifelse(dep_type=="exp",colorRampPalette(colors=c("blue","blueviolet"))(max(num_type))[num_type],
-#                                                 colorRampPalette(colors=c("rosybrown","red"))(max(num_type))[num_type]))
-# pkval_char=as.character(sort(unique(npi_str_scan_df_cases_infs$seasforce_peak)))
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# lineplot, NPI averaged, show with error bars
-# ggplot(cumul_inf_pre_post_npi %>% filter(epi_year==2021) %>% # group_by(dep_type,dep_val_norm,dep_val,agegroup_large) %>% # 
-#          pivot_longer(!c(dep_type,dep_val_norm,dep_val,seas_forc_peak,agegroup_large,par_id,npi_str,epi_year,peak_week,R0)) %>% 
-#          filter(grepl("norm",name)) %>% group_by(agegroup_large,dep_val,dep_val_norm,dep_type,name) %>% # average by R0 and seas forcing
-#          summarise(mean_val=mean(value),min_val=min(value),max_val=max(value)) %>% 
-#          mutate(name=ifelse(grepl("max",name),"PEAK","SUM"),dep_type=ifelse(grepl("age",dep_type),"~AGE","~IMMUNITY")) %>%
-#          ungroup() %>% filter(dep_val %in% joint_dep_vals) %>% mutate(dep_val=as.numeric(factor(dep_val))) ) +
-#   geom_hpline(aes(x=factor(dep_val),y=mean_val,group=dep_type,color=dep_type),position=position_dodge(width=1),width=0.43,size=1) + 
-#   geom_linerange(aes(x=factor(dep_val),ymin=min_val,ymax=max_val,group=dep_type,color=dep_type),
-#                  alpha=0.35,position=position_dodge(width=1),size=14,show.legend=F) +
-#   facet_wrap(agegroup_large~name,scales="free",nrow=3) + labs(fill=paste0("ratio of peak/total infections, 2021 to 2019")) +
-#   geom_vline(xintercept=0.5+0:8,linetype="dashed",size=1/3) + xlab("dependence on age/exp") + ylab("") +
-#   scale_x_discrete(expand=expansion(0,0)) + theme_bw() + standard_theme + theme(legend.position="top")
-# # save
-# ggsave(paste0(foldername,"resurgence_peak_total_inf_rel_to_2019_R0_NPI_averaged_linerange.png"),width=28,height=16,units="cm")
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-### plot one simul
-# fcn_plot_timecourse_by_agegr(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9&date>as.Date("2019-09-15") & date<as.Date("2022-04-01")) %>%
-#                  mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name)),
-#      sel_agelim=9,varname="value",npidates=npi_dates,"2 month",selweeks=sel_weeks,alphaval=1/1e3,vline_w=c(1/4,1/8)) +
-#      geom_vline(xintercept=as.Date("2021-07-20"),color="red",size=1/3) + labs(fill="infection")
-# # # plot seas forcing
-# ggplot(data.frame(t=seq(simul_start_end[1],simul_start_end[2],by=1),f=forcing_vector_npi) %>%
-#          mutate(year=year(t)) %>% filter(t>as.Date("2018-06-01") & t<as.Date("2022-06-01"))) + geom_line(aes(x=t,y=f)) +
-#   scale_x_date(date_breaks="2 month",expand=expansion(0,0)) + theme_bw() + standard_theme + ylab("seas. forcing")
-# # filter(year %in% c(2020,2021))
-# # ggsave(paste0("simul_output/parscan/r0max",r0_max,"/seas_forcing",seasforc_width_wks,"_npi_red",npi_red_str,".png"),
-# #   width=32,height=16,units="cm")
-### ### ### ### ### ### ### ### ###
-# if (plot_flag){
-#   # plot parscan
-#   ggplot(list_df_cases_infs %>%
-#        mutate(agegroup_large=factor(c("0-2y","2-5y",">5y")[ifelse(agegroup<=4,1,ifelse(agegroup<=7,2,3))],levels=c("0-2y","2-5y",">5y"))) %>%
-#            filter(date>as.Date("2018-08-15") & date<as.Date("2022-04-15") & (!agegroup_large %in% ">5y")) %>% # t %% 2 ==0 & 
-#            group_by(date,dep_val,seasforce_peak,agegroup_large) %>% summarise(value=ifelse(sum(value)>0,sum(value),NA)),
-#          aes(x=date,y=value,fill=agegroup_large)) + 
-#     # geom_area(position=position_stack(reverse=T),color="black",size=0.2) + scale_y_continuous(expand=expansion(0,0)) +
-#     geom_line(aes(color=agegroup_large),size=1.01) + scale_y_log10(limits=c(1e2,1e5),expand=expansion(0,0)) + #  # 
-#     facet_wrap(dep_val~seasforce_peak,scales="free_y",labeller=labeller(seasforce_peak=label_both,dep_val=label_both)) +
-#     theme_bw() + standard_theme + scale_x_date(date_breaks="2 month",expand=expansion(0.001,0)) + xlab("") +
-#     geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=0.01) + ylab("# new infections") +
-#     geom_vline(data=list_df_cases_infs %>% mutate(year=year(date),week=week(date)) %>% 
-#            filter((date<npi_dates[1] | date>npi_dates[2]) & week %in% 49) %>% group_by(year,week) %>% summarise(date=min(date)), # (41,9)
-#                aes(xintercept=date),linetype="dashed",size=1/4,show.legend=F) + # ifelse(week==49,"dashed","solid")
-#     geom_vline(xintercept=as.Date("2021-07-20"),color="red",size=1/4) + 
-#     labs(fill="",color="",caption=paste0("npi red=",npi_red_str,", width seas forc=",seasforc_width_wks,"wks"))
-#   # save
-#   # ggsave("simul_output/parscan/resurgence_parscan_expdep_sel_parsets_geomarea.png",width=32,height=16,units="cm")
-#   ggsave(paste0(foldername,"resurgence_sel_parsets_under5y_seaswidth",seasforc_width_wks,"_npi_red",npi_red_str,".png"),
-#          width=32,height=16,units="cm")
-#   
-#   # plot different parsets on one facet, age groups on separate facets
-#   broad_age_grp=c("0-2y","2-5y","5-15y",">15y")
-#   pkval_char=as.character(unique(list_df_cases_infs$seasforce_peak))
-#   list_df_cases_infs %>%
-#     mutate(agegroup_large=factor(broad_age_grp[ifelse(agegroup<=4,1,ifelse(agegroup<=7,2,ifelse(agegroup==8,3,4)))],levels=broad_age_grp),
-#            seasforce_peak=factor(seasforce_peak,levels=rev(unique(seasforce_peak)))) %>%
-#     filter(date>as.Date("2018-10-01") &date<as.Date("2022-02-01") ) %>% group_by(date,dep_val,seasforce_peak,agegroup_large) %>% 
-#     summarise(value=ifelse(sum(value)>0,sum(value),NA)) %>% 
-#     ggplot(aes(x=date,y=value/1e3)) + 
-#     geom_line(aes(color=factor(dep_val),alpha=as.character(seasforce_peak)),size=1.1) + 
-#     scale_alpha_manual(breaks=pkval_char,values=(1:length(pkval_char))*0.2+0.4)+
-#     facet_wrap(~agegroup_large,scales="free_y",nrow=ceiling(length(broad_age_grp)/2)) + # 
-#     scale_x_date(date_breaks="month",expand=expansion(0.001,0)) + scale_y_continuous(expand=expansion(0,0)) + 
-#     theme_bw() + standard_theme + xlab("") + ylab("new cases (1000s)") + 
-#     geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=0.01) +
-#     geom_vline(data=list_df_cases_infs %>% mutate(year=year(date),week=week(date)) %>% 
-#            filter((date<npi_dates[1] | date>npi_dates[2]) & week %in% c(41,49,9)) %>% group_by(year,week) %>% summarise(date=min(date)),
-#                aes(xintercept=date),size=1/4,linetype="dashed",show.legend=F) + # ,linetype=ifelse(week==49,"solid","dashed")
-#     theme(legend.position="top") + geom_vline(xintercept=as.Date("2021-07-20"),color="red",size=1/4) + 
-#     labs(alpha="peak seasonal forcing above baseline",color="strengh of dependence (exposure)",
-#     caption=paste0("R0=",round(unique(df_cases_infs$R0),2),", npi (% baseline)=",npi_red_str,", width seas forc=",seasforc_width_wks,"wks"))
-#   # SAVE
-#   ggsave(paste0(foldername,"resurgence_sel_parsets_agefacet_under5_seaswidth",seasforc_width_wks,"_npi_cont",npi_red_str*1e2,"pct.png"),
-#          width=32,height=16,units="cm")
-# } # plot flag

@@ -49,7 +49,8 @@ sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>% filte
  group_by(year,agegroup,week) %>% filter(date==min(date)&infection==1); sel_yrs<-as.Date(c("2017-10-01","2022-03-01"))
 p <- fcn_plot_timecourse_by_agegr(df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>sel_yrs[1] & date<sel_yrs[2]),
   agegroup_name=rsv_age_groups$agegroup_name,sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",
-  selweeks=sel_weeks,alphaval=0.01,vline_w=c(1/4,1/8)); t_str<-paste0("exp_dep=",exp_dep,", age_dep=",age_dep," (susc. const.=",round(const_delta,2),")")
+  selweeks=sel_weeks,alphaval=0.01,vline_w=c(1/4,1/8)); t_str<-paste0("exp_dep=",exp_dep,", age_dep=",
+    age_dep," (susc. const.=",round(const_delta,2),")")
 p+theme(legend.position="top")+labs(fill="# infection")+ylab("")+ggtitle(t_str)
 
 # plot

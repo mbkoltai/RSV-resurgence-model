@@ -1,6 +1,6 @@
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # load constant parameters and functions
-setwd("fcns/"); source("load_params.R"); setwd("../")
+source("load_params.R")
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
   median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
@@ -8,7 +8,7 @@ estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # p
 # write estim_attack_rates
 write_csv(estim_attack_rates,file="data/estim_attack_rates.csv")
 # % cases within season (filtering parameter sets)
-seas_conc_lim=0.8
+# seas_conc_lim=0.8
 # parameter sets to search through
 # selsets<-c(2,4:8) 
 # bind_rows(expand.grid(list(dep_type="age",dep_val=seq(0.5,4,by=0.5)[selsets],R0=seq(12,14,0.5)/10,
@@ -49,19 +49,21 @@ system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_leng
 # run calculation
 system("sh run_all_parallel_scan.sh")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-results_folder<-"simul_output/parscan/parallel/"
-# collect all results
-dyn_parsets_all <- bind_rows(lapply(list.files(path=results_folder,pattern="dyn_parsets*"),
-                 function(x) read_csv(paste0(parall_foldername,x))))
-summ_parsets_all <- bind_rows(lapply(list.files(path=results_folder,pattern="summ_parsets*"),
-                                    function(x) read_csv(paste0(parall_foldername,x))))
+# results_folder<-"simul_output/parscan/parallel/"
+# # collect all results
+# dyn_parsets_all <- bind_rows(lapply(list.files(path=results_folder,pattern="dyn_parsets*"),
+#                  function(x) read_csv(paste0(parall_foldername,x))))
+dyn_parsets_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
+# summ_parsets_all <- bind_rows(lapply(list.files(path=results_folder,pattern="summ_parsets*"),
+#                                     function(x) read_csv(paste0(parall_foldername,x))))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# check dynamics
-ggplot(dyn_parsets_all %>% filter(par_id>=101 & par_id<=155 & date>as.Date("2019-10-01") & date<as.Date("2022-10-01") & agegroup<=3)) + 
-  geom_line(aes(x=date,y=value,color=par_id)) + 
+library(wesanderson)
+# check dynamics of SINGLE/SELECTED SIMUL
+ggplot(dyn_parsets_all %>% filter(par_id>=1 & par_id<=22 & date>as.Date("2018-10-01") & date<as.Date("2022-10-01") 
+                                  & agegroup<=3)) + geom_line(aes(x=date,y=value,color=par_id,group=par_id)) +
   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
-  scale_color_gradientn(colours=wes_palette("Zissou1",55, type = "continuous")) +
-  theme_bw() + standard_theme + scale_x_date(date_breaks="year") + xlab("") + ylab("") + labs(color="# par ID")
+  scale_color_gradientn(colours=wes_palette("Zissou1",55, type="continuous")) + xlab("") + ylab("") + 
+  theme_bw() + standard_theme + scale_x_date(date_breaks="year",expand=expansion(0.0)) + labs(color="# par ID")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # plot attack rates by age group and years
@@ -84,4 +86,7 @@ ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_y
      aes(yintercept=value),size=1/3) + ylab("attack rate % age group") + scale_y_log10() + theme(legend.position="top") +
   theme_bw() + standard_theme + labs(color="") + xlab("") 
 # ,caption=paste0("model check minimum=",round(check_crit,2)*1e2,"%")
+
+###########################################
+
 

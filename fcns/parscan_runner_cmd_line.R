@@ -68,7 +68,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
   # process output
   df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
-        mutate(partable$par_id[k_par]) %>% filter(date>as.Date("2018-09-01"))
+        mutate(par_id=partable$par_id[k_par]) %>% filter(date>as.Date("2018-09-01"))
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable)),"% "))
   # , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),", suscept=",paste0(round(delta_primary,3),
@@ -80,9 +80,10 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     function(x) (1:(n_inf*n_compartment))+x ), function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
   # calc attack rates
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
-    epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
-    in_out_season=ifelse(week(date)<=9 | week(date)>=41,"in","out")) %>% group_by(epi_year,agegroup) %>% 
-      summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
+   epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
+   in_out_season=ifelse(week(date)<=partable$seas_start_wk[k_par]|week(date)>=partable$seas_stop_wk[k_par],"in","out")) %>%
+      group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value,na.rm=T)),
+                                                inf_in_seas=round(sum(value[in_out_season=="in"])),
     max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
       filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(attack_rate_perc=100*inf_tot/final,
            seas_share=inf_in_seas/inf_tot,dep_val=partable$dep_val[k_par],par_id=partable$par_id[k_par],
