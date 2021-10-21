@@ -40,12 +40,13 @@ system("sh run_all_parallel_scan.sh")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # READ IN RESULTS
 peak_week_lims <- c(47,2)
-results_dyn_all<-read_csv("simul_output/parscan/parallel/results_dyn_all.csv") %>% rename(par_id=`partable$par_id[k_par]`)
+results_dyn_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
 results_summ_all <- read_csv("simul_output/parscan/parallel/results_summ_all.csv") %>%
   mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
+partable <- read_csv("partable.csv")
 
 # check dynamics of SINGLE/SELECTED SIMUL
-ggplot(results_dyn_all %>% filter(par_id>=11 & par_id<=15 & date>as.Date("2019-07-01") & 
+ggplot(results_dyn_all %>% filter(par_id>=11 & par_id<=45 & date>as.Date("2019-07-01") & 
           date<as.Date("2023-04-01") & agegroup<=5)) + geom_line(aes(x=date,y=value,color=factor(par_id))) + 
   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
   scale_color_brewer(palette = "YlOrRd") + # scale_color_discrete() + 
@@ -56,7 +57,7 @@ ggplot(results_dyn_all %>% filter(par_id>=11 & par_id<=15 & date>as.Date("2019-0
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ###  agegroup_name
 # PLOT dynamics by age groups (one simulation)
-n_sel=14
+n_sel=unique(results_dyn_all$par_id)[1]
 sel_weeks <- results_dyn_all %>% filter(par_id==n_sel) %>% mutate(week=week(date),year=year(date)) %>% 
   filter(week %in% c(9,41,49)) %>%  group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
 fcn_plot_timecourse_by_agegr(results_dyn_all %>% filter(par_id==n_sel) %>% # df_cases_infs_mat_imm
@@ -71,13 +72,13 @@ fcn_plot_timecourse_sum(results_dyn_all %>% filter(t %% 7==0 & par_id==n_sel & a
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # plot attack rates by age group and years
-check_crit=9/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
+check_crit=10/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
 # unlist(lapply(1:length(l_delta_susc), function(x) R0_calc_SIRS(C_m,partable$const_delta[x]*l_delta_susc[[x]],rho,n_inf)))
 all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_year %in% sel_yrs),
               partable %>% rename(forcing_peak_week=peak_week),by=c("par_id","seasforce_peak")) %>% 
   group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
-  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
-           sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) ) 
+ filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
+        sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) )
 # sum(max_incid_week_check) >=round(n_age*n_sel_yr*check_crit)
 # (max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[3])
 # write_csv(all_sum_inf_epiyear_age_filtered,paste0(foldername,"all_sum_inf_epiyear_age_filtered.csv"))
@@ -97,9 +98,9 @@ estim_rates %>% filter(type!="median_est") %>% mutate(name="max_incid_week",valu
 estim_rates %>% filter(type=="median_est") %>% mutate(name="seas_share",value=0.75))
 
 ggplot( all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
-  agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(epi_year,
-  agegroup_name,attack_rate_perc,seas_share,max_incid_week)) %>% pivot_longer(!c(epi_year,agegroup_name)) ) +
-    geom_hpline(aes(x=factor(epi_year),y=value),width=0.9,size=1/2) + facet_grid(name~agegroup_name,scales="free_y") +
+  agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(par_id,epi_year,
+  agegroup_name,attack_rate_perc,seas_share,max_incid_week)) %>% pivot_longer(!c(epi_year,agegroup_name,par_id)) ) +
+    geom_hpline(aes(x=factor(epi_year),y=value,color=par_id),width=0.9,size=1/2) + facet_grid(name~agegroup_name,scales="free_y") +
   geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/2,color="blue")+
   xlab("") + ylab("") + theme(legend.position="top") + theme_bw() + standard_theme + labs(color="")
 # save

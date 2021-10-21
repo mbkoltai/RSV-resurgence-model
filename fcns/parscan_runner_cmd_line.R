@@ -68,7 +68,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
   # process output
   df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
-        mutate(par_id=partable$par_id[k_par]) %>% filter(date>as.Date("2018-09-01"))
+        mutate(par_id=partable$par_id[k_par]) %>% filter(date>=as.Date("2018-09-01"))
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable)),"% "))
   # , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),", suscept=",paste0(round(delta_primary,3),
@@ -77,12 +77,13 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   stat_sol_allparsets[,k_par] <- matrix(ode_solution[sel_t_point,2:ncol(ode_solution)]) # nrow(ode_solution)-1
   # final population (it's stationary, shldnt change)
   final_pop <- data.frame(agegroup=1:n_age,final=round(unlist(lapply(lapply((0:(n_age-1))*(n_inf*n_compartment), 
-    function(x) (1:(n_inf*n_compartment))+x ), function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
+    function(x) (1:(n_inf*n_compartment))+x ), 
+    function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
   # calc attack rates
   print(paste0("season start: ",partable$seas_start_wk[k_par]))
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
    epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
-   in_out_season=ifelse(week(date)<=partable$seas_start_wk[k_par]|week(date)>=partable$seas_stop_wk[k_par],"in","out")) %>%
+   in_out_season=ifelse(week(date)>=partable$seas_start_wk[k_par]|week(date)<=partable$seas_stop_wk[k_par],"in","out")) %>%
      group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value,na.rm=T)),
                                                inf_in_seas=round(sum(value[in_out_season=="in"])),
     max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
@@ -109,6 +110,6 @@ write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_par
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
 # dynamics
 par_id_vals=partable$par_id
-write_csv(df_cases_infs_all %>% select(!name),paste0("simul_output/parscan/parallel/dyn_parsets_main",
+write_csv(df_cases_infs_all %>% select(!c(name,date)),paste0("simul_output/parscan/parallel/dyn_parsets_main",
                                    paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv") )
 
