@@ -504,12 +504,14 @@ fcn_plot_timecourse_by_agegr <- function(df_plot,agegroup_name,varname,sel_ageli
 }
 
 ### plot sum of all infections
-fcn_plot_timecourse_sum <- function(df_plot,npidates){
-selweek=df_plot %>% mutate(year=year(date),week=week(date)) %>% filter(week==49) %>% group_by(year) %>% summarise(date=min(date))
-  ggplot(df_plot,aes(x=date,y=value,fill=infection)) + geom_area(position=position_stack(reverse=T),alpha=0.3,color="black",size=0.25) + 
-  theme_bw() + standard_theme + scale_y_continuous(expand=expansion(0.01,0))+scale_x_date(date_breaks="3 months",expand=expansion(0.01,0)) +
-  geom_rect(xmin=npidates[1],xmax=npidates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=0.01) + ylab("# new infections") +
-    geom_vline(data=selweek,aes(xintercept=date,linetype="solid"),size=1/4,show.legend=F)
+fcn_plot_timecourse_sum <- function(df_plot,npidates,n_peak_week){
+selweek=df_plot %>% mutate(year=year(date),week=week(date)) %>% filter(week==n_peak_week) %>% group_by(year) %>% 
+  summarise(date=min(date))
+  ggplot(df_plot,aes(x=date,y=value,fill=infection)) + 
+    geom_area(position=position_stack(reverse=T),alpha=0.3,color="black",size=0.25) + 
+  scale_y_continuous(expand=expansion(0.01,0)) + scale_x_date(date_breaks="3 months",expand=expansion(0.01,0)) + 
+    geom_rect(xmin=npidates[1],xmax=npidates[2],ymin=-Inf,ymax=Inf,fill="pink",alpha=0.01) + ylab("# new infections") +
+    geom_vline(data=selweek,aes(xintercept=date,linetype="solid"),size=1/4,show.legend=F) + theme_bw() + standard_theme
 }
 
 ### set up death rates
