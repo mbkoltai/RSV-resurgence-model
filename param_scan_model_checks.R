@@ -18,7 +18,7 @@ partable <- partable %>% mutate(par_id=row_number(),
       npi_start=npi_dates[1],npi_stop=npi_dates[2],seas_start_wk=42,seas_stop_wk=8)
 # filtering param sets, from 1st fit: 
 # selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
-partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<0.2) %>%
+partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>%
   select(!age_dep_fit)
 write_csv(partable,"partable.csv")
 # agegroup indices for maternal immunity
@@ -28,7 +28,7 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS 
 # write file that'll run scripts
-simul_length_yr<-15; n_post_npi_yr<-4; n_core=16
+simul_length_yr<-15; n_post_npi_yr<-4; n_core<-24
 partable_filename<-"simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); 
 system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_length_yr,n_post_npi_yr,
                 partable_filename,"data/estim_attack_rates.csv nosave"),collapse=" "))
@@ -44,15 +44,14 @@ peak_week_lims <- c(48,2)
 # results_dyn_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
 results_summ_all <- read_csv("simul_output/parscan/parallel/results_summ_all.csv") %>%
   mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
-partable <- read_csv("partable.csv")
-foldername="simul_output/parscan/parallel/"
+foldername="simul_output/parscan/parallel/" # partable <- read_csv("partable.csv"); 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # plot attack rates by age group and years
 check_crit=11/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
 # unlist(lapply(1:length(l_delta_susc), function(x) R0_calc_SIRS(C_m,partable$const_delta[x]*l_delta_susc[[x]],rho,n_inf)))
 all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_year %in% sel_yrs),
-              partable %>% rename(forcing_peak_week=peak_week),by=c("par_id","seasforce_peak")) %>% 
+              partable %>% rename(forcing_peak_week=peak_week),by=c("par_id","seasforce_peak","R0")) %>% 
   group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
         sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) )
@@ -99,10 +98,10 @@ estim_rates <- bind_rows(estim_rates,
 ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
   agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(par_id,epi_year,
   agegroup_name,attack_rate_perc,seas_share,max_incid_week)) %>% pivot_longer(!c(epi_year,agegroup_name,par_id)) ) +
-  geom_hpline(aes(x=factor(epi_year),y=value,color=par_id,group=par_id),width=0.1,size=1,position=position_dodge(width=1))+
+  geom_hpline(aes(x=factor(epi_year),y=value,color=par_id,group=par_id),width=0.1,size=1/2,position=position_dodge(width=1))+
   facet_grid(name~agegroup_name,scales="free_y") + scale_color_gradient2(midpoint=1300,low="blue",mid="white",high="red") +
   geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/4)+ scale_y_continuous(expand=expansion(0.02,0))+
-  xlab("")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme+labs(color="")
+  xlab("")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme+labs(color="parameter ID")
 # save
 ggsave(paste0(foldername,"parscan_attack_rates_filtered.png"),width=32,height=20,units="cm")
 
@@ -110,16 +109,16 @@ ggsave(paste0(foldername,"parscan_attack_rates_filtered.png"),width=32,height=20
 # which parsets selected? # library("ggrepel")
 partable_filtered <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
 write_csv(partable_filtered,"simul_output/parscan/parallel/partable_filtered.csv")
- ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
-   geom_point(aes(fill=sel_par,color=sel_par),size=2) + facet_grid(peak_week+R0~seasforce_peak+seasforc_width_wks,
-        labeller=labeller(seasforc_width_wks=label_both,peak_week=label_both,seasforce_peak=label_both,R0=label_both)) +
+# plot
+ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
+   geom_point(aes(fill=sel_par,color=sel_par),size=1.5) + facet_grid(R0~seasforce_peak+seasforc_width_wks,
+        labeller=labeller(seasforc_width_wks=label_both,seasforce_peak=label_both,R0=label_both)) +
   # geom_smooth(method="lm",color="black",size=1/2,se=F) + # geom_smooth(method="loess",se=F,size=1/2) + 
-  geom_point(data=partable %>% mutate(sel_par=ifelse(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id),TRUE,FALSE) ) %>%
-      filter(sel_par==FALSE),aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + scale_x_continuous(breaks=2*(1:8)/8) + 
-  geom_text(data=partable_filtered,aes(x=exp_dep,y=age_dep,label=par_id),position=position_jitter(width=1/9,height=1/9),
-            size=2) + labs(color="accepted") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme + 
-   theme(legend.position="none",axis.text.x=element_text(size=9),axis.text.y=element_text(size=9),
-         strip.text=element_text(size=7))
+  geom_point(data=partable,aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + scale_x_continuous(breaks=2*(1:8)/8) + 
+  # geom_text(data=partable_filtered,aes(x=exp_dep,y=age_dep,label=par_id),position=position_jitter(width=1/9,height=1/9),
+  #           size=2) 
+   theme(legend.position="none",axis.text.x=element_text(size=9),axis.text.y=element_text(size=9),strip.text=
+         element_text(size=7))+ labs(color="accepted") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme
 # selected parameter sets
 ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=34,height=20,units="cm")
 

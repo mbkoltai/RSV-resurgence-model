@@ -50,10 +50,9 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,
                             init_set=c("previous","fromscratch")[2],init_cond_src=c("output","file")[1],
                             NA,init_seed=10,seed_vars="all",filename="") # ode_solution[1:(ncol(ode_solution)-1),]
-  print(paste0("PARSET: ",partable$par_id[k_par])); print("LOAD INITVALS")
+  print(paste0("PARSET: ",partable$par_id[k_par])) # print("LOAD INITVALS")
   # set length of simulation and seasonality
-  l_seas<-fun_shutdown_seasforc(npi_dates,
-          years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
+  l_seas<-fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
           season_width_wks=seasforc_width_wks,init_mt_day="06-01",partable$peak_week[k_par],
           forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=0.5)
   g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas
@@ -82,7 +81,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     function(x) (1:(n_inf*n_compartment))+x ), 
     function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
   # calc attack rates
-  print(paste0("season start: ",partable$seas_start_wk[k_par]))
+  # print(paste0("season start: ",partable$seas_start_wk[k_par]))
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
    epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
    in_out_season=ifelse(week(date)>=partable$seas_start_wk[k_par]|week(date)<=partable$seas_stop_wk[k_par],"in","out")) %>%
