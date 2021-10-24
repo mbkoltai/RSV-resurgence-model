@@ -7,6 +7,8 @@ partable_file_name<-commandArgs(trailingOnly=TRUE)[5]
 print(partable_file_name)
 # estimated attack rates
 estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
+save_flag <- ifelse(grepl("nosave|no_save",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
+print(paste0("SAVE DYNAMICS: ",save_flag))
 # % cases within season (filtering parameter sets)
 partable <- read_csv(partable_file_name)
 seas_conc_lim<-unique(partable$seas_conc_lim)
@@ -109,7 +111,8 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
 write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_main",
                                          paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
 # dynamics
-par_id_vals=partable$par_id
+# par_id_vals=partable$par_id
+if (save_flag) {
 write_csv(df_cases_infs_all %>% select(!c(name,date)),paste0("simul_output/parscan/parallel/dyn_parsets_main",
                                    paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv") )
-
+}

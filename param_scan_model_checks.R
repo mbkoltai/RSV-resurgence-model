@@ -5,34 +5,33 @@ source("load_params.R"); library(wesanderson)
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
       median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
       median_all_inf=c(rep(70,4),rep(60,4),50,30,20),min_est_all_inf=median_all_inf/2,max_est_all_inf=median_all_inf*2)
-# write estim_attack_rates
-write_csv(estim_attack_rates,file="data/estim_attack_rates.csv")
+# write estim_attack_rates # write_csv(estim_attack_rates,file="data/estim_attack_rates.csv")
 # % cases within season (filtering parameter sets)
 # seas_conc_lim=0.8
 npi_dates<-as.Date(c("2020-03-26","2021-05-17"))
-partable <- bind_rows(expand.grid(list(exp_dep=(1:8)/4,age_dep=(1:8)/8,seasforc_width_wks=c(4,5,6),R0=c(1.2,1.3),
-                                       peak_week=c(48,50,52),seasforce_peak=c(3/4,1,1.25))))
+partable <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,1/16),
+                        seasforc_width_wks=c(4,5,6),R0=c(1.1,1.2,1.3,1.4),peak_week=c(48),seasforce_peak=c(3/4,1,1.25))))
 l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
                 function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
 partable <- partable %>% mutate(par_id=row_number(),
       const_delta=R0/unlist(lapply(l_delta_susc, function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),seas_conc_lim=0.85,
       npi_start=npi_dates[1],npi_stop=npi_dates[2],seas_start_wk=42,seas_stop_wk=8)
-# agegroup indices for maternal immunity
-mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),n_age,3),
-                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
-                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),n_age,3))
 # filtering param sets, from 1st fit: 
 # selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
 partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<0.2) %>%
   select(!age_dep_fit)
 write_csv(partable,"partable.csv")
+# agegroup indices for maternal immunity
+mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),n_age,3),
+                                         fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
+                                         fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),n_age,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS 
 # write file that'll run scripts
-simul_length_yr<-15; n_post_npi_yr<-4
-partable_filename<-"simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); n_core=8
+simul_length_yr<-15; n_post_npi_yr<-4; n_core=16
+partable_filename<-"simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); 
 system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_length_yr,n_post_npi_yr,
-                partable_filename,"data/estim_attack_rates.csv"),collapse=" "))
+                partable_filename,"data/estim_attack_rates.csv nosave"),collapse=" "))
 # run calculation
 system("sh run_all_parallel_scan.sh")
 # download results from cluster
@@ -42,7 +41,7 @@ system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_dyn
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # READ IN RESULTS
 peak_week_lims <- c(48,2)
-results_dyn_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
+# results_dyn_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
 results_summ_all <- read_csv("simul_output/parscan/parallel/results_summ_all.csv") %>%
   mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
 partable <- read_csv("partable.csv")
@@ -57,9 +56,10 @@ all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_ye
   group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
         sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) )
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# check dynamics of SELECTED SIMUL
+# check DYNAMICS of SELECTED SIMUL
 start_date=as.Date("2018-09-01")
 sel_parsets=unique(all_sum_inf_epiyear_age_filtered$par_id)
 ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets[1:11]) & agegroup<=5) %>% mutate(date=start_date+t-min(t)) %>%
@@ -72,7 +72,7 @@ ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets[1:11]) & agegroup<=5)
   geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))+56,linetype="dashed",size=1/4) +theme_bw() + standard_theme + 
   theme(legend.position="none") + scale_x_date(date_breaks="4 month") + xlab("") + ylab("") + labs(color="# par ID")
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ###  agegroup_name
+### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT dynamics by age groups (one simulation)
 n_sel=sel_parsets[11]
 sel_weeks <- results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t),week=week(date),year=year(date)) %>% 
@@ -87,7 +87,9 @@ p<-fcn_plot_timecourse_sum(results_dyn_all %>% filter(par_id==n_sel) %>% mutate(
   group_by(date,infection) %>% summarise(value=sum(value)) %>% mutate(infection=factor(infection)),npi_dates,n_peak_week=50)
 p + scale_x_date(date_breaks = "month")
 
-# PLOT
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# PLOT attack rates, seasonal share, peak week
 sel_var<-c("attack_rate_perc","seas_share","max_incid_week")
 # plot_labels=c("attack rate % age group","seasonal share of infections","peak week")
 estim_rates <- estim_attack_rates %>% select(agegroup_name,median_est,min_est,max_est) %>% 
@@ -102,34 +104,33 @@ ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_y
   geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/4)+ scale_y_continuous(expand=expansion(0.02,0))+
   xlab("")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme+labs(color="")
 # save
-ggsave(paste0(foldername,"parscan_attack_rates_filtered_100pct.png"),width=32,height=20,units="cm")
+ggsave(paste0(foldername,"parscan_attack_rates_filtered.png"),width=32,height=20,units="cm")
 
 ######
-# which parsets selected?
-partable %>% mutate(sel_par=ifelse(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id),TRUE,FALSE) ) %>%
-  filter(sel_par==TRUE) %>% 
-  ggplot(aes(x=exp_dep,y=age_dep)) + geom_point(aes(fill=sel_par,color=sel_par),size=2) + 
-  facet_grid(seasforce_peak~peak_week+seasforc_width_wks,labeller=labeller(seasforc_width_wks=label_both,peak_week=label_both,seasforce_peak=label_both)) +
-  geom_smooth(method="lm",color="black",size=1/2,se=F) + # geom_smooth(method="loess",se=F,size=1/2) + 
+# which parsets selected? # library("ggrepel")
+partable_filtered <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
+write_csv(partable_filtered,"simul_output/parscan/parallel/partable_filtered.csv")
+ ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
+   geom_point(aes(fill=sel_par,color=sel_par),size=2) + facet_grid(peak_week+R0~seasforce_peak+seasforc_width_wks,
+        labeller=labeller(seasforc_width_wks=label_both,peak_week=label_both,seasforce_peak=label_both,R0=label_both)) +
+  # geom_smooth(method="lm",color="black",size=1/2,se=F) + # geom_smooth(method="loess",se=F,size=1/2) + 
   geom_point(data=partable %>% mutate(sel_par=ifelse(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id),TRUE,FALSE) ) %>%
-      filter(sel_par==FALSE),aes(x=exp_dep,y=age_dep),color="grey") + scale_x_continuous(breaks=2*(1:8)/8) + 
-  geom_text(aes(x=exp_dep,y=age_dep,label=par_id),size=3) +
-  labs(color="accepted") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme + theme(legend.position="none",
-        axis.text.x=element_text(size=9),axis.text.y=element_text(size=9),strip.text=element_text(size=7))
+      filter(sel_par==FALSE),aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + scale_x_continuous(breaks=2*(1:8)/8) + 
+  geom_text(data=partable_filtered,aes(x=exp_dep,y=age_dep,label=par_id),position=position_jitter(width=1/9,height=1/9),
+            size=2) + labs(color="accepted") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme + 
+   theme(legend.position="none",axis.text.x=element_text(size=9),axis.text.y=element_text(size=9),
+         strip.text=element_text(size=7))
 # selected parameter sets
-ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=24,height=20,units="cm")
-# plot concentr in seasons
-# seas_conc_lim=0.8
-# ggplot(all_sum_inf_epiyear_age %>% mutate(seas_share=ifelse(epi_year==2020,NA,seas_share)) %>% filter(epi_year>=2016 & epi_year<2020) %>% 
-#          group_by(seasforce_peak,dep_val) %>% filter(sum(seas_share_check)>=round((n_age*n_sel_yr)*check_crit))      ) +
-#   geom_hpline(aes(x=factor(epi_year),y=seas_share*100,color=factor(dep_val)),width=0.9,size=1) + 
-#   facet_grid(seasforce_peak~agegroup_name,scales="free_y") + labs(caption=paste0("model check minimum=",round(check_crit,2))) +
-#   geom_rect(xmin=which(unique(sum_inf_epiyear_age$epi_year)==2020)-0.5,xmax=which(unique(sum_inf_epiyear_age$epi_year)==2020)+1/2,
-#         ymin=-Inf,ymax=Inf,fill="pink",alpha=0.1) + theme_bw() + standard_theme + xlab("epiyear") + ylab("% infections within season") +
-#   geom_hline(yintercept=c(seas_conc_lim*1e2,100),size=1/3,linetype="dashed")
-# # save
-# ggsave(paste0(foldername,"parscan_seasconc_expdep_r0max",r0_max,"_peakwk",peak_week,".png"),width=32,height=16,units="cm")
+ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=34,height=20,units="cm")
 
+# PCA on parameter sets
+par_pca <- prcomp(partable_filtered %>% select(exp_dep,age_dep,seasforc_width_wks,R0,peak_week,seasforce_peak),
+              center=TRUE,scale.=TRUE)
+# library(devtools);install_github("vqv/ggbiplot"); library(ggbiplot)
+ggbiplot(par_pca,groups=factor(partable_filtered$seasforce_peak),ellipse=TRUE) # ,labels=partable_filtered$par_id
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # % age groups satisfy criteria each year
 # model checks: 1) attack rate 2) seasonal concentration 3) peak week 4) variation in attack rates across epi_years below a limit
 ar_diff_crit=c(10,2)

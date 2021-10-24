@@ -5,7 +5,8 @@ x1<-c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","
 x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
 # Load all packages    
 lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
-select <- dplyr::select
+# require(plyr); require(dplyr)
+select <- dplyr::select; # row_number <- dplyr::row_number; summarise <- dplyr::summarise
 source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
