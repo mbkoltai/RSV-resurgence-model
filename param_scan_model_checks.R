@@ -41,10 +41,11 @@ system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_dyn
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # READ IN RESULTS
 peak_week_lims <- c(48,2)
+foldername<-"simul_output/parscan/parallel/parsets_2809/" # partable <- read_csv(paste0(foldername,"partable.csv"))
 # results_dyn_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
-results_summ_all <- read_csv("simul_output/parscan/parallel/results_summ_all.csv") %>%
+results_summ_all <- read_csv(paste0(foldername,"results_summ_all.csv")) %>%
   mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
-foldername="simul_output/parscan/parallel/" # partable <- read_csv("partable.csv"); 
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # plot attack rates by age group and years
@@ -95,20 +96,23 @@ estim_rates <- estim_attack_rates %>% select(agegroup_name,median_est,min_est,ma
   pivot_longer(!c(agegroup_name)) %>% rename(type=name) %>% mutate(name="attack_rate_perc")
 estim_rates <- bind_rows(estim_rates, 
         estim_rates %>% filter(type!="median_est") %>% mutate(name="max_incid_week",value=ifelse(grepl("min",type),3,48)))
+color_var<-"exp_dep" # R0 exp_dep age_dep
 ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
   agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(par_id,epi_year,
-  agegroup_name,attack_rate_perc,seas_share,max_incid_week)) %>% pivot_longer(!c(epi_year,agegroup_name,par_id)) ) +
-  geom_hpline(aes(x=factor(epi_year),y=value,color=par_id,group=par_id),width=0.1,size=1/2,position=position_dodge(width=1))+
-  facet_grid(name~agegroup_name,scales="free_y") + scale_color_gradient2(midpoint=1300,low="blue",mid="white",high="red") +
-  geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/4)+ scale_y_continuous(expand=expansion(0.02,0))+
-  xlab("")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme+labs(color="parameter ID")
+  agegroup_name,attack_rate_perc,seas_share,max_incid_week,exp_dep,age_dep,seasforc_width_wks,R0)) %>% 
+    pivot_longer(!c(epi_year,agegroup_name,par_id,exp_dep,age_dep,seasforc_width_wks,R0)) ) +
+  geom_hpline(aes(x=age_dep,y=value,color=get(color_var),group=par_id),width=0.1,size=1/2)+#position=position_dodge(width=1)
+  facet_grid(name~agegroup_name,scales="free_y") + scale_y_continuous(expand=expansion(0.02,0))+
+  scale_color_gradient2(midpoint=median(c(t(unique(all_sum_inf_epiyear_age_filtered[,color_var])))),low="blue",mid="white",high="red") +
+  geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/4)+ 
+  xlab("age-dependence")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme # +labs(color="parameter ID")
 # save
-ggsave(paste0(foldername,"parscan_attack_rates_filtered.png"),width=32,height=20,units="cm")
+ggsave(paste0(foldername,"parscan_attack_rates_filtered_",color_var,".png"),width=32,height=20,units="cm")
 
 ######
 # which parsets selected? # library("ggrepel")
 partable_filtered <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
-write_csv(partable_filtered,"simul_output/parscan/parallel/partable_filtered.csv")
+write_csv(partable_filtered,paste0(foldername,"partable_filtered.csv"))
 # plot
 ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
    geom_point(aes(fill=sel_par,color=sel_par),size=1.5) + facet_grid(R0~seasforce_peak+seasforc_width_wks,
@@ -120,7 +124,7 @@ ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) +
    theme(legend.position="none",axis.text.x=element_text(size=9),axis.text.y=element_text(size=9),strip.text=
          element_text(size=7))+ labs(color="accepted") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme
 # selected parameter sets
-ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=34,height=20,units="cm")
+ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=40,height=20,units="cm")
 
 # PCA on parameter sets
 par_pca <- prcomp(partable_filtered %>% select(exp_dep,age_dep,seasforc_width_wks,R0,peak_week,seasforce_peak),
