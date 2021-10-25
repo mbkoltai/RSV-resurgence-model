@@ -20,7 +20,7 @@ partable <- partable %>% mutate(par_id=row_number(),
 # selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
 partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>%
   select(!age_dep_fit)
-write_csv(partable,"partable.csv")
+write_csv(partable,"partable.csv"); write_csv(partable,"partable.csv")
 # agegroup indices for maternal immunity
 mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),n_age,3),
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
@@ -28,7 +28,7 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS 
 # write file that'll run scripts
-simul_length_yr<-15; n_post_npi_yr<-4; n_core<-24
+simul_length_yr<-15; n_post_npi_yr<-4; n_core<-48
 partable_filename<-"simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); 
 system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_length_yr,n_post_npi_yr,
                 partable_filename,"data/estim_attack_rates.csv nosave"),collapse=" "))
