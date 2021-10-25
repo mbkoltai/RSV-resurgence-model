@@ -9,8 +9,8 @@ estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # p
 # % cases within season (filtering parameter sets)
 # seas_conc_lim=0.8
 npi_dates<-as.Date(c("2020-03-26","2021-05-17"))
-partable <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,1/16),
-                        seasforc_width_wks=c(4,5,6),R0=c(1.1,1.2,1.3,1.4),peak_week=c(48),seasforce_peak=c(3/4,1,1.25))))
+partable <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,1/16),seasforc_width_wks=c(3,5,7),
+      R0=1+(0:5)/10,peak_week=c(48),seasforce_peak=c(3/4,1,5/4),omega=c(1/250,1/350,1/450)) ) )
 l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
                 function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
 partable <- partable %>% mutate(par_id=row_number(),

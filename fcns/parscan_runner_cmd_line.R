@@ -56,6 +56,11 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
           season_width_wks=seasforc_width_wks,init_mt_day="06-01",partable$peak_week[k_par],
           forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=0.5)
   g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas
+  # if waning is a variable parameter
+  if (any(colnames(partable) %in% "omega")){
+    omega=partable$omega[k_par]; K_m=fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,
+                            agegroup_durations=rsv_age_groups$duration)
+    }
   # set params 
   params<-list(list(birth_rates,matrix(unlist(lapply(uk_death_rate,function(x) rep(x,n_inf*n_compartment))))),
                K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,delta_susc)
@@ -85,12 +90,13 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
    epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
    in_out_season=ifelse(week(date)>=partable$seas_start_wk[k_par]|week(date)<=partable$seas_stop_wk[k_par],"in","out")) %>%
-     group_by(epi_year,agegroup) %>% summarise(inf_tot=round(sum(value,na.rm=T)),
-                                               inf_in_seas=round(sum(value[in_out_season=="in"])),
-    max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
-      filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(attack_rate_perc=100*inf_tot/final,
-           seas_share=inf_in_seas/inf_tot,dep_val=partable$dep_val[k_par],par_id=partable$par_id[k_par],
-           seasforce_peak=partable$seasforce_peak[k_par],dep_type=partable$dep_type[k_par],R0=partable$R0[k_par])
+     group_by(epi_year,agegroup) %>% 
+     summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
+        max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
+      filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(par_id=partable$par_id[k_par],
+          exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],seasforc_width_wks=seasforc_width_wks,
+          seasforce_peak=partable$seasforce_peak[k_par],R0=partable$R0[k_par],
+          attack_rate_perc=100*inf_tot/final,seas_share=inf_in_seas/inf_tot)
   # store parameters # list_delta_primary[[k_par]]=delta_primary
   # store outputs
   # if (k_par==1) {all_sum_inf_epiyear_age=sum_inf_epiyear_age; print("k_par=1")} else {
