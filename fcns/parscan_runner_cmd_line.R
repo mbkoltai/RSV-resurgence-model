@@ -50,6 +50,7 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,
                             init_set=c("previous","fromscratch")[2],init_cond_src=c("output","file")[1],
                             NA,init_seed=10,seed_vars="all",filename="") # ode_solution[1:(ncol(ode_solution)-1),]
+  print(format(Sys.time(),"%Y/%b/%d | %X"))
   print(paste0("PARSET: ",partable$par_id[k_par])) # print("LOAD INITVALS")
   # set length of simulation and seasonality
   l_seas<-fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
