@@ -29,9 +29,10 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
 # RUN SIMULATIONS 
 # write file that'll run scripts
 simul_length_yr<-15; n_post_npi_yr<-4; n_core<-16; memory_max <- 8
-partable_filename <- "simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); 
-system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_length_yr,n_post_npi_yr,
-                partable_filename,"data/estim_attack_rates.csv nosave sep",memory_max),collapse=" "))
+partable_filename <- "simul_output/parscan/parallel/partable_filtered.csv"; 
+# write_csv(partable,file=partable_filename); 
+system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(read_csv(partable_filename)),simul_length_yr,
+          n_post_npi_yr,partable_filename,"data/estim_attack_rates.csv SAVE sep",memory_max),collapse=" "))
 # run calculation
 system("sh run_all_parallel_scan.sh")
 # download results from cluster
@@ -41,10 +42,12 @@ system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_dyn
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # READ IN RESULTS
 peak_week_lims <- c(48,2)
-foldername<-"simul_output/parscan/parallel/parsets_2809/" # partable <- read_csv(paste0(foldername,"partable.csv"))
+foldername<-"simul_output/parscan/parallel/parsets_12636/" 
+# partable <- read_csv(paste0(foldername,"partable.csv"))
 # results_dyn_all <- read_csv("simul_output/parscan/parallel/results_dyn_all.csv")
 results_summ_all <- read_csv(paste0(foldername,"results_summ_all.csv")) %>%
-  mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
+  mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],
+                                     TRUE,FALSE))
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
@@ -52,7 +55,8 @@ results_summ_all <- read_csv(paste0(foldername,"results_summ_all.csv")) %>%
 check_crit=11/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
 # unlist(lapply(1:length(l_delta_susc), function(x) R0_calc_SIRS(C_m,partable$const_delta[x]*l_delta_susc[[x]],rho,n_inf)))
 all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_year %in% sel_yrs),
-              partable %>% rename(forcing_peak_week=peak_week),by=c("par_id","seasforce_peak","R0")) %>% 
+              partable %>% rename(forcing_peak_week=peak_week),
+              by=c("par_id","seasforce_peak","R0","exp_dep","age_dep","seasforc_width_wks")) %>% 
   group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
         sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) )
@@ -94,9 +98,9 @@ sel_var<-c("attack_rate_perc","seas_share","max_incid_week")
 # plot_labels=c("attack rate % age group","seasonal share of infections","peak week")
 estim_rates <- estim_attack_rates %>% select(agegroup_name,median_est,min_est,max_est) %>% 
   pivot_longer(!c(agegroup_name)) %>% rename(type=name) %>% mutate(name="attack_rate_perc")
-estim_rates <- bind_rows(estim_rates, 
-        estim_rates %>% filter(type!="median_est") %>% mutate(name="max_incid_week",value=ifelse(grepl("min",type),3,48)))
-color_var<-"exp_dep" # R0 exp_dep age_dep
+estim_rates <- bind_rows(estim_rates, estim_rates %>% filter(type!="median_est") %>% 
+        mutate(name="max_incid_week",value=ifelse(grepl("min",type),3,48)))
+color_var<-"R0" # R0 exp_dep age_dep
 ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
   agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(par_id,epi_year,
   agegroup_name,attack_rate_perc,seas_share,max_incid_week,exp_dep,age_dep,seasforc_width_wks,R0)) %>% 
@@ -105,24 +109,25 @@ ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_y
   facet_grid(name~agegroup_name,scales="free_y") + scale_y_continuous(expand=expansion(0.02,0))+
   scale_color_gradient2(midpoint=median(c(t(unique(all_sum_inf_epiyear_age_filtered[,color_var])))),low="blue",mid="white",high="red") +
   geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/4)+ 
-  xlab("age-dependence")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme # +labs(color="parameter ID")
+  xlab("age-dependence")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme +
+  labs(color=color_var)
 # save
 ggsave(paste0(foldername,"parscan_attack_rates_filtered_",color_var,".png"),width=32,height=20,units="cm")
 
 ######
 # which parsets selected? # library("ggrepel")
 partable_filtered <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
-write_csv(partable_filtered,paste0(foldername,"partable_filtered.csv"))
+write_csv(partable_filtered,"partable_filtered.csv") # paste0(foldername,)
 # plot
 ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
-   geom_point(aes(fill=sel_par,color=sel_par),size=1.5) + facet_grid(R0~seasforce_peak+seasforc_width_wks,
-        labeller=labeller(seasforc_width_wks=label_both,seasforce_peak=label_both,R0=label_both)) +
+  geom_point(aes(color=factor(round(1/omega)),group=omega),size=3/4,position=position_dodge(width=0.3)) + 
+  facet_grid(R0~seasforce_peak+seasforc_width_wks,labeller=labeller(seasforc_width_wks=label_both,
+        seasforce_peak=label_both,R0=label_both)) +
   # geom_smooth(method="lm",color="black",size=1/2,se=F) + # geom_smooth(method="loess",se=F,size=1/2) + 
-  geom_point(data=partable,aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + scale_x_continuous(breaks=2*(1:8)/8) + 
-  # geom_text(data=partable_filtered,aes(x=exp_dep,y=age_dep,label=par_id),position=position_jitter(width=1/9,height=1/9),
-  #           size=2) 
-   theme(legend.position="none",axis.text.x=element_text(size=9),axis.text.y=element_text(size=9),strip.text=
-         element_text(size=7))+ labs(color="accepted") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme
+  geom_point(data=partable,aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + 
+  scale_x_continuous(breaks=2*(1:8)/8) + theme(legend.position="none",axis.text.x=element_text(size=9),
+   axis.text.y=element_text(size=9),strip.text=element_text(size=7)) + labs(color="waning constant") + theme_bw() + 
+  xlab("exposure") + ylab("age") + standard_theme
 # selected parameter sets
 ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=40,height=20,units="cm")
 

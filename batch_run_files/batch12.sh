@@ -1,3 +1,3 @@
 #!/usr/bin/bash 
 module load R/3.6.3
-Rscript --vanilla fcns/parscan_runner_cmd_line.R 8689 9477 15 4 simul_output/parscan/parallel/partable.csv data/estim_attack_rates.csv nosave > simul_output/parscan/parallel/nohup_12.out 
+Rscript --vanilla fcns/parscan_runner_cmd_line.R 864 942 15 4 simul_output/parscan/parallel/partable_filtered.csv data/estim_attack_rates.csv SAVE > simul_output/parscan/parallel/nohup_12.out 
