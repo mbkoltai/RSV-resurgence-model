@@ -7,7 +7,7 @@ partable_file_name<-commandArgs(trailingOnly=TRUE)[5]
 print(partable_file_name)
 # estimated attack rates
 estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
-save_flag <- ifelse(grepl("nosave|no_save",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
+save_flag <- ifelse(grepl("nosave|no_save|nosavedyn",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # % cases within season (filtering parameter sets)
 partable <- read_csv(partable_file_name)
@@ -30,7 +30,10 @@ partable <- partable[k_start_end[1]:k_start_end[2],] # %>% filter(R0_no!=1)
 # init conds
 init_cond_file_name <- commandArgs(trailingOnly=TRUE)[5]; init_conds <- read_csv(init_cond_file_name)
 serial_loop=TRUE
-# print(paste0("size of partable: ",nrow(partable)))
+summ_filename <- paste0("simul_output/parscan/parallel/summ_parsets_main",
+                        paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv")
+dyn_filename <- paste0("simul_output/parscan/parallel/dyn_parsets_main",
+                       paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv")
 # print("STARTING LOOP")
 all_sum_inf_epiyear_age <- data.frame(); df_cases_infs_all <- data.frame()
 for (k_par in 1:nrow(partable)){ # nrow(partable)
@@ -100,25 +103,19 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
           attack_rate_perc=100*inf_tot/final,seas_share=inf_in_seas/inf_tot)
   # store parameters # list_delta_primary[[k_par]]=delta_primary
   # store outputs
-  # if (k_par==1) {all_sum_inf_epiyear_age=sum_inf_epiyear_age; print("k_par=1")} else {
-  #   print("k_par>1"); all_sum_inf_epiyear_age=bind_rows(all_sum_inf_epiyear_age,sum_inf_epiyear_age)
-  all_sum_inf_epiyear_age=bind_rows(all_sum_inf_epiyear_age,sum_inf_epiyear_age)
-    if (k_par==nrow(partable)) { 
-      all_sum_inf_epiyear_age <- left_join(all_sum_inf_epiyear_age %>%
-            mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
-        mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
-               seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) } # }
-  if (save_flag) { df_cases_infs_all=bind_rows(df_cases_infs_all,df_cases_infs) }
-  # save intermed output
-  # write_csv(sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/sum_inf_epiyear_age",k_par,".csv"))
+  sum_inf_epiyear_age <- left_join(sum_inf_epiyear_age %>%
+    mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
+    mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
+           seas_share_check=ifelse(seas_share>seas_conc_lim,T,F))
+  # SAVE
+  write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
+  if (save_flag) {write_csv(df_cases_infs,dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
 } # end loop
 
 # summary of simuls
-write_csv(all_sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/summ_parsets_main",
-                                         paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv"))
-# dynamics
-# par_id_vals=partable$par_id
-if (save_flag) {
-write_csv(df_cases_infs_all %>% select(!c(name,date)),paste0("simul_output/parscan/parallel/dyn_parsets_main",
-                                   paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv") )
-}
+# write_csv(all_sum_inf_epiyear_age,summ_filename)
+# # dynamics
+# # par_id_vals=partable$par_id
+# if (save_flag) {
+# write_csv(df_cases_infs_all %>% select(!c(name,date)),dyn_filename )
+# }
