@@ -12,10 +12,10 @@ command_list <- unlist(lapply(1:n_core, # "#!/bin/bash\n",
                        " > simul_output/parscan/parallel/nohup_",x,".out",ifelse(x<n_core," & \n",""),collapse="") ))
 
 if (grepl("sep",sep_flag)) {
-  qsub_start_rows <- "#!/usr/bin/bash \n module load R/3.6.3 \n"
-  full_strings <- paste0(qsub_start_rows,command_list)
+  qsub_start_rows <- "#!/usr/bin/bash \nmodule load R/3.6.3\n"
+  full_strings <- paste0(qsub_start_rows,command_list); full_strings<-gsub("& \n","",gsub("nohup ","",full_strings))
   for (k in 1:length(full_strings)) { 
-    write.table(full_strings[k],file=paste0("batch",k,".sh",collapse = ""),
+    write.table(full_strings[k],file=paste0("batch_run_files/batch",k,".sh",collapse = ""),
           col.names=F,row.names=F,quote=F) }
 } else {
 write.table(paste0(c("#!/bin/bash\n",paste0(paste0(command_list,collapse="")),"PID=$!","wait $PID",

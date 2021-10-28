@@ -108,7 +108,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
             mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
         mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
                seas_share_check=ifelse(seas_share>seas_conc_lim,T,F)) } # }
-  df_cases_infs_all=bind_rows(df_cases_infs_all,df_cases_infs)
+  if (save_flag) { df_cases_infs_all=bind_rows(df_cases_infs_all,df_cases_infs) }
   # save intermed output
   # write_csv(sum_inf_epiyear_age,paste0("simul_output/parscan/parallel/sum_inf_epiyear_age",k_par,".csv"))
 } # end loop
