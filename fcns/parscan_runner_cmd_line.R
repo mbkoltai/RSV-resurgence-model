@@ -51,7 +51,7 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
                             init_set=c("previous","fromscratch")[2],init_cond_src=c("output","file")[1],
                             NA,init_seed=10,seed_vars="all",filename="") # ode_solution[1:(ncol(ode_solution)-1),]
   print(format(Sys.time(),"%Y/%b/%d | %X"))
-  print(paste0("PARSET: ",partable$par_id[k_par])) # print("LOAD INITVALS")
+  print(paste0("PARSET: ",partable$par_id[k_par], "(",k_par,")")) # print("LOAD INITVALS")
   # set length of simulation and seasonality
   l_seas<-fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
           season_width_wks=seasforc_width_wks,init_mt_day="06-01",partable$peak_week[k_par],
@@ -77,7 +77,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
         mutate(par_id=partable$par_id[k_par]) %>% filter(date>=as.Date("2018-09-01"))
   # print progress
-  print(paste0(round(1e2*k_par/nrow(partable)),"% "))
+  print(paste0(round(1e2*k_par/nrow(partable),1),"% "))
   # , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),", suscept=",paste0(round(delta_primary,3),
   # collapse=","),", seas peak rel. baseline=",(partable$seasforce_peak[k_par]+1)*100,"%") )
   sel_t_point <- unique((df_cases_infs %>% filter(date == as.Date("2019-07-01")))$t)

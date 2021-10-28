@@ -28,10 +28,10 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS 
 # write file that'll run scripts
-simul_length_yr<-15; n_post_npi_yr<-4; n_core<-12
-partable_filename<-"simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); 
+simul_length_yr<-15; n_post_npi_yr<-4; n_core<-16
+partable_filename <- "simul_output/parscan/parallel/partable.csv"; write_csv(partable,file=partable_filename); 
 system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(partable),simul_length_yr,n_post_npi_yr,
-                partable_filename,"data/estim_attack_rates.csv nosave"),collapse=" "))
+                partable_filename,"data/estim_attack_rates.csv nosave sep"),collapse=" "))
 # run calculation
 system("sh run_all_parallel_scan.sh")
 # download results from cluster

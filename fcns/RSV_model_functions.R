@@ -126,16 +126,6 @@ fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varna
       recov_terms_source_target=rbind(recov_terms_source_target,recov_vals)
       K_m[recov_vals[2],recov_vals[1]]=rho } }
   
-  # diagonal terms
-  # outflow terms that represent 'aging out' of the model from the highest age groups
-  # for (j_age in n_age) {
-  #   for (i_inf in 1:n_inf) { if (i_inf==1) {ageout_terms=data.frame()}
-  #     ageout_terms=rbind(ageout_terms, rbind(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
-  #                                            # if infections have the aging term on them too
-  #                                            fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
-  #                                            fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf))) } }
-  # for (k in 1:nrow(ageout_terms)) {K_m[ageout_terms[k,1],ageout_terms[k,1]]=-1/(365*rsv_agegroups$duration[nrow(rsv_agegroups)]) }
-  
   # diagonal terms balancing the outgoing terms, these are the (sums of the off diagonal terms)x(-1) 
   diag(K_m)=diag(K_m)-colSums(K_m-diag(diag(K_m)))
   
