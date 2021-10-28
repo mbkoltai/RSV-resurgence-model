@@ -1,0 +1,16 @@
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch1 -l mem_free=1G,h_vmem=8G -q short.q batch1.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch2 -l mem_free=1G,h_vmem=8G -q short.q batch2.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch3 -l mem_free=1G,h_vmem=8G -q short.q batch3.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch4 -l mem_free=1G,h_vmem=8G -q short.q batch4.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch5 -l mem_free=1G,h_vmem=8G -q short.q batch5.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch6 -l mem_free=1G,h_vmem=8G -q short.q batch6.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch7 -l mem_free=1G,h_vmem=8G -q short.q batch7.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch8 -l mem_free=1G,h_vmem=8G -q short.q batch8.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch9 -l mem_free=1G,h_vmem=8G -q short.q batch9.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch10 -l mem_free=1G,h_vmem=8G -q short.q batch10.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch11 -l mem_free=1G,h_vmem=8G -q short.q batch11.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch12 -l mem_free=1G,h_vmem=8G -q short.q batch12.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch13 -l mem_free=1G,h_vmem=8G -q short.q batch13.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch14 -l mem_free=1G,h_vmem=8G -q short.q batch14.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch15 -l mem_free=1G,h_vmem=8G -q short.q batch15.sh
+qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch16 -l mem_free=1G,h_vmem=8G -q short.q batch16.sh
