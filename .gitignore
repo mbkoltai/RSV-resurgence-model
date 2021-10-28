@@ -22,4 +22,3 @@ simul_output/
 background/
 param_scan_parallel.R
 refresh_gitignore.sh
-batch_run_files/
