@@ -3,14 +3,15 @@
 # load constant parameters and functions
 source("load_params.R")
 # parameter table
-partable_file_name<-commandArgs(trailingOnly=TRUE)[5]
-print(partable_file_name)
+print(partable_file_name);partable_file_name<-commandArgs(trailingOnly=TRUE)[5]
+partable<-read_csv(partable_file_name)
 # estimated attack rates
 estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
 save_flag <- ifelse(grepl("nosave|no_save|nosavedyn",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
+# start date for saving dynamics
+start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print("SAVE output from: ",start_date_dyn_save)
 # % cases within season (filtering parameter sets)
-partable <- read_csv(partable_file_name)
 seas_conc_lim<-unique(partable$seas_conc_lim)
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
@@ -78,7 +79,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
   # process output
   df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
-        mutate(par_id=partable$par_id[k_par]) %>% filter(date>=as.Date("2018-09-01"))
+      mutate(par_id=partable$par_id[k_par]) %>% filter(date>=as.Date(start_date_dyn_save)) %>% select(!c(date,name))
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable),1),"% "))
   # , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),", suscept=",paste0(round(delta_primary,3),
