@@ -10,7 +10,7 @@ estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
 save_flag <- ifelse(grepl("nosave|no_save|nosavedyn",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
-start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print("SAVE output from: ",start_date_dyn_save)
+start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
 # % cases within season (filtering parameter sets)
 seas_conc_lim<-unique(partable$seas_conc_lim)
 # save the stat sol of all param sets
