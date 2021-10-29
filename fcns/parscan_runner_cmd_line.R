@@ -79,7 +79,8 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
   # process output
   df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
-      mutate(par_id=partable$par_id[k_par]) %>% filter(date>=as.Date(start_date_dyn_save))
+   mutate(par_id=partable$par_id[k_par],value=round(value,2)) %>% filter(date>=as.Date(start_date_dyn_save)) %>%
+    select(!name)
   sel_t_point <- unique((df_cases_infs %>% filter(date == as.Date("2019-07-01")))$t)
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable),1),"% "))
@@ -111,7 +112,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
            seas_share_check=ifelse(seas_share>seas_conc_lim,T,F))
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
-  if (save_flag) {write_csv(df_cases_infs %>% select(!c(date,name)),
+  if (save_flag) {write_csv(df_cases_infs %>% select(!date),
                             dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
 } # end loop
 

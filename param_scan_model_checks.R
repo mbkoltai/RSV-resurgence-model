@@ -28,7 +28,7 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS 
 # write file that'll run scripts
-simul_length_yr<-25; n_post_npi_yr<-4; n_core<-32; memory_max <- 8; start_date_dyn_save <- "2018-09-01"
+simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01"
 partable_filename <- "simul_output/parscan/parallel/partable_filtered.csv"
 # write_csv(partable,file=partable_filename); 
 system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(read_csv(partable_filename)),simul_length_yr,
