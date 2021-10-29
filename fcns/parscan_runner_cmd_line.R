@@ -3,7 +3,7 @@
 # load constant parameters and functions
 source("load_params.R")
 # parameter table
-print(partable_file_name);partable_file_name<-commandArgs(trailingOnly=TRUE)[5]
+partable_file_name<-commandArgs(trailingOnly=TRUE)[5]; print(partable_file_name)
 partable<-read_csv(partable_file_name)
 # estimated attack rates
 estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
