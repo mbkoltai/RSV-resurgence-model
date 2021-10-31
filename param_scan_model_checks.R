@@ -37,14 +37,14 @@ system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(read_csv(partable_fi
 # run calculation
 system("sh run_all_parallel_scan.sh")
 # download results from cluster
-system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_summ_all.csv simul_output/parscan/parallel/")
-system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_dyn_all.csv simul_output/parscan/parallel/")
+# system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_summ_all.csv simul_output/parscan/parallel/")
+# system("scp lshmk17@hpclogin:RSV-model/simul_output/parscan/parallel/results_dyn_all.csv simul_output/parscan/parallel/")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # READ IN RESULTS
 peak_week_lims <- c(48,2)
 foldername<-"simul_output/parscan/parallel/parsets_1255_filtered/" 
-# partable <- read_csv(paste0(foldername,"partable.csv"))
+partable <- read_csv(paste0(foldername,"partable_filtered.csv")) # partable.csv
 results_summ_all <- read_csv(paste0(foldername,"results_summ_all.csv")) %>%
   mutate(max_incid_week_check=ifelse(max_incid_week>=peak_week_lims[1]|max_incid_week<=peak_week_lims[2],TRUE,FALSE))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###  
@@ -68,7 +68,7 @@ estim_rates <- estim_attack_rates %>% select(agegroup_name,median_est,min_est,ma
   pivot_longer(!c(agegroup_name)) %>% rename(type=name) %>% mutate(name="attack_rate_perc")
 estim_rates <- bind_rows(estim_rates, estim_rates %>% filter(type!="median_est") %>% 
         mutate(name="max_incid_week",value=ifelse(grepl("min",type),3,48)))
-color_var<-"R0" # R0 exp_dep age_dep
+color_var<-"exp_dep" # R0 exp_dep age_dep
 ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_year==2020,NA,attack_rate_perc),
   agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% ungroup() %>% select(c(par_id,epi_year,
   agegroup_name,attack_rate_perc,seas_share,max_incid_week,exp_dep,age_dep,seasforc_width_wks,R0)) %>% 
@@ -86,15 +86,15 @@ ggsave(paste0(foldername,"parscan_attack_rates_filtered_",color_var,".png"),widt
 # partable_filtered <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
 # write_csv(partable_filtered,"partable_filtered.csv") # paste0(foldername,)
 # plot
-ggplot(partable_filtered %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
+ggplot(partable %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) + 
   geom_point(aes(color=factor(round(1/omega)),group=omega),size=3/4,position=position_dodge(width=0.3)) + 
   facet_grid(R0~seasforce_peak+seasforc_width_wks,labeller=labeller(seasforc_width_wks=label_both,
         seasforce_peak=label_both,R0=label_both)) +
   # geom_smooth(method="lm",color="black",size=1/2,se=F) + # geom_smooth(method="loess",se=F,size=1/2) + 
-  geom_point(data=partable,aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + 
-  scale_x_continuous(breaks=2*(1:8)/8) + theme(legend.position="none",axis.text.x=element_text(size=9),
-   axis.text.y=element_text(size=9),strip.text=element_text(size=7)) + labs(color="waning constant") + 
-  theme_bw() + xlab("exposure") + ylab("age") + standard_theme
+  # geom_point(data=partable,aes(x=exp_dep,y=age_dep),color="grey",size=1/2) + 
+  scale_x_continuous(breaks=2*(1:8)/8) + theme(axis.text.x=element_text(size=9),
+   axis.text.y=element_text(size=9),strip.text=element_text(size=7),legend.position="top") +
+  labs(color="waning constant") + theme_bw() + xlab("exposure") + ylab("age") + standard_theme
 # selected parameter sets
 ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=40,height=20,units="cm")
 
@@ -108,11 +108,12 @@ ggbiplot(par_pca,groups=factor(partable_filtered$seasforce_peak),ellipse=TRUE) #
 # check DYNAMICS of SELECTED SIMUL
 # results_dyn_all<-read_csv("simul_output/parscan/parallel/parsets_1255_filtered/dyn_parsets_main1021_1098.csv")
 results_dyn_all <- bind_rows(lapply(list.files(path=foldername,pattern="dyn_parsets*"),
-  function(x) read_csv(paste0(foldername,x)) %>% filter(date>=as.Date("2018-10-01") & date<=as.Date("2020-04-01")) ))
+  function(x) read_csv(paste0(foldername,x)) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
+    select(!name) %>% filter(date>=as.Date("2018-10-01") & date<=as.Date("2020-04-01")) ))
 
 # start_date_dyn_save<-as.Date("2018-10-01")
-sel_parsets<-unique(results_dyn_all$par_id)[11:15] # unique(all_sum_inf_epiyear_age_filtered$par_id)
-ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets[1:11]) & agegroup<=5) %>% 
+sel_parsets<-unique(results_dyn_all$par_id)[2] # unique(all_sum_inf_epiyear_age_filtered$par_id)
+ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets) & agegroup<=5) %>% 
    filter(date<as.Date("2023-04-15") & date>as.Date("2018-09-01"))) + #mutate(date=start_date_dyn_save+t-min(t)) %>%
   geom_line(aes(x=date,y=value,color=factor(par_id))) + 
   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
@@ -122,57 +123,77 @@ ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets[1:11]) & agegroup<=5)
   geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))+56,linetype="dashed",size=1/4) + theme_bw() + standard_theme + 
   theme(legend.position="none") + scale_x_date(date_breaks="2 month") + xlab("") + ylab("") + labs(color="# par ID")
 
-#####
-# check if 2018/19 and 2019/20 seasons are the same
-yday_start_end<-yday(c(as.Date("2018-10-01"),as.Date("2019-04-01")))
-sel_parsets<-unique(results_dyn_all$par_id)[111:113]
-ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% filter(par_id %in% sel_parsets &
-      agegroup<=5 & (day_of_year<yday_start_end[2]|day_of_year>yday_start_end[1] )) %>% 
-      mutate(epi_year=ifelse(day_of_year>yday_start_end[1],paste0(year,"_",year+1),paste0(year-1,"_",year)),
-  day_of_year=ifelse(day_of_year>yday_start_end[1],day_of_year-yday_start_end[1],day_of_year+365-yday_start_end[1])))+
-  geom_line(aes(x=day_of_year,y=value,color=factor(par_id),linetype=epi_year)) +
-  facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
-  # scale_color_brewer(palette = "YlOrRd") + #mutate(date=start_date_dyn_save+t-min(t)) %>%
-  # geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="grey",alpha=0.01) +
-  # geom_vline(xintercept=yday(as.Date("2018-12-15"))-56,linetype="dashed",size=1/4) +
-  # geom_vline(xintercept=yday(as.Date("2018-12-15"))+56,linetype="dashed",size=1/4)+
-  theme_bw()+standard_theme+xlab("")+ylab("")+labs(color="# par ID") + scale_x_continuous(expand=expansion(0.01,0)) 
-
-# calculate diff between 2018/19 and 19/20 season
-# options(dplyr.summarise.inform = FALSE)
-for(k_par in unique(results_dyn_all$par_id)){
- x <- results_dyn_all %>% filter(par_id==k_par) %>% mutate(day_of_year=yday(date),
-      epi_year=ifelse(day_of_year>=yday_start_end[1],paste0(year(date),"_",year(date)+1),
-                      paste0(year(date)-1,"_",year(date))) ) %>%
-  group_by(agegroup,infection,par_id,day_of_year) %>% 
-  summarise(diff_interyr=abs(diff(value)),value=mean(value)) %>% group_by(agegroup,infection,par_id) %>% 
-  summarise(sum_abs_diff=sum(diff_interyr),sum_rel_diff=sum(diff_interyr)/sum(value))
- if (!exists("summ_diff_interyr")) { summ_diff_interyr <- data.frame()}
-  summ_diff_interyr <- bind_rows(summ_diff_interyr,x); 
-  if (which(unique(results_dyn_all$par_id) %in% k_par) %% 10 == 0) {
-    print(which(unique(results_dyn_all$par_id) %in% k_par))}
-}
-
-# plot relative differences
-ggplot(summ_diff_interyr) + geom_point(aes(x=par_id,y=sum_rel_diff),size=1/5) + 
-  facet_grid(infection~agegroup,scales = "free") + scale_y_log10() + geom_hline(yintercept=1/10,color="red") +
-  theme_bw() + standard_theme
-
 ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT dynamics by age groups (one simulation)
 n_sel=sel_parsets[1]
-sel_weeks <- results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t),week=week(date),year=year(date)) %>% 
-  filter(week %in% c(9,41,49)) %>% group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
+sel_weeks <- results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t),week=week(date),
+    year=year(date)) %>% filter(week %in% c(9,41,49)) %>% group_by(year,agegroup,week) %>% 
+  filter(date==min(date) & infection==1)
 fcn_plot_timecourse_by_agegr(results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t)) %>%
-                               filter(t %% 7==0 & agegroup<=9 & date>as.Date("2019-07-01") & date<as.Date("2024-04-01")),
-                             agegroup_name=rsv_age_groups$agegroup_name,sel_agelim=9,varname="value",npidates=npi_dates,date_break_val="2 month",
-                             selweeks=sel_weeks,alphaval=0.01,vline_w=c(1/4,1/8))
+    filter(t %% 7==0 & agegroup<=9 & date>as.Date("2019-07-01") & date<as.Date("2024-04-01")),
+    agegroup_name=rsv_age_groups$agegroup_name,sel_agelim=9,varname="value",npidates=npi_dates,
+    date_break_val="2 month",selweeks=sel_weeks,alphaval=0.01,vline_w=c(1/4,1/8))
 # # sum of all cases
 p<-fcn_plot_timecourse_sum(results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t)) %>%
-                             filter(agegroup<=9 & date>as.Date("2019-09-01") & date<as.Date("2023-04-01")) %>% group_by(date,infection) %>% 
-                             summarise(value=sum(value)) %>% mutate(infection=factor(infection)),npi_dates,n_peak_week=50)
+      filter(agegroup<=9 & date>as.Date("2019-09-01") & date<as.Date("2023-04-01")) %>% group_by(date,infection) %>%
+      summarise(value=sum(value)) %>% mutate(infection=factor(infection)),npi_dates,n_peak_week=50)
 p + scale_x_date(date_breaks="2 weeks",expand=expansion(0.01,0))
 
+#####################################################################################
+# check if 2018/19 and 2019/20 seasons are the same
+yday_start_end<-yday(c(as.Date("2018-10-01"),as.Date("2019-04-01")))
+sel_parsets<-unique(results_dyn_all$par_id)[2]
+ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% filter(par_id %in% sel_parsets &
+      agegroup>=8 & (day_of_year<yday_start_end[2]|day_of_year>yday_start_end[1] )) %>% # 
+      mutate(epi_year=ifelse(day_of_year>yday_start_end[1],paste0(year,"_",year+1),paste0(year-1,"_",year)),
+  day_of_year=ifelse(day_of_year>yday_start_end[1],day_of_year-yday_start_end[1],day_of_year+365-yday_start_end[1])))+
+  geom_line(aes(x=day_of_year,y=value,color=factor(epi_year),linetype=epi_year)) +
+  facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both))+
+  theme_bw()+standard_theme+xlab("")+ylab("")+labs(color="# par ID")+scale_x_continuous(expand=expansion(0.01,0)) 
+
+# calculate diff between 2018/19 and 19/20 season
+# options(dplyr.summarise.inform=FALSE)
+# this takes long, should put it on cluster!
+for(k_par in unique(results_dyn_all$par_id)){
+ x <- results_dyn_all %>% filter(par_id==k_par) %>% mutate(day_of_year=yday(date),
+      epi_year=ifelse(day_of_year>=yday_start_end[1],paste0(year(date),"_",year(date)+1),
+         paste0(year(date)-1,"_",year(date))) ) %>% group_by(agegroup,infection,par_id,day_of_year) %>% 
+  summarise(diff_interyr=abs(diff(value)),value=mean(value)) %>% group_by(agegroup,infection,par_id) %>% 
+  summarise(cumul_mean_incid=sum(value),sum_abs_diff=sum(diff_interyr),sum_rel_diff=sum(diff_interyr)/sum(value))
+ if (!exists("summ_diff_interyr")) { summ_diff_interyr <- data.frame()}
+  summ_diff_interyr <- bind_rows(summ_diff_interyr,x)
+  if (which(unique(results_dyn_all$par_id) %in% k_par) %% 10 == 0) {
+    print(which(unique(results_dyn_all$par_id) %in% k_par)) }
+}
+write_csv(summ_diff_interyr,paste0(foldername,"summ_diff_interyr.csv"))
+# plot relative differences
+summ_diff_interyr <- left_join(summ_diff_interyr %>% mutate(par_id_sort=as.numeric(factor(par_id))),
+        rsv_age_groups %>% mutate(agegroup=row_number()) %>% select(c(agegroup,stationary_popul)),by="agegroup") %>%
+  mutate(attack_rate=cumul_mean_incid/stationary_popul)
+# ggplot(summ_diff_interyr) + geom_point(aes(x=par_id_sort,y=sum_rel_diff),size=1/5) + 
+#   facet_grid(infection~agegroup,scales = "free") + scale_y_log10() + geom_hline(yintercept=1/10,color="red") +
+#   theme_bw() + standard_theme
+
+signif_inf_types_by_age <- summ_diff_interyr %>% group_by(agegroup,infection) %>% 
+  summarise(attack_rate=round(mean(attack_rate,na.rm=T),3)) %>% filter(attack_rate>0.01)
+
+# histogram
+ggplot(right_join(summ_diff_interyr,
+    signif_inf_types_by_age %>% select(c(agegroup,infection)),by=c("agegroup","infection")),aes(sum_rel_diff)) + 
+  stat_ecdf(aes(color=factor(infection),group=infection),geom="step") +
+  facet_wrap(~agegroup,nrow=2,labeller=labeller(agegroup=label_both)) + ylab("CDF") +labs(color="# infection") +
+  geom_vline(xintercept=1/10,linetype="dashed",size=1/2) + scale_x_log10() + theme_bw() + standard_theme + 
+  theme(legend.position="top") + xlab("relative inter-year difference in cumulative incidence")
+# save
+ggsave(paste0(foldername,"interyear_difference_cumul_incid.png"),width=35,height=30,units="cm")
+
+# select parameter sets with less than 10% inter-year variation in cumul incid
+parsets_regular_dyn <- right_join(summ_diff_interyr,signif_inf_types_by_age %>% select(c(agegroup,infection)),
+  by=c("agegroup","infection")) %>% group_by(par_id) %>% summarise(score_reg_dyn=sum(sum_rel_diff<0.2)) %>%
+  filter(score_reg_dyn==max(score_reg_dyn))
+
+write_csv(partable %>% filter(par_id %in% parsets_regular_dyn$par_id),
+          paste0(foldername,"partable_filtered_reg_dyn.csv"))
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
