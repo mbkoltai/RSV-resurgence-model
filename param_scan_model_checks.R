@@ -82,7 +82,7 @@ ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_y
 ggsave(paste0(foldername,"parscan_attack_rates_filtered_",color_var,".png"),width=32,height=20,units="cm")
 
 ######
-# which parsets selected? # library("ggrepel")
+# which parsets selected?
 # partable_filtered <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
 # write_csv(partable_filtered,"partable_filtered.csv") # paste0(foldername,)
 # plot
