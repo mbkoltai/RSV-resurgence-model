@@ -12,7 +12,7 @@ write.table(paste0(rscript_command," ",k),
 
 # master sh file that'll launch all the sh files
 master_file <- unlist(lapply(1:no_files, function(x_k)
-  paste0("qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch_calc_interyear",x_k," -l mem_free=1G,h_vmem=",memory_max,
-         "G -q short.q batch",x_k,".sh",collapse="")))
+  paste0("qsub -V -cwd -N batch_calc_interyear",x_k," -l mem_free=1G,h_vmem=",memory_max,
+         "G -q short.q batch_calc_interyear",x_k,".sh",collapse="")))
 write.table(paste0(master_file,collapse = "\n"),file="batch_run_files/start_batches_calc_interyear.sh",
             col.names=F,row.names=F,quote=F)
