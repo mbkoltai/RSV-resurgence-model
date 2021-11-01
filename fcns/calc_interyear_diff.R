@@ -1,4 +1,8 @@
+x1<-c("tidyverse","readr")
+x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
 library(lubridate); library(dplyr)
+# Load all packages    
+lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
 foldername<-commandArgs(trailingOnly=TRUE)[1]
 file_list <- list.files(path=foldername,pattern="dyn_parsets*")
 
