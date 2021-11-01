@@ -6,7 +6,7 @@ lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
 foldername<-commandArgs(trailingOnly=TRUE)[1]
 file_list <- list.files(path=foldername,pattern="dyn_parsets*")
 start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
-yday_start_end<-yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3]))
+yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3])); print(yday_start_end)
 for(k_par in 1:length(file_list)){
   dyn_df <- read_csv(paste0(foldername,file_list[k_par])); print(file_list[k_par])
   x <- dyn_df %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
