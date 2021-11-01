@@ -7,7 +7,8 @@ foldername<-commandArgs(trailingOnly=TRUE)[1]
 file_list <- list.files(path=foldername,pattern="dyn_parsets*")
 start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
 yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3])); print(yday_start_end)
-for(k_file in 1:length(file_list)){
+# for(k_file in 1:length(file_list)){
+k_file <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
   dyn_df <- read_csv(paste0(foldername,file_list[k_file])); print(file_list[k_file])
   for (k_par in unique(dyn_df$par_id)) {
   x <- dyn_df %>% filter(par_id==k_par) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
@@ -20,4 +21,4 @@ for(k_file in 1:length(file_list)){
             append=ifelse(k_file==1 & k_par==unique(dyn_df$par_id)[1],F,T))
   }
   # if (k_file %% 10 == 0) {     print(k_file) }
-}
+# }

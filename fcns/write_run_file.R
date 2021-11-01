@@ -25,7 +25,8 @@ if (grepl("sep",sep_flag)) {
   master_file <- unlist(lapply(1:length(full_strings), function(x_k)
     paste0("qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch",x_k," -l mem_free=1G,h_vmem=",memory_max,
            "G -q short.q batch",x_k,".sh",collapse="")))
-  write.table(paste0(master_file,collapse = "\n"),file="batch_run_files/start_batches.sh",col.names=F,row.names=F,quote=F)
+  write.table(paste0(master_file,collapse = "\n"),file="batch_run_files/start_batches.sh",
+              col.names=F,row.names=F,quote=F)
 } else {
 write.table(paste0(c("#!/bin/bash\n",paste0(paste0(command_list,collapse="")),"PID=$!","wait $PID",
             "Rscript fcns/collect_save_fullruns.R"),collapse="\n\n"),file="run_all_parallel_scan.sh",
