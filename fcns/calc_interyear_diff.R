@@ -7,7 +7,7 @@ foldername<-commandArgs(trailingOnly=TRUE)[1]
 file_list <- list.files(path=foldername,pattern="dyn_parsets*")
 start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
 yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3])); print(yday_start_end)
-# for(k_file in 1:length(file_list)){
+
 k_file <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
   dyn_df <- read_csv(paste0(foldername,file_list[k_file])); print(file_list[k_file])
   for (k_par in unique(dyn_df$par_id)) {
@@ -16,7 +16,8 @@ k_file <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
     mutate(day_of_year=yday(date),epi_year=ifelse(day_of_year>=yday_start_end,paste0(year(date),"_",year(date)+1),
                     paste0(year(date)-1,"_",year(date))) ) %>% group_by(agegroup,infection,par_id,day_of_year) %>% 
     summarise(diff_interyr=abs(diff(value)),value=mean(value)) %>% group_by(agegroup,infection,par_id) %>% 
-    summarise(cumul_mean_incid=sum(value),sum_abs_diff=sum(diff_interyr),sum_rel_diff=sum(diff_interyr)/sum(value))
+    summarise(cumul_mean_incid=round(sum(value)),
+              sum_abs_diff=round(sum(diff_interyr)),sum_rel_diff=round(sum(diff_interyr)/sum(value),4) )
   print(paste0("done, file: ",k_file, ", param: ", k_par))
   write_csv(x,paste0(foldername,"summ_diff_interyr",k_file,".csv"),
             append=ifelse(k_par==unique(dyn_df$par_id)[1],F,T))
