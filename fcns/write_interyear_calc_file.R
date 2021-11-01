@@ -6,7 +6,7 @@ no_files <- as.numeric(commandArgs(trailingOnly=TRUE)[3])
 memory_max <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
 for (k in 1:no_files) {
   
-write.table(paste0(rscript_command," ",k),
+write.table(paste0(rscript_command," ",k, " > simul_output/parscan/parallel/nohup_interyear",k,"out"),
       file=paste0("batch_run_files/batch_calc_interyear",k,".sh",collapse = ""),col.names=F,row.names=F,quote=F)
 }
 
