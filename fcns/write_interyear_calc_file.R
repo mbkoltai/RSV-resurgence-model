@@ -1,7 +1,7 @@
 # write file for checking interyear difference
 
-rscript_command <- paste0("Rscript fcns/calc_interyear_diff.R simul_output/parscan/parallel/", 
-                    commandArgs(trailingOnly=TRUE)[1],commandArgs(trailingOnly=TRUE)[2], collapse = " ")
+rscript_command <- paste0("Rscript fcns/calc_interyear_diff.R simul_output/parscan/parallel/ ", 
+                    commandArgs(trailingOnly=TRUE)[1]," ",commandArgs(trailingOnly=TRUE)[2])
 no_files <- as.numeric(commandArgs(trailingOnly=TRUE)[3])
 memory_max <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
 for (k in 1:no_files) {
