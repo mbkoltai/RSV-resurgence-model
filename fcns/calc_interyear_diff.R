@@ -8,6 +8,7 @@ file_list <- list.files(path=foldername,pattern="dyn_parsets*")
 start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
 yday_start_end<-yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3]))
 for(k_par in 1:length(file_list)){
+  print(file_list[k_par])
   x <- read_csv(paste0(foldername,file_list[k_par])) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
     mutate(day_of_year=yday(date),epi_year=ifelse(day_of_year>=yday_start_end,paste0(year(date),"_",year(date)+1),
                     paste0(year(date)-1,"_",year(date))) ) %>% group_by(agegroup,infection,par_id,day_of_year) %>% 
