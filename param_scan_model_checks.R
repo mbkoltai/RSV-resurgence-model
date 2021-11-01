@@ -154,18 +154,21 @@ ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% fi
 # calculate diff between 2018/19 and 19/20 season
 # options(dplyr.summarise.inform=FALSE)
 # this takes long, should put it on cluster!
-for(k_par in unique(results_dyn_all$par_id)){
- x <- results_dyn_all %>% filter(par_id==k_par) %>% mutate(day_of_year=yday(date),
-      epi_year=ifelse(day_of_year>=yday_start_end[1],paste0(year(date),"_",year(date)+1),
-         paste0(year(date)-1,"_",year(date))) ) %>% group_by(agegroup,infection,par_id,day_of_year) %>% 
-  summarise(diff_interyr=abs(diff(value)),value=mean(value)) %>% group_by(agegroup,infection,par_id) %>% 
-  summarise(cumul_mean_incid=sum(value),sum_abs_diff=sum(diff_interyr),sum_rel_diff=sum(diff_interyr)/sum(value))
- if (!exists("summ_diff_interyr")) { summ_diff_interyr <- data.frame()}
-  summ_diff_interyr <- bind_rows(summ_diff_interyr,x)
-  if (which(unique(results_dyn_all$par_id) %in% k_par) %% 10 == 0) {
-    print(which(unique(results_dyn_all$par_id) %in% k_par)) }
-}
-write_csv(summ_diff_interyr,paste0(foldername,"summ_diff_interyr.csv"))
+# for(k_par in unique(results_dyn_all$par_id)){
+#  x <- results_dyn_all %>% filter(par_id==k_par) %>% mutate(day_of_year=yday(date),
+#       epi_year=ifelse(day_of_year>=yday_start_end[1],paste0(year(date),"_",year(date)+1),
+#          paste0(year(date)-1,"_",year(date))) ) %>% group_by(agegroup,infection,par_id,day_of_year) %>% 
+#   summarise(diff_interyr=abs(diff(value)),value=mean(value)) %>% group_by(agegroup,infection,par_id) %>% 
+#   summarise(cumul_mean_incid=sum(value),sum_abs_diff=sum(diff_interyr),sum_rel_diff=sum(diff_interyr)/sum(value))
+#  if (!exists("summ_diff_interyr")) { summ_diff_interyr <- data.frame()}
+#   summ_diff_interyr <- bind_rows(summ_diff_interyr,x)
+#   if (which(unique(results_dyn_all$par_id) %in% k_par) %% 10 == 0) {
+#     print(which(unique(results_dyn_all$par_id) %in% k_par)) }
+# }
+# write_csv(summ_diff_interyr,paste0(foldername,"summ_diff_interyr.csv"))
+# create file to extract 2 pre-npi years and calc difference
+# system("Rscript fcns/write_interyear_calc_file.R 2018-09-01 2018-10-01 64 8")
+
 # plot relative differences
 summ_diff_interyr <- left_join(summ_diff_interyr %>% mutate(par_id_sort=as.numeric(factor(par_id))),
         rsv_age_groups %>% mutate(agegroup=row_number()) %>% select(c(agegroup,stationary_popul)),by="agegroup") %>%

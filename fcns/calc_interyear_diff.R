@@ -9,8 +9,8 @@ start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
 yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3])); print(yday_start_end)
 
 k_file <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
-  dyn_df <- read_csv(paste0(foldername,file_list[k_file])); print(file_list[k_file])
-  for (k_par in unique(dyn_df$par_id)) {
+dyn_df <- read_csv(paste0(foldername,file_list[k_file])); print(file_list[k_file])
+for (k_par in unique(dyn_df$par_id)) {
   x <- dyn_df %>% filter(par_id==k_par) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
     filter(date>=as.Date(start_date_dyn_save) & date<=as.Date("2020-05-01")) %>%
     mutate(day_of_year=yday(date),epi_year=ifelse(day_of_year>=yday_start_end,paste0(year(date),"_",year(date)+1),
@@ -21,4 +21,4 @@ k_file <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
   print(paste0("done, file: ",k_file, ", param: ", k_par))
   write_csv(x,paste0(foldername,"summ_diff_interyr",k_file,".csv"),
             append=ifelse(k_par==unique(dyn_df$par_id)[1],F,T))
-  }
+}
