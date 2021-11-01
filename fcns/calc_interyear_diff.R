@@ -5,7 +5,7 @@ library(lubridate); library(dplyr)
 lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
 foldername<-commandArgs(trailingOnly=TRUE)[1]
 file_list <- list.files(path=foldername,pattern="dyn_parsets*")
-start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[1]
+start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
 for(k_par in 1:length(file_list)){
   x <- read_csv(paste0(foldername,file_list[k_par])) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
     mutate(day_of_year=yday(date),epi_year=ifelse(day_of_year>=yday_start_end[1],paste0(year(date),"_",year(date)+1),
