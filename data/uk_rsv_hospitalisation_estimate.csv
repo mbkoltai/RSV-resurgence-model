@@ -1,0 +1,11 @@
+age_group,midpoint,abs_num_per_year,rate_per_100e3_person_year,source
+0_0.5,0.25,13862,4184,taylor_2015_bmj_open
+0.5_2,1.25,12862,1272,taylor_2015_bmj_open
+2_5,3.5,2436,114,taylor_2015_bmj_open
+5_17,11,0,0,taylor_2015_bmj_open
+0_1,0.5,23310,3510,reeves_2017_influenza
+1_4,2.5,10251,531,reeves_2017_influenza
+0_0.5,0.25,16202,4879,reeves_2017_influenza
+0.5_1,0.75,7108,2141,reeves_2017_influenza
+18_65,41.5,3760,10.45,fleming_2015_bmc_inf_dis
+65_100,82.5,14039,149.8,fleming_2015_bmc_inf_dis

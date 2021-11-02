@@ -26,6 +26,34 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),n_age,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# hospitalisations data
+uk_rsv_hospitalisation_estimate <- read_csv("data/uk_rsv_hospitalisation_estimate.csv")
+# scatter
+hosp_coef <- data.frame(matrix(0,nrow=3,ncol=2)) %>% rename(a=X1,r=X2)
+for (k_source in 1:3) {
+  source_name <- unique(uk_rsv_hospitalisation_estimate$source)[k_source]
+  x_midpoints <- (uk_rsv_hospitalisation_estimate %>% filter(source %in% source_name))$midpoint
+  y_vals <- (uk_rsv_hospitalisation_estimate %>% filter(source %in% source_name))$rate_per_100e3_person_year
+# plot(x_taylor,y_taylor) # fit # lines(spline_fit, col="blue")
+if (k_source<3){
+  coeffs <- coef(nls(y_vals ~ a*exp(r*x_midpoints), start=list(a=5e3,r=-1))) } else {
+  lin_coef <- coef(lm(log_y_vals~age, data = data.frame(log_y_vals=log(y_vals),age=x_midpoints)))
+  coeffs <- as.numeric(c(exp(lin_coef[1]),lin_coef[2]))
+}
+hosp_coef[k_source,] <- coeffs
+}
+
+fit_x<-list((0:36)/2,(36:200)/2)
+fit_vals_under18 <- bind_rows(lapply(1:nrow(hosp_coef), 
+        function(k) data.frame(source=unique(uk_rsv_hospitalisation_estimate$source)[k],
+        fit_x=fit_x[[ifelse(k<3,1,2)]],
+        fitvals=hosp_coef[k,"a"]*exp(hosp_coef[k,"r"]*fit_x[[ifelse(k<3,1,2)]]) )))
+
+ggplot(uk_rsv_hospitalisation_estimate,aes(x=midpoint,y=rate_per_100e3_person_year,color=source)) + geom_point() + 
+  geom_line(data=fit_vals_under18,aes(x=fit_x,y=fitvals,color=source)) + 
+  scale_y_continuous(expand=expansion(0.03,0)) + theme_bw()
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS 
 # write file that'll run scripts
 simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01"
@@ -107,21 +135,22 @@ ggbiplot(par_pca,groups=factor(partable_filtered$seasforce_peak),ellipse=TRUE) #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # check DYNAMICS of SELECTED SIMUL
 # results_dyn_all<-read_csv("simul_output/parscan/parallel/parsets_1255_filtered/dyn_parsets_main1021_1098.csv")
-results_dyn_all <- bind_rows(lapply(list.files(path=foldername,pattern="dyn_parsets*"),
+results_dyn_all <- bind_rows(lapply(list.files(path=foldername,pattern="dyn_parsets*")[61],
   function(x) read_csv(paste0(foldername,x)) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
-    select(!name) %>% filter(date>=as.Date("2018-10-01") & date<=as.Date("2020-04-01")) ))
+    select(!name) %>% filter(date>=as.Date("2019-10-01") & date<=as.Date("2024-05-01") & 
+                               par_id %in% parsets_regular_dyn$par_id)   ) )
 
 # start_date_dyn_save<-as.Date("2018-10-01")
-sel_parsets<-unique(results_dyn_all$par_id)[2] # unique(all_sum_inf_epiyear_age_filtered$par_id)
-ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets) & agegroup<=5) %>% 
-   filter(date<as.Date("2023-04-15") & date>as.Date("2018-09-01"))) + #mutate(date=start_date_dyn_save+t-min(t)) %>%
+sel_parsets<-unique(results_dyn_all$par_id) # [2] # unique(all_sum_inf_epiyear_age_filtered$par_id)
+ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets) & agegroup<=7) %>% 
+   filter(date<as.Date("2023-04-15") & date>as.Date("2018-09-01") &  date<=as.Date("2022-04-01") )) + 
   geom_line(aes(x=date,y=value,color=factor(par_id))) + 
   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
   # scale_color_brewer(palette = "YlOrRd") + # scale_color_discrete() + 
   geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="grey",alpha=0.01) +
-  geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))-56,linetype="dashed",size=1/4) +
-  geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))+56,linetype="dashed",size=1/4) + theme_bw() + standard_theme + 
-  theme(legend.position="none") + scale_x_date(date_breaks="2 month") + xlab("") + ylab("") + labs(color="# par ID")
+  geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))-56,linetype="dashed",size=1/4) + theme_bw() + 
+  geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))+56,linetype="dashed",size=1/4) + standard_theme +
+  theme(legend.position="none") + scale_x_date(date_breaks="3 month") + xlab("")+ylab("") + labs(color="# par ID")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT dynamics by age groups (one simulation)
@@ -153,23 +182,12 @@ ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% fi
 
 # calculate diff between 2018/19 and 19/20 season
 # options(dplyr.summarise.inform=FALSE)
-# this takes long, should put it on cluster!
-# for(k_par in unique(results_dyn_all$par_id)){
-#  x <- results_dyn_all %>% filter(par_id==k_par) %>% mutate(day_of_year=yday(date),
-#       epi_year=ifelse(day_of_year>=yday_start_end[1],paste0(year(date),"_",year(date)+1),
-#          paste0(year(date)-1,"_",year(date))) ) %>% group_by(agegroup,infection,par_id,day_of_year) %>% 
-#   summarise(diff_interyr=abs(diff(value)),value=mean(value)) %>% group_by(agegroup,infection,par_id) %>% 
-#   summarise(cumul_mean_incid=sum(value),sum_abs_diff=sum(diff_interyr),sum_rel_diff=sum(diff_interyr)/sum(value))
-#  if (!exists("summ_diff_interyr")) { summ_diff_interyr <- data.frame()}
-#   summ_diff_interyr <- bind_rows(summ_diff_interyr,x)
-#   if (which(unique(results_dyn_all$par_id) %in% k_par) %% 10 == 0) {
-#     print(which(unique(results_dyn_all$par_id) %in% k_par)) }
-# }
-# write_csv(summ_diff_interyr,paste0(foldername,"summ_diff_interyr.csv"))
-# create file to extract 2 pre-npi years and calc difference
+# do this on cluster
 # system("Rscript fcns/write_interyear_calc_file.R 2018-09-01 2018-10-01 64 8")
+# system("qsub start_batches_calc_interyear.sh")  
 
 # plot relative differences
+summ_diff_interyr <- read_csv("simul_output/parscan/parallel/parsets_1255_filtered/summ_diff_interyr_reg_dyn.csv")
 summ_diff_interyr <- left_join(summ_diff_interyr %>% mutate(par_id_sort=as.numeric(factor(par_id))),
         rsv_age_groups %>% mutate(agegroup=row_number()) %>% select(c(agegroup,stationary_popul)),by="agegroup") %>%
   mutate(attack_rate=cumul_mean_incid/stationary_popul)
@@ -188,7 +206,7 @@ ggplot(right_join(summ_diff_interyr,
   geom_vline(xintercept=1/10,linetype="dashed",size=1/2) + scale_x_log10() + theme_bw() + standard_theme + 
   theme(legend.position="top") + xlab("relative inter-year difference in cumulative incidence")
 # save
-ggsave(paste0(foldername,"interyear_difference_cumul_incid.png"),width=35,height=30,units="cm")
+ggsave(paste0(foldername,"interyear_difference_cumul_incid_reg_dyn.png"),width=35,height=30,units="cm")
 
 # select parameter sets with less than 10% inter-year variation in cumul incid
 parsets_regular_dyn <- right_join(summ_diff_interyr,signif_inf_types_by_age %>% select(c(agegroup,infection)),

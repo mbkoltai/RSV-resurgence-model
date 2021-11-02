@@ -84,9 +84,6 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   sel_t_point <- unique((df_cases_infs %>% filter(date == as.Date("2019-07-01")))$t)
   # print progress
   print(paste0(round(1e2*k_par/nrow(partable),1),"% "))
-  # , dep_val=",partable$dep_val[k_par],", R0=",round(partable$R0[k_par],2),", suscept=",paste0(round(delta_primary,3),
-  # collapse=","),", seas peak rel. baseline=",(partable$seasforce_peak[k_par]+1)*100,"%") )
-  
   stat_sol_allparsets[,k_par] <- matrix(ode_solution[sel_t_point,2:ncol(ode_solution)]) # nrow(ode_solution)-1
   # final population (it's stationary, shldnt change)
   final_pop <- data.frame(agegroup=1:n_age,final=round(unlist(lapply(lapply((0:(n_age-1))*(n_inf*n_compartment), 
