@@ -220,18 +220,34 @@ ggplot(aes(x=age, y=value, fill=name)) + labs(fill="") + xlab("Age Group") + yla
 # calculate hospitalisations
 # take 2019_2020 season -> calc # cases -> apply hosp probabilities -> reasonable numbers? if not, adjust hospitalisation rates
 # check if 2018_2019 vs 2019_2020 season are fine
+# for ONE PARAM SET
 seas_cases_sum <- results_dyn_all %>% filter(par_id==33161 & (year(date) %in% 2018:2020) & date<as.Date("2020-07-01") ) %>%
-  mutate(epi_year=ifelse(week(date)>=42,paste0(year(date),"_",year(date)+1),paste0(year(date)-1,"_",year(date)))) %>% 
-  filter(week(date)>=42 | week(date)<=14) %>% group_by(agegroup,epi_year) %>% summarise(sum_cases=sum(value)) %>% 
+  mutate(epi_year=ifelse(week(date)>=42,paste0(year(date),"_",year(date)+1),paste0(year(date)-1,"_",year(date)))) %>%
+  filter(week(date)>=42 | week(date)<=14) %>% group_by(agegroup,epi_year) %>% summarise(sum_cases=sum(value)) %>%
   mutate(agegroup_name=rsv_age_groups$agegroup_name[agegroup])
 # plot
 ggplot(seas_cases_sum,aes(x=agegroup,y=sum_cases/1e6,color=epi_year)) + 
   geom_hpline(width=0.47,size=2,position=position_dodge(width=1)) + geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) +
   labs(fill="") + xlab("Age Group") + ylab("million total cases/season") + scale_x_continuous(expand=expansion(0,0),breaks=1:11) +
-  scale_y_log10(breaks=round(10^seq(-2,1,by=1/4),3),expand=expansion(0.02,0)) + theme_bw() + standard_theme + theme(legend.position="top")
+  scale_y_log10(breaks=round(10^seq(-2,1,by=1/4),3),expand=expansion(0.02,0))+theme_bw()+standard_theme+theme(legend.position="top")
 
-left_join(seas_cases_sum %>% filter(epi_year=="2018_2019"),hosp_probabilities,by="agegroup_name") %>% 
-  mutate(hosp_num_from_simul=prob_hosp_per_infection*sum_cases)
+# compare hospitalisations from SIMULS to those predicted from (median attack rate)*(hosp prob estims from Hodgson)
+simul_hosp <- left_join(results_summ_all %>% filter(par_id %in% parsets_regular_dyn$par_id & epi_year==2019),
+                        hosp_probabilities,by="agegroup_name") %>% 
+  mutate(hosp_num_SIMUL=prob_hosp_per_infection*inf_tot) %>% ungroup() %>%
+  select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_num_SIMUL,par_id)) %>% 
+  mutate(agegroup_name=factor(agegroup_name,levels=unique(agegroup_name)))  %>% pivot_longer(!c(agegroup_name,par_id)) %>%
+  mutate(par_id=ifelse(grepl("per_inf",name) & par_id!=min(par_id),NA,par_id)) %>% filter(!is.na(par_id))
+ggplot(simul_hosp %>% mutate(line_size=ifelse(grepl("per_inf",name),1/5,2)),aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),color=name)) + 
+  geom_hpline(size=1/2,width=0.47,position=position_dodge(width=1)) + 
+  geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) +
+  xlab("Age Group") + ylab("thousand hospitalisations/season") + # scale_x_continuous(expand=expansion(0,0),breaks=1:11) +
+  scale_y_log10(breaks=round(10^seq(-2,2,by=1/4),2),expand=expansion(0.02,0)) + 
+  labs(fill="") + theme_bw() + standard_theme + theme(legend.position="top")
+# save
+
+# how does this compare to attack rates?
+results_summ_all
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
