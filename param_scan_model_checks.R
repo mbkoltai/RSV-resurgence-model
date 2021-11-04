@@ -1,6 +1,7 @@
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # load constant parameters and functions
 source("load_params.R"); library(wesanderson)
+# options(dplyr.summarise.inform=FALSE)
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
       median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
@@ -27,77 +28,34 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),n_age,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # hospitalisations data
-uk_rsv_hospitalisation_estimate <- read_csv("data/uk_rsv_hospitalisation_estimate.csv")
-# scatter
-n_source<-length(unique(uk_rsv_hospitalisation_estimate$source))
-hosp_coef <- data.frame(matrix(0,nrow=n_source,ncol=2)) %>% rename(a=X1,r=X2)
-for (k_source in 1:n_source) {
-  source_name <- unique(uk_rsv_hospitalisation_estimate$source)[k_source]
-  x_midpoints <- (uk_rsv_hospitalisation_estimate %>% filter(source %in% source_name))$midpoint
-  y_vals <- (uk_rsv_hospitalisation_estimate %>% filter(source %in% source_name))$rate_per_100e3_person_year
-# if (k_source!=3|k_source!=5){
-#   coeffs <- coef(nls(y_vals ~ a*exp(r*x_midpoints), start=list(a=5e3,r=-1))) } else {
-  lin_coef <- coef(lm(log_y_vals~age, data = data.frame(log_y_vals=log(y_vals),age=x_midpoints)))
-  coeffs <- as.numeric(c(exp(lin_coef[1]),lin_coef[2]))
-# }
-hosp_coef[k_source,] <- coeffs  }
-
-fit_x<-list((0:71)/4,(72:360)/4)
-fit_vals_under18 <- bind_rows(lapply(1:nrow(hosp_coef), 
-    function(k) data.frame(source=unique(uk_rsv_hospitalisation_estimate$source)[k],
-    age=fit_x[[ifelse(k<4,1,2)]],fitvals=hosp_coef[k,"a"]*exp(hosp_coef[k,"r"]*fit_x[[ifelse(k<4,1,2)]]) ))) %>%
-    group_by(age) %>% mutate(average_fit=mean(fitvals)) %>% ungroup() %>% mutate(upper_limit=age+1/4) 
+source("fcns/calc_hosp_rates.R")
 
 ggplot(uk_rsv_hospitalisation_estimate,aes(x=midpoint,y=rate_per_100e3_person_year,color=source)) + geom_point() + 
   geom_line(data=fit_vals_under18,aes(x=age,y=fitvals,color=source)) + ylab("hospitalisations/100e3 population") +
   scale_x_continuous(expand=expansion(0.01,0)) + theme_bw() + scale_y_log10(expand=expansion(0.01,0))
 # save
-ggsave(paste0("data/uk_rsv_hospitalisation_fit_5sources_log10.png"),width=32,height=20,units="cm")
-
-# join popul estimates from ONS
-ons_2020_midyear_estimates_uk <- read_csv("data/ons_2020_midyear_estimates_uk.csv") %>% 
-  mutate(age_num=as.numeric(gsub("\\+","",age)))
-fit_vals_under18_aver <- fit_vals_under18 %>% pivot_wider(names_from=source,values_from=fitvals)
-fit_vals_under18_aver <- fit_vals_under18_aver %>% 
-  mutate(size=ons_2020_midyear_estimates_uk$value[findInterval(
-    fit_vals_under18_aver$age,ons_2020_midyear_estimates_uk$age_num)]/4,size=ifelse(age==max(age),size*4,size),
-    perc_pop=size/sum(size))
-# plot rates
+# ggsave(paste0("data/uk_rsv_hospitalisation_fit_5sources_log10.png"),width=32,height=20,units="cm")
+# plot rates/100e3 from population-based estimates
 ggplot(fit_vals_under18_aver %>% pivot_longer(!c(age,upper_limit,size,perc_pop,average_fit)),
-       aes(x=age,y=average_fit)) + geom_line() + geom_point(size=1/2,shape=1) + 
-  ylab("hospitalisations/100K population/year") + theme_bw() 
-# + scale_y_log10()
+  aes(x=age,y=average_fit))+geom_line()+geom_point(fill=NA,shape=21)+ylab("hospitalisations/100K population/year")+theme_bw() 
 
-# calculate averages for our age brackets
-hosp_rates <- data.frame()
-for (k_hosp in 1:nrow(rsv_age_groups)) {
-  floor_ind <- which(fit_vals_under18_aver$age %in% rsv_age_groups$age_low[k_hosp])
-  ceil_ind <- which(fit_vals_under18_aver$age %in% 
-                      (rsv_age_groups$age_low[k_hosp]+rsv_age_groups$duration[k_hosp]))-1
-  ceil_ind <- ifelse(rsv_age_groups$age_low[k_hosp]+rsv_age_groups$duration[k_hosp]>max(fit_vals_under18_aver$age),
-                     nrow(fit_vals_under18_aver),ceil_ind)
-  age_bracket_inds<-floor_ind:ceil_ind
-  hosp_rates[k_hosp,1] <- rsv_age_groups$agegroup_name[k_hosp]
-  hosp_rates[k_hosp,2] <- round(sum(fit_vals_under18_aver$average_fit[age_bracket_inds]*(fit_vals_under18_aver$perc_pop[age_bracket_inds]/
-                    sum(fit_vals_under18_aver$perc_pop[age_bracket_inds]))),1) }
-# shape dataframe
-# hosp_rates <- hosp_rates %>% rename(agegroup_name=V1,hosp_rate_per_100K=V2) %>% 
-#   mutate(hosp_number=round(hosp_rate_per_100K*rsv_age_groups$value/1e5))
-# if (sum(hosp_rates$hosp_number)>50e3){ corr_r <- 50e3/sum(hosp_rates$hosp_number)
-#   hosp_rates[,2:3] <- hosp_rates[,2:3]*corr_r }
-
-hosp_probabilities <- read_csv("data/hospitalisation_probability_hodgson.csv") %>% mutate(size=rsv_age_groups$value,
-        hosp_num=size*(estim_attack_rates$median_all_inf/100)*prob_hosp_per_infection)
+# plots both estimates
+left_join(hosp_probabilities,hosp_rates,by="agegroup_name") %>% 
+  select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_number_from_pop_estim)) %>% pivot_longer(!agegroup_name) %>%
+ggplot(aes(x=agegroup_name, y=value, fill=name)) + labs(fill="") + xlab("Age Group") + ylab("hospitalisations/year") + 
+  geom_bar(stat="identity", width=0.5, position = "dodge")  + theme_bw() + standard_theme + theme(legend.position="top") +
+  scale_y_continuous(expand=expansion(0,0))
+ggsave(paste0("data/uk_rsv_hospitalisation_popul_probperinf_estims.png"),width=32,height=20,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# RUN SIMULATIONS 
+# RUN SIMULATIONS
 # write file that'll run scripts
 simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01"
 partable_filename <- "simul_output/parscan/parallel/partable_filtered.csv"
 # write_csv(partable,file=partable_filename); 
-system(paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(read_csv(partable_filename)),simul_length_yr,
-          n_post_npi_yr,partable_filename,"data/estim_attack_rates.csv SAVE sep_qsub_files",start_date_dyn_save,
-          memory_max),collapse=" "))
+command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,nrow(read_csv("partable_filtered.csv")),simul_length_yr,
+    n_post_npi_yr,partable_filename,"data/estim_attack_rates.csv SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
+system(command_print_runs)
 # run calculation
 system("sh run_all_parallel_scan.sh")
 # download results from cluster
@@ -171,10 +129,10 @@ ggbiplot(par_pca,groups=factor(partable_filtered$seasforce_peak),ellipse=TRUE) #
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # check DYNAMICS of SELECTED SIMUL
 # results_dyn_all<-read_csv("simul_output/parscan/parallel/parsets_1255_filtered/dyn_parsets_main1021_1098.csv")
+parsets_regular_dyn <- read_csv("simul_output/parscan/parallel/parsets_1255_filtered/partable_filtered_reg_dyn.csv")
 results_dyn_all <- bind_rows(lapply(list.files(path=foldername,pattern="dyn_parsets*")[61],
-  function(x) read_csv(paste0(foldername,x)) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
-    select(!name) %>% filter(date>=as.Date("2019-10-01") & date<=as.Date("2024-05-01") & 
-                               par_id %in% parsets_regular_dyn$par_id)   ) )
+  function(x) read_csv(paste0(foldername,x),col_types = cols()) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
+   select(!name) %>% filter(date>=as.Date("2018-10-01") & date<=as.Date("2024-05-01") & par_id %in% parsets_regular_dyn$par_id) ) )
 
 # start_date_dyn_save<-as.Date("2018-10-01")
 sel_parsets<-unique(results_dyn_all$par_id) # [2] # unique(all_sum_inf_epiyear_age_filtered$par_id)
@@ -190,10 +148,9 @@ ggplot(results_dyn_all %>% filter((par_id %in% sel_parsets) & agegroup<=7) %>%
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT dynamics by age groups (one simulation)
-n_sel=sel_parsets[1]
+n_sel=sel_parsets[1]; start_date<-start_date_dyn_save
 sel_weeks <- results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t),week=week(date),
-    year=year(date)) %>% filter(week %in% c(9,41,49)) %>% group_by(year,agegroup,week) %>% 
-  filter(date==min(date) & infection==1)
+    year=year(date)) %>% filter(week %in% c(9,41,49)) %>% group_by(year,agegroup,week) %>% filter(date==min(date) & infection==1)
 fcn_plot_timecourse_by_agegr(results_dyn_all %>% filter(par_id==n_sel) %>% mutate(date=start_date+t-min(t)) %>%
     filter(t %% 7==0 & agegroup<=9 & date>as.Date("2019-07-01") & date<as.Date("2024-04-01")),
     agegroup_name=rsv_age_groups$agegroup_name,sel_agelim=9,varname="value",npidates=npi_dates,
@@ -208,7 +165,8 @@ p + scale_x_date(date_breaks="2 weeks",expand=expansion(0.01,0))
 # check if 2018/19 and 2019/20 seasons are the same
 yday_start_end<-yday(c(as.Date("2018-10-01"),as.Date("2019-04-01")))
 sel_parsets<-unique(results_dyn_all$par_id)[2]
-ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% filter(par_id %in% sel_parsets &
+ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% 
+         filter(par_id %in% sel_parsets & # date %in% seq(as.Date("2018-10-01"),as.Date("2019-04-01"),1) & 
       agegroup>=8 & (day_of_year<yday_start_end[2]|day_of_year>yday_start_end[1] )) %>% # 
       mutate(epi_year=ifelse(day_of_year>yday_start_end[1],paste0(year,"_",year+1),paste0(year-1,"_",year)),
   day_of_year=ifelse(day_of_year>yday_start_end[1],day_of_year-yday_start_end[1],day_of_year+365-yday_start_end[1])))+
@@ -216,9 +174,7 @@ ggplot(results_dyn_all %>% mutate(day_of_year=yday(date),year=year(date)) %>% fi
   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both))+
   theme_bw()+standard_theme+xlab("")+ylab("")+labs(color="# par ID")+scale_x_continuous(expand=expansion(0.01,0)) 
 
-# calculate diff between 2018/19 and 19/20 season
-# options(dplyr.summarise.inform=FALSE)
-# do this on cluster
+# calculate diff between 2018/19 and 19/20 season - do this on cluster
 # system("Rscript fcns/write_interyear_calc_file.R 2018-09-01 2018-10-01 64 8")
 # system("qsub start_batches_calc_interyear.sh")  
 
@@ -249,8 +205,33 @@ parsets_regular_dyn <- right_join(summ_diff_interyr,signif_inf_types_by_age %>% 
   by=c("agegroup","infection")) %>% group_by(par_id) %>% summarise(score_reg_dyn=sum(sum_rel_diff<0.2)) %>%
   filter(score_reg_dyn==max(score_reg_dyn))
 
-write_csv(partable %>% filter(par_id %in% parsets_regular_dyn$par_id),
-          paste0(foldername,"partable_filtered_reg_dyn.csv"))
+write_csv(partable %>% filter(par_id %in% parsets_regular_dyn$par_id),paste0(foldername,"partable_filtered_reg_dyn.csv"))
+
+# compare with results_summ_all: it's ~ the same, OK
+data.frame(age=unique(results_dyn_all$agegroup),
+           results_dyn=(results_dyn_all %>% filter(par_id==33161 & (year(date) %in% c(2019,2020))&(week(date)>=42 | week(date)<=8 ) ) %>%
+                          group_by(agegroup) %>% summarise(results_dyn=sum(value)))$results_dyn,
+           results_summ=(results_summ_all %>% filter(par_id==33161 & epi_year==2019))$inf_in_seas) %>% pivot_longer(!age) %>%
+ggplot(aes(x=age, y=value, fill=name)) + labs(fill="") + xlab("Age Group") + ylab("cases/year") +
+  geom_bar(stat="identity",width=0.5,position="dodge") + theme_bw() + standard_theme + theme(legend.position="top") +
+  scale_y_continuous(expand=expansion(0,0))
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# calculate hospitalisations
+# take 2019_2020 season -> calc # cases -> apply hosp probabilities -> reasonable numbers? if not, adjust hospitalisation rates
+# check if 2018_2019 vs 2019_2020 season are fine
+seas_cases_sum <- results_dyn_all %>% filter(par_id==33161 & (year(date) %in% 2018:2020) & date<as.Date("2020-07-01") ) %>%
+  mutate(epi_year=ifelse(week(date)>=42,paste0(year(date),"_",year(date)+1),paste0(year(date)-1,"_",year(date)))) %>% 
+  filter(week(date)>=42 | week(date)<=14) %>% group_by(agegroup,epi_year) %>% summarise(sum_cases=sum(value)) %>% 
+  mutate(agegroup_name=rsv_age_groups$agegroup_name[agegroup])
+# plot
+ggplot(seas_cases_sum,aes(x=agegroup,y=sum_cases/1e6,color=epi_year)) + 
+  geom_hpline(width=0.47,size=2,position=position_dodge(width=1)) + geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) +
+  labs(fill="") + xlab("Age Group") + ylab("million total cases/season") + scale_x_continuous(expand=expansion(0,0),breaks=1:11) +
+  scale_y_log10(breaks=round(10^seq(-2,1,by=1/4),3),expand=expansion(0.02,0)) + theme_bw() + standard_theme + theme(legend.position="top")
+
+left_join(seas_cases_sum %>% filter(epi_year=="2018_2019"),hosp_probabilities,by="agegroup_name") %>% 
+  mutate(hosp_num_from_simul=prob_hosp_per_infection*sum_cases)
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
