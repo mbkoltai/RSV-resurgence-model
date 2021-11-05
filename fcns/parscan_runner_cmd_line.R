@@ -46,7 +46,7 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   exp_dep <- partable$exp_dep[k_par]; age_dep <- partable$age_dep[k_par]
   const_delta <- partable$const_delta[k_par]; delta_primary <- const_delta*exp(-exp_dep*(1:3)) # 1.24
   delta_susc <- sapply(1:n_age, function(x) {delta_primary/(exp(age_dep*x))})
-  # print(delta_susc); 
+  # manual adjusting of parameters to get 'right' attack rates?
   # delta_susc[1,1]<-delta_susc[1,1]/16; delta_susc[3,7:ncol(delta_susc)] <- delta_susc[3,7:ncol(delta_susc)]*1.4; print(delta_susc)
   # width of season (from peak)
   seasforc_width_wks<-partable$seasforc_width_wks[k_par]
