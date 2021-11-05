@@ -20,7 +20,8 @@ simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3])
 post_npi_yr <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
 # agegroup indices for maternal immunity
 mat_imm_flag <- TRUE
-mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",
+mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
+                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",
               c("S","I","R"),11,3),fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # LOOP
@@ -45,6 +46,8 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   exp_dep <- partable$exp_dep[k_par]; age_dep <- partable$age_dep[k_par]
   const_delta <- partable$const_delta[k_par]; delta_primary <- const_delta*exp(-exp_dep*(1:3)) # 1.24
   delta_susc <- sapply(1:n_age, function(x) {delta_primary/(exp(age_dep*x))})
+  # print(delta_susc); 
+  # delta_susc[1,1]<-delta_susc[1,1]/16; delta_susc[3,7:ncol(delta_susc)] <- delta_susc[3,7:ncol(delta_susc)]*1.4; print(delta_susc)
   # width of season (from peak)
   seasforc_width_wks<-partable$seasforc_width_wks[k_par]
   # NPI dates
@@ -109,8 +112,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
            seas_share_check=ifelse(seas_share>seas_conc_lim,T,F))
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
-  if (save_flag) {write_csv(df_cases_infs %>% select(!date),
-                            dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
+  if (save_flag) {write_csv(df_cases_infs %>% select(!date),dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
 } # end loop
 
 # summary of simuls

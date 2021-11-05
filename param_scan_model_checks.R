@@ -1,6 +1,6 @@
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # load constant parameters and functions
-source("load_params.R"); library(wesanderson)
+source("load_params.R") # ; library(wesanderson)
 # options(dplyr.summarise.inform=FALSE)
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
@@ -78,8 +78,7 @@ all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_ye
               partable %>% rename(forcing_peak_week=peak_week),
               by=c("par_id","seasforce_peak","R0","exp_dep","age_dep","seasforc_width_wks")) %>% 
   group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
-  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & 
-        sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) )
+  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) )
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -121,10 +120,10 @@ ggplot(partable %>% mutate(sel_par=TRUE),aes(x=exp_dep,y=age_dep)) +
 ggsave(paste0(foldername,"sel_parsets_scatterplot.png"),width=40,height=20,units="cm")
 
 # PCA on parameter sets
-par_pca <- prcomp(partable_filtered %>% select(exp_dep,age_dep,seasforc_width_wks,R0,peak_week,seasforce_peak),
-              center=TRUE,scale.=TRUE)
-# library(devtools);install_github("vqv/ggbiplot"); library(ggbiplot)
-ggbiplot(par_pca,groups=factor(partable_filtered$seasforce_peak),ellipse=TRUE) # ,labels=partable_filtered$par_id
+# par_pca <- prcomp(partable_filtered %>% select(exp_dep,age_dep,seasforc_width_wks,R0,peak_week,seasforce_peak),
+#               center=TRUE,scale.=TRUE)
+# # library(devtools);install_github("vqv/ggbiplot"); library(ggbiplot)
+# ggbiplot(par_pca,groups=factor(partable_filtered$seasforce_peak),ellipse=TRUE) # ,labels=partable_filtered$par_id
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # check DYNAMICS of SELECTED SIMUL
@@ -234,12 +233,12 @@ ggplot(seas_cases_sum,aes(x=agegroup,y=sum_cases/1e6,color=epi_year)) +
 # compare hospitalisations from SIMULS to those predicted from (median attack rate)*(hosp prob estims from Hodgson)
 simul_hosp <- left_join(results_summ_all %>% filter(par_id %in% parsets_regular_dyn$par_id & epi_year==2019),
                         hosp_probabilities,by="agegroup_name") %>% 
-  mutate(hosp_num_SIMUL=prob_hosp_per_infection*inf_tot) %>% ungroup() %>%
-  select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_num_SIMUL,par_id)) %>% 
+  mutate(hosp_num_SIMUL_inf_tot=prob_hosp_per_infection*inf_tot,hosp_num_SIMUL_inf_seas=prob_hosp_per_infection*inf_in_seas) %>% 
+  ungroup() %>% select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_num_SIMUL_inf_tot,hosp_num_SIMUL_inf_seas,par_id)) %>% 
   mutate(agegroup_name=factor(agegroup_name,levels=unique(agegroup_name)))  %>% pivot_longer(!c(agegroup_name,par_id)) %>%
   mutate(par_id=ifelse(grepl("per_inf",name) & par_id!=min(par_id),NA,par_id)) %>% filter(!is.na(par_id))
 ggplot(simul_hosp %>% mutate(line_size=ifelse(grepl("per_inf",name),1/5,2)),aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),color=name)) + 
-  geom_hpline(size=1/2,width=0.47,position=position_dodge(width=1)) + 
+  geom_hpline(size=1,width=0.32,position=position_dodge(width=1)) + 
   geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) +
   xlab("Age Group") + ylab("thousand hospitalisations/season") + # scale_x_continuous(expand=expansion(0,0),breaks=1:11) +
   scale_y_log10(breaks=round(10^seq(-2,2,by=1/4),2),expand=expansion(0.02,0)) + 
@@ -247,7 +246,66 @@ ggplot(simul_hosp %>% mutate(line_size=ifelse(grepl("per_inf",name),1/5,2)),aes(
 # save
 
 # how does this compare to attack rates?
-results_summ_all
+attack_rates_simul_LIT <- left_join(results_summ_all %>% filter(par_id %in% parsets_regular_dyn$par_id & epi_year==2019) %>% 
+      select(agegroup_name,par_id,inf_tot,inf_in_seas), data.frame(agegroup_name=rsv_age_groups$agegroup_name,
+                 cumul_inf_LIT_ESTIM_median=rsv_age_groups$value*estim_attack_rates$median_est/100,
+                 cumul_inf_LIT_ESTIM_min=rsv_age_groups$value*estim_attack_rates$min_est/100,
+                 cumul_inf_LIT_ESTIM_max=rsv_age_groups$value*estim_attack_rates$max_est/100),by="agegroup_name") %>% 
+  mutate(agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% pivot_longer(!c(agegroup_name,par_id)) %>% 
+  mutate(par_id=ifelse(grepl("LIT_ESTIM",name) & par_id!=min(par_id),NA,par_id),
+         categ=ifelse(grepl("inf_tot|inf_in_seas",name),"SIMUL","LIT_estim"),
+         name=ifelse(grepl("inf_tot|inf_in_seas",name),paste0(name,"_SIMUL"),"LIT_estim")) %>% filter(!is.na(par_id))
+ggplot(attack_rates_simul_LIT,aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),group=categ,color=name)) + 
+  geom_hpline(size=1,width=0.47,position=position_dodge(width=1)) + geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) +
+  xlab("Age Group") + ylab("thousand cases/season") + # scale_x_continuous(expand=expansion(0,0),breaks=1:11) +
+  scale_y_log10(breaks=round(10^seq(-2,4,by=1/4)),expand=expansion(0.02,0)) + labs(color="") + theme_bw() + standard_theme + 
+  theme(legend.position="top",axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),legend.text=element_text(size=16))
+# SAVE
+ggsave(paste0(foldername,"attack_rates_comparison_with_lit.png"),width=25,height=20,units="cm")
+
+# attack rate in newborns too high, can we lower it by reducing delta_susc?
+# "Rscript --vanilla fcns/parscan_runner_cmd_line.R 1 1 25 4 partable_filtered_reg_dyn.csv 
+# data/estim_attack_rates.csv SAVE 2018-09-01 > simul_output/manual.out"
+# 
+dyn_parsets_main2_2 <- read_csv("simul_output/parscan/parallel/dyn_parsets_main2_2.csv") %>% 
+  mutate(date=as.Date(start_date_dyn_save)+t-min(t))
+summ_parsets_main2_2 <- dyn_parsets_main2_2 %>% filter((year(date) %in% 2018:2020) & date<as.Date("2020-07-01") ) %>%
+  mutate(epi_year=ifelse(week(date)>=42,paste0(year(date),"_",year(date)+1),paste0(year(date)-1,"_",year(date)))) %>%
+  filter(week(date)>=42 | week(date)<=14) %>% group_by(agegroup,epi_year) %>% summarise(sum_cases=sum(value)) %>%
+  mutate(agegroup_name=rsv_age_groups$agegroup_name[agegroup])
+left_join(summ_parsets_main2_2 %>% filter(epi_year %in% "2018_2019"), data.frame(agegroup_name=rsv_age_groups$agegroup_name,
+        cumul_inf_LIT_ESTIM_median=rsv_age_groups$value*estim_attack_rates$median_est/100,
+        cumul_inf_LIT_ESTIM_min=rsv_age_groups$value*estim_attack_rates$min_est/100,
+        cumul_inf_LIT_ESTIM_max=rsv_age_groups$value*estim_attack_rates$max_est/100),by="agegroup_name") %>% 
+  ungroup() %>% select(!agegroup) %>% pivot_longer(!c(agegroup_name,epi_year)) %>%
+  mutate(categ=ifelse(name %in% "sum_cases","SIMUL","LIT_ESTIM"),agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>%
+ggplot(aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),group=categ,color=categ)) + 
+  geom_hpline(size=2,width=0.47,position=position_dodge(width=1)) + geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) +
+  xlab("Age Group") + ylab("thousand cases/season") + # scale_x_continuous(expand=expansion(0,0),breaks=1:11) +
+  scale_y_log10(breaks=round(10^seq(-2,4,by=1/4)),expand=expansion(0.02,0)) + labs(color="") + theme_bw() + standard_theme + 
+  theme(legend.position="top",axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),legend.text=element_text(size=16))
+
+# compare adj exp/age_dep rates
+# exp_dep <- partable$exp_dep[k_par]; age_dep <- partable$age_dep[k_par]
+exp_dep <- 2; age_dep <- 1/4
+const_delta <- partable$const_delta[k_par]; delta_primary <- const_delta*exp(-exp_dep*(1:3)) # 1.24
+delta_susc <- sapply(1:n_age, function(x) {delta_primary/(exp(age_dep*x))})
+orig_pars <- data.frame(agegroup=factor(rsv_age_groups$agegroup_name,levels=rsv_age_groups$agegroup_name),
+                        t(delta_susc)) %>% mutate(categ="orig")
+ggplot(bind_rows(orig_pars) %>% pivot_longer(!c(agegroup,categ))) + 
+  geom_hpline(aes(x=agegroup,y=value,color=name,linetype=categ),width=1) + theme_bw() + standard_theme + 
+  geom_vline(xintercept = (0:11)+1/2) + scale_y_log10()
+
+# ggplot(dyn_parsets_main2_2 %>% filter(agegroup<=7) %>% 
+#          filter(date<as.Date("2023-04-15") & date>as.Date("2018-09-01") &  date<=as.Date("2022-04-01") )) + 
+#   geom_line(aes(x=date,y=value)) + 
+#   facet_grid(infection~agegroup,scales="free_y",labeller=labeller(infection=label_both,agegroup=label_both)) +
+#   # scale_color_brewer(palette = "YlOrRd") + # scale_color_discrete() + 
+#   geom_rect(xmin=npi_dates[1],xmax=npi_dates[2],ymin=-Inf,ymax=Inf,fill="grey",alpha=0.01) +
+#   geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))-56,linetype="dashed",size=1/4) + theme_bw() + 
+#   geom_vline(xintercept=as.Date(paste0(2018:2022,"-12-13"))+56,linetype="dashed",size=1/4) + standard_theme +
+#   theme(legend.position="none") + scale_x_date(date_breaks="3 month") + xlab("")+ylab("") + labs(color="# par ID")
+
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###

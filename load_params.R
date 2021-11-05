@@ -22,7 +22,14 @@ popul_struct=fcn_cntr_fullpop(n_year="2020",country_sel)
 # RSV age groups (population data from wpp2019)
 rsv_age_groups<-fun_rsv_agegroups(standard_age_groups,popul_struct,rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,15, 45, 65),
                                   rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3), 9, 29, 19, 34))
-rsv_age_groups$value=rsv_age_groups$value*67e6/sum(rsv_age_groups$value)
+# rsv_age_groups$value=rsv_age_groups$value*67e6/sum(rsv_age_groups$value)
+ons_2020_midyear_estimates_uk<-read_csv("data/ons_2020_midyear_estimates_uk.csv") %>% 
+  mutate(age_num=as.numeric(gsub("\\+","",age)))
+low_inds<-findInterval(rsv_age_groups$age_low,ons_2020_midyear_estimates_uk$age_num)
+high_inds <- findInterval(rsv_age_groups$age_low+rsv_age_groups$duration-0.1,ons_2020_midyear_estimates_uk$age_num)
+rsv_age_groups$value <- unlist(lapply(1:length(low_inds), 
+              function(x) sum(ons_2020_midyear_estimates_uk$value[low_inds[x]:high_inds[x]])*ifelse(rsv_age_groups$duration[x]<1,
+                                            rsv_age_groups$duration[x],1) ))
 # DEATHS (2019: 530841 deaths [England and Wales!]) # "uk_death_rate_byage_rsv_agegroups.csv" is for 1000 population!
 # read_csv("data/uk_death_rate_byage_rsv_agegroups.csv")
 # i slightly adjusted the age-specific deaths rates to get a stationary population at the 2019 total and age struct
