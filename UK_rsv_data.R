@@ -25,11 +25,11 @@ ggplot(resp_detects_weekly_all_age %>% mutate(section=ceiling((as.numeric(year_w
 ggsave("simul_output/uk_rsv_data2020_allagegroups_weekly.png",width=32,height=20,units="cm")
 
 # concentration of cases within 'season'
-resp_detects_weekly_all_age_means_shares=left_join(
+resp_detects_weekly_all_age_means_shares=round(left_join(
   resp_detects_weekly_all_age %>% group_by(epi_year,on_off_season) %>% summarise(mean_on_off=mean(RSV)) %>% 
     pivot_wider(names_from=on_off_season,values_from=mean_on_off,names_prefix="mean_"),  
   resp_detects_weekly_all_age %>% group_by(epi_year) %>% filter(epi_year>1&epi_year<8) %>% summarise(season_share=unique(season_share)) ) %>%
-  mutate(on_off_ratio=mean_on/mean_off)
+  mutate(on_off_ratio=mean_on/mean_off),2)
 write_csv(resp_detects_weekly_all_age_means_shares,"data/resp_detects_weekly_all_age_means_shares.csv")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 

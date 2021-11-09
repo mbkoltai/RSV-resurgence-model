@@ -1,7 +1,7 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-x1<-c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo")
+x1<-c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo","RcppRoll")
 x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
 # Load all packages    
 lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
