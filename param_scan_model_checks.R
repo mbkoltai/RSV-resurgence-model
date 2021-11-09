@@ -562,6 +562,63 @@ for (sel_var in c("incid_case","incid_hosp")){
   }
 }
 
+###################################################
+# segment age_exp_dep into x values, calculate summary statistics for each param value
+summ_max_incid_seas_length_byvalue<-parsets_max_incid_seas_length %>% mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>%
+  group_by(age_exp_par_bins) %>% mutate(age_exp_par_bins=round(mean(PC1),1),waning=round(waning)) %>% select(!c(PC1,value)) %>% 
+  relocate(age_exp_par_bins,.after=R0) %>%
+  pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,vartype,value_norm)) %>% 
+  rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
+  group_by(agegroup_broad,epi_year,parname,parvalue,varname,vartype) %>% summarise(mean=mean(value_norm),median=median(value_norm),
+        ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
+        ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
+#########  
+# PLOT
+sel_vars <- c("incid_case","incid_hosp")
+sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
+# sel_vartypes
+for (k_plot_var in 1:length(sel_vars)) {
+  for (k_plot_par in 1:length(sel_pars)) {
+    for (k_plot_vartype in 1:length(sel_vartypes)) {
+      sel_vartype<-sel_vartypes[k_plot_vartype]
+    sel_par <- sel_pars[k_plot_par]; dodge_val=1
+    ylab_tag <- ifelse(grepl("season peak|cases in-season|attack",sel_vars[k_plot_var]),
+                       " (change from 2019 level)"," (normalised by 2019 level)")
+    df_plot <- summ_broad_age_groups_byvalue %>% mutate(varname=case_when(grepl("incid_case",varname) ~ "cases",
+        grepl("incid_hosp",varname) ~ "hospitalisations"),
+      vartype=case_when(grepl("max_value",vartype) ~ "peak demand", grepl("seas_length_wk",vartype) ~ "above baseline (weeks)")) %>% 
+      filter(epi_year>2020 & (varname %in% sel_vars[k_plot_var]) & (parname %in% sel_par) & vartype %in% sel_vartype) %>%
+      mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
+                               grepl("seasforc_width_wks",parname) ~ "season width (weeks)", 
+                               grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
+                               grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning (days)"))
+    n_par_value <- length(unique(df_plot$parvalue))
+    # colour palette
+    if (!grepl("age_exp_par_bins",sel_par)){ colorpal=colorRampPalette(colors=c("orange","red"))(n_par_value)} else  {
+      colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par_value) }
+    p <- ggplot(df_plot,aes(x=factor(epi_year),color=factor(parvalue),group=parvalue)) + facet_wrap(~agegroup_broad,scales="free_y") + 
+      # geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),position=position_dodge(width=dodge_val),alpha=0.3,size=28/n_par_value) + #
+      geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),position=position_dodge(width=dodge_val),alpha=0.6,size=24/n_par_value) + #
+      geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),width=(1/n_par_value)*0.75,size=0.8,color="black") + 
+      geom_vline(xintercept=(0:4)+1/2,size=1/5) + labs(color=unique(df_plot$parname)) + # geom_hline(yintercept=) +
+      scale_x_discrete(expand=expansion(0.02,0)) + xlab("") + ylab(paste0(sel_vars[k_plot_var],ylab_tag)) + 
+      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
+        axis.text.y=element_text(size=12),legend.text=element_text(size=11),legend.title=element_text(size=12),
+        legend.position=ifelse(grepl("expos|forcing",unique(df_plot$parname)),"bottom","right"))+scale_color_manual(values=colorpal)
+    if (grepl("season peak|cases in-season|attack",sel_vars[k_plot_var])) { #  # + scale_y_log10() 
+      if (grepl("season peak",sel_vars[k_plot_var])) {break_vals <- (-5:15)*10} else {break_vals <- (-10:10)*10}
+      p <- p + geom_hline(yintercept=0,linetype="dashed",size=1/2) + scale_y_continuous(breaks=break_vals) } else {
+        p <- p + geom_hline(yintercept=1,linetype="dashed",size=1/2)}; p
+    # save
+    sel_var_filename <- gsub("%","share",gsub("_calendar_week","",gsub("\\(|\\)","",gsub("-|\\s","_",sel_vars[k_plot_var]))))
+    subfldr_name <- "median_interquant_by_param_value/CI50_only/"
+    ggsave(paste0(foldername,subfldr_name,"summ_stats_relative_2019_",paste0(sel_var_filename,collapse="_"),"_",sel_par,".png"),
+           width=25,height=20,units="cm")
+    print(paste0(c(sel_vars[k_plot_var],sel_pars[k_plot_par]),collapse=", "))
+      }
+    }
+}
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
