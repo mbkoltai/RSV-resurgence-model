@@ -472,14 +472,23 @@ for (k_plot_var in 1:length(sel_vars)) {
 # 2 more metrics needed: 
 # - maximum hospitalisations
 # - length of season (cases/hosp>n)
-norm_seas_length <- length(as.Date("2020-10-07"):as.Date("2021-03-03"))
-length(unique(week(seq.Date(as.Date("2020-10-07"),as.Date("2021-03-03"),by=1))))
-dim(dyn_all_parsets)[1]/1e6
-hosp_rates$hosp_number_from_pop_estim/(norm_seas_length/7)
-left_join(dyn_all_parsets, hosp_probabilities %>% mutate(agegroup=as.numeric(factor(agegroup_name,levels=unique(agegroup_name)))) %>%
+norm_seas_length_wk <- round(length(as.Date("2020-10-07"):as.Date("2021-03-03"))/7,1)
+hosp_sum_prob_broad_agegr <- hosp_probabilities %>% mutate(
+  agegroup_broad=c("<1y","1-2y","2-5y","5+y")[findInterval(factor(agegroup_name,levels=unique(agegroup_name)),c(2,4,7)+1)+1]) %>%
+  group_by(agegroup_broad) %>% summarise(hosp_sum=sum(hosp_num_from_per_inf_prob)) %>% 
+  mutate(hosp_per_week_season=hosp_sum/norm_seas_length_wk)
+# simplify dynamics to broad age groups
+dyn_all_parsets_broad_age <- left_join(dyn_all_parsets, hosp_probabilities %>% mutate(agegroup=as.numeric(factor(agegroup_name,levels=unique(agegroup_name)))) %>%
             select(agegroup,prob_hosp_per_infection_adj),by="agegroup") %>% mutate(incid_hosp=value*prob_hosp_per_infection_adj,
-  epi_year=ifelse(week(date)>=42,paste0(year(date),"_",year(date)+1),paste0(year(date)-1,"_",year(date)))) %>%
-  select(!prob_hosp_per_infection_adj) %>% group_by()
+    agegroup_broad=c("<1y","1-2y","2-5y","5+y")[findInterval(agegroup,c(2,4,7)+1)+1]) %>% group_by(agegroup_broad,date,par_id) %>%
+  summarise(value=sum(value),incid_hosp=sum(incid_hosp))
+# summary by year
+summ_dyn_max_incid_seas_length <- dyn_all_parsets_broad_age %>% mutate(epi_year=ifelse(week(date)>=42,year(date),year(date)-1)) %>% 
+  rename(incid_case=value) %>% pivot_longer(!c(agegroup_broad,date,par_id,epi_year)) %>% group_by(epi_year,par_id,agegroup_broad,name) %>%
+  mutate(seas_tot_2018=ifelse(epi_year==2018,sum(value),NA)) %>% group_by(par_id,agegroup_broad,name) %>%
+  mutate(seas_tot_2018=min(seas_tot_2018,na.rm=T)) %>% ungroup() %>% mutate(above_baseline=value>seas_tot_2018/52) %>%
+  group_by(epi_year,par_id,agegroup_broad,name) %>% summarise(max_value=max(value),sum_value=sum(value),
+      seas_length_wk=sum(above_baseline)) %>% filter(epi_year>2017)
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
