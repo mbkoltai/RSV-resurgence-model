@@ -349,7 +349,8 @@ results_summ_all_hosp <- left_join(left_join(left_join(results_summ_all %>% filt
  mutate(agegroup_broad=c("<1y","1-2y","2-5y","5+y")[findInterval(agegroup,c(2,4,7)+1)+1]) %>% 
   relocate(agegroup_broad,.after=agegroup_name) %>% relocate(c(inf_tot,inf_in_seas),.before=hosp_tot) %>% 
   relocate(par_id,.after=epi_year) %>% relocate(c(exp_dep,age_dep,PC1,seasforce_peak,R0,waning,seasforc_width_wks),.after=par_id)
-# plot sums: pre-NPI, NPI+1 (2021/22), NPI+2 (2022/23)
+###########################################################
+# indiv parsets # plot sums: pre-NPI, NPI+1 (2021/22), NPI+2 (2022/23)
 parsets_broad_age_groups <- results_summ_all_hosp %>% group_by(par_id,epi_year,agegroup_broad) %>% 
   summarise(PC1=unique(PC1),seasforce_peak=unique(seasforce_peak),waning=round(unique(waning)),seasforc_width_wks=unique(seasforc_width_wks),
             R0=unique(R0),inf_tot=sum(inf_tot),inf_in_seas=sum(inf_in_seas),hosp_tot=sum(hosp_tot),hosp_seas=sum(hosp_seas),
@@ -357,18 +358,30 @@ parsets_broad_age_groups <- results_summ_all_hosp %>% group_by(par_id,epi_year,a
   pivot_longer(!c(par_id,epi_year,agegroup_broad,PC1,seasforce_peak,waning,seasforc_width_wks,R0)) %>%
   group_by(par_id,agegroup_broad,name) %>% summarise(epi_year,PC1,seasforce_peak,waning,seasforc_width_wks,R0,value,
       value_norm=ifelse(epi_year==2019,1,ifelse(name %in% c("max_incid_week","seas_share","attack_rate_perc"),
-          value-value[epi_year==2019],value/value[epi_year==2019]))) %>% relocate(name,.after=R0)
-
+          value-value[epi_year==2019],value/value[epi_year==2019]))) %>% relocate(name,.after=R0) %>%
+  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% group_by(age_exp_par_bins) %>% mutate(age_exp_par_bins=round(mean(PC1),1)) %>%
+  relocate(age_exp_par_bins,.after=PC1)
+###########################################################
 # summary plot (median, interquartile range)
 summ_broad_age_groups <- parsets_broad_age_groups %>% 
   mutate(value_norm=ifelse(name %in% c("seas_share"), value_norm*100,value_norm)) %>% 
   group_by(agegroup_broad,epi_year,name) %>% summarise(mean=mean(value_norm),
       median=median(value_norm),ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
       ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
+###########################################################
+# segment age_exp_dep into x values, calculate summary statistics for each param value
+summ_broad_age_groups_byvalue <- parsets_broad_age_groups %>% select(!c(PC1,value)) %>% mutate(waning=round(waning)) %>%
+  relocate(age_exp_par_bins,.after=R0) %>% rename(varname=name) %>% pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,value_norm)) %>% 
+  rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
+  mutate(value_norm=ifelse(varname %in% c("seas_share"), value_norm*100,value_norm)) %>%
+  group_by(agegroup_broad,epi_year,parname,parvalue,varname) %>% summarise(mean=mean(value_norm),median=median(value_norm),
+               ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
+               ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
 
+#############################
 # plot summary statistics
 sel_vars <- c("attack rate","in-season hospitalisations","annual hospitalisations",
-             "in-season infections","annual infections","seasonal share of cases") # "season peak (calendar week)",
+             "in-season infections","annual infections","seasonal share of cases")
 for (k_plot in 1:length(sel_vars)) {
 dodge_val=0.9
 ylab_tag <- ifelse(grepl("season peak|seasonal share|attack",sel_vars[k_plot])," (change from 2019 level)"," (normalised by 2019 level)")
@@ -394,40 +407,41 @@ sel_var_filename <- gsub("_calendar_week","",gsub("\\(|\\)","",gsub("-|\\s","_",
 ggsave(paste0(foldername,"summ_stats_relative_2019_",paste0(sel_var_filename,collapse="_"),".png"),width=25,height=15,units="cm")
 print(sel_vars[k_plot])
 }
-
-# plot indiv values, relative to 2019 season - as a function of (agedep - expdep)
-sel_var <- c("hosp_seas","hosp_tot")[2] # "hosp_seas"
-for (sel_par in c("PC1","seasforce_peak","waning","seasforc_width_wks","R0")){
+##################################################################
+# plot indiv values, relative to 2019 season
+for (sel_var in c("attack rate","annual hospitalisations","annual infections","seasonal share of cases")){
+  for (sel_par in c("age_exp_par_bins","seasforce_peak","waning","seasforc_width_wks","R0")){
 n_par <- length(unlist(unique(parsets_broad_age_groups[,sel_par])))
-p <- ggplot(parsets_broad_age_groups %>% filter(epi_year>2020 & name %in% sel_var),
-       aes(x=factor(epi_year),y=value_norm,group=get(sel_par))) + facet_wrap(~agegroup_broad,scales="free_y") + 
-  geom_hpline(aes(color=get(sel_par)),size=1/3,width=(1/n_par)*0.8,position=position_dodge(width=0.9)) +
-  geom_vline(xintercept=(0:4)+1/2,size=1/4) + geom_hline(yintercept=1,linetype="dashed",size=1/2) + 
-  ylab(paste0(ifelse(grepl("seas",sel_var),"in-season","annual")," hospitalisations compared to 2019 season")) + 
-  scale_x_discrete(expand=expansion(0,0)) + theme_bw() + standard_theme + xlab("") + labs(color=sel_par) +
+df_plot <- parsets_broad_age_groups %>% ungroup() %>% mutate(name=case_when(grepl("attack",name) ~ "attack rate",
+                  grepl("hosp_tot",name) ~ "annual hospitalisations", grepl("inf_tot",name) ~ "annual infections",
+                  grepl("seas_share",name) ~ "seasonal share of cases")) %>% filter(epi_year>2020 & name %in% sel_var) %>%
+  select(par_id,agegroup_broad,epi_year,!!sel_par,name,value_norm) %>% rename(varname=name) %>% pivot_longer(!!sel_par) %>%
+  rename(parname=name,parvalue=value) %>% relocate(c(parname,parvalue),.after=epi_year) %>%
+  mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
+          grepl("seasforc_width_wks",parname) ~ "season width (weeks)", grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
+          grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning (days)"))
+# y axis label
+ylab_tag <- paste0(unique(df_plot$varname),
+                   ifelse(grepl("attack|share",unique(df_plot$varname))," (change from 2019 level)"," (normalised by 2019 level)"))
+# color palettes
+if (!grepl("age_exp_par_bins",sel_par)){ colorpal=colorRampPalette(colors=c("orange","red"))(n_par)} else  {
+  colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par) }
+# plot
+ggplot(df_plot) + facet_wrap(~agegroup_broad,scales="free_y") + 
+  geom_hpline(aes(x=factor(epi_year),y=value_norm,group=parvalue,color=factor(parvalue)),size=1/3,width=(1/n_par)*0.8,
+              position=position_dodge(width=0.9)) + # indiv params
+  geom_hpline(data=df_plot %>% group_by(agegroup_broad,epi_year,parvalue) %>% summarise(value_norm=median(value_norm)),
+        aes(x=factor(epi_year),y=value_norm,group=parvalue),color="black",size=1.25,width=(1/n_par)*0.8,position=position_dodge(width=0.9)) +
+  geom_vline(xintercept=(0:4)+1/2,size=1/4) + geom_hline(yintercept=ifelse(grepl("",sel_var),0,1),linetype="dashed",size=1/2) + 
+  scale_x_discrete(expand=expansion(0,0)) + theme_bw() + standard_theme + xlab("") + ylab(ylab_tag) + labs(color=unique(df_plot$parname)) +
   theme(legend.position="top",strip.text=element_text(size=15),axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
-        legend.text=element_text(size=15),legend.title=element_text(size=16))
-if (sel_par %in% "PC1") {
-  p <- p + scale_color_gradient2(low="blue",mid="grey",high="red",midpoint=0) + 
-    labs(color="exposure-dependent (-1) <--> age-dependent (1)") };  p
-# breaks=round(10^seq(1,6,by=1/2)), # + scale_y_log10(expand=expansion(0.02,0)) 
-ggsave(paste0(foldername,sel_var,"_parsets_relative_2019_",sel_par,".png"),width=25,height=20,units="cm")
+        legend.text=element_text(size=15),legend.title=element_text(size=16)) + scale_color_manual(values=colorpal)
+# save
+ggsave(paste0(foldername,"parsets_indiv_by_param/",gsub(" ","_",sel_var),"_parsets_",sel_par,".png"),width=25,height=20,units="cm")
+  }
 }
-
-############################################
-# segment age_exp_dep into x values, calculate summary statistics for each param value
-# this is toggling by VALUES of the input parameters
-summ_broad_age_groups_byvalue <- parsets_broad_age_groups %>% mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>%
-  group_by(age_exp_par_bins) %>% mutate(age_exp_par_bins=round(mean(PC1),1),waning=round(waning)) %>% select(!c(PC1,value)) %>% 
-  relocate(age_exp_par_bins,.after=R0) %>%
-  rename(varname=name) %>% pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,value_norm)) %>% 
-  rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
-  mutate(value_norm=ifelse(varname %in% c("seas_share"), value_norm*100,value_norm)) %>%
-  group_by(agegroup_broad,epi_year,parname,parvalue,varname) %>% summarise(mean=mean(value_norm),median=median(value_norm),
-      ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-      ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
-#########  
-# PLOT by parameters and param VALUES
+##################################################################
+# PLOT summary stats by param VALUES
 sel_vars <- c("attack rate","annual hospitalisations", # ,"in-season hospitalisations"
               "annual infections","% cases in-season") # "season peak (calendar week)","in-season infections",
 sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
@@ -471,7 +485,129 @@ for (k_plot_var in 1:length(sel_vars)) {
   }
 }
 
-##########################################################
+####################################################################################################################
+####################################################################################################################
+# calc mean age of infection
+# indiv parsets
+parsets_mean_age_inf <- left_join(results_summ_all_hosp,rsv_age_groups %>% select(agegroup_name,mean_age_weighted),by="agegroup_name") %>% 
+  group_by(par_id,epi_year) %>% summarise(PC1=unique(PC1),seasforce_peak=unique(seasforce_peak),waning=round(unique(waning)),
+        seasforc_width_wks=unique(seasforc_width_wks),R0=unique(R0), 
+            mean_age_inf_tot_under_5=sum(12*inf_tot[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(inf_tot[agegroup<=7])),
+            mean_age_inf_seas_under_5=sum(12*inf_in_seas[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(inf_in_seas[agegroup<=7])),
+            mean_age_hosp_tot_under_5=sum(12*hosp_tot[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(hosp_tot[agegroup<=7])),
+            mean_age_hosp_seas_under_5=sum(12*hosp_seas[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(hosp_seas[agegroup<=7]))) %>% 
+  pivot_longer(!c(par_id,epi_year,PC1,seasforce_peak,waning,seasforc_width_wks,R0)) %>%
+  group_by(par_id,name) %>% summarise(epi_year,PC1,seasforce_peak,waning,seasforc_width_wks,R0,value,
+        value_norm=ifelse(epi_year==2019,1,value-value[epi_year==2019])) %>% relocate(name,.after=R0) %>%
+  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% group_by(age_exp_par_bins) %>% 
+  mutate(age_exp_par_bins=round(mean(PC1),1)) %>% relocate(age_exp_par_bins,.after=PC1)
+###########################################################
+# summary plot (median, interquartile range)
+summ_mean_age_infs <- parsets_mean_age_inf %>% group_by(epi_year,name) %>% summarise(mean=mean(value_norm),
+            median=median(value_norm),ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
+            ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
+###########################################################
+# segment age_exp_dep into x values, calculate summary statistics for each param value
+summ_mean_age_inf_byvalue <- parsets_mean_age_inf %>% select(!c(PC1,value)) %>% mutate(waning=round(waning)) %>%
+  relocate(age_exp_par_bins,.after=R0) %>% rename(varname=name) %>% pivot_longer(!c(par_id,epi_year,varname,value_norm)) %>% 
+  rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
+  mutate(value_norm=ifelse(varname %in% c("seas_share"), value_norm*100,value_norm)) %>%
+  group_by(epi_year,parname,parvalue,varname) %>% summarise(mean=mean(value_norm),median=median(value_norm),
+              ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
+              ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
+##############################################
+# PLOT summary stats (mean age inf)
+sel_vars <- c("mean_age_hosp_seas_under_5","mean_age_hosp_tot_under_5")
+for (k_plot in 1:length(sel_vars)) {
+  dodge_val=0.9; df_plot <- summ_mean_age_infs %>% filter(epi_year>2020 & (name %in% sel_vars[k_plot])) %>% 
+    mutate(name=case_when(grepl("mean_age_hosp_seas_under_5",name) ~ "mean age of in-season hospitalisations", 
+                grepl("mean_age_hosp_tot_under_5",name) ~ "mean age of annual hospitalisations"))
+  ggplot(df_plot,aes(x=factor(epi_year))) + 
+      geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),position=position_dodge(width=dodge_val),alpha=0.3,size=12,show.legend=FALSE) +
+      geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),position=position_dodge(width=dodge_val),alpha=0.6,size=12) + 
+      geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),width=1/6,size=1.25,color="black") + # 
+      geom_vline(xintercept=(0:4)+1/2,size=1/2) + geom_hline(yintercept=0,linetype="dashed",size=1/2) +
+      scale_x_discrete(expand=expansion(0,0)) + scale_y_continuous(breaks=(-10:15)) +
+      xlab("") + ylab(paste0(unique(df_plot$name)," (change from 2019 in months)")) + 
+      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),legend.text=element_text(size=15),
+        axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),legend.title=element_text(size=15))
+# save
+  ggsave(paste0(foldername,"median_interquant_all_collapsed/mean_age_shift/",
+                gsub("-|\\s","_",sel_vars[k_plot]),".png"),width=25,height=20,units="cm")
+  print(sel_vars[k_plot])
+}
+
+##################################################################
+# plot indiv values, relative to 2019 season
+for (sel_var in c("mean_age_hosp_seas_under_5","mean_age_hosp_tot_under_5")){
+  for (sel_par in c("age_exp_par_bins","seasforce_peak","waning","seasforc_width_wks","R0")){
+    n_par <- length(unlist(unique(parsets_mean_age_inf[,sel_par])))
+  df_plot <- parsets_mean_age_inf %>% ungroup() %>% filter(epi_year>2020 & name %in% sel_var)  %>% 
+    mutate(name=case_when(grepl("mean_age_hosp_seas_under_5",name) ~ "mean age of in-season hospitalisations", 
+      grepl("mean_age_hosp_tot_under_5",name) ~ "mean age of annual hospitalisations")) %>%
+  select(par_id,epi_year,!!sel_par,name,value_norm) %>% rename(varname=name) %>% pivot_longer(!!sel_par) %>%
+  rename(parname=name,parvalue=value) %>% relocate(c(parname,parvalue),.after=epi_year) %>%
+  mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
+     grepl("seasforc_width_wks",parname) ~ "season width (weeks)", grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
+                 grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning (days)"))
+  # y axis label
+  ylab_tag <- paste0(unique(df_plot$varname),
+           ifelse(grepl("attack|share",unique(df_plot$varname))," (change from 2019 level)"," (normalised by 2019 level)"))
+  # color palettes
+   if (!grepl("age_exp_par_bins",sel_par)){ colorpal=colorRampPalette(colors=c("orange","red"))(n_par)} else  {
+      colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par) }
+# plot
+ggplot(df_plot) + geom_hpline(aes(x=factor(epi_year),y=value_norm,group=parvalue,color=factor(parvalue)),size=1/3,width=(1/n_par)*0.8,
+                                  position=position_dodge(width=0.9)) + # indiv params
+  geom_hpline(data=df_plot %>% group_by(epi_year,parvalue) %>% summarise(value_norm=median(value_norm)),
+    aes(x=factor(epi_year),y=value_norm,group=parvalue),color="black",size=2,width=(1/n_par)*0.8,position=position_dodge(width=0.9)) +
+  geom_vline(xintercept=(0:4)+1/2,size=1/4) + geom_hline(yintercept=ifelse(grepl("",sel_var),0,1),linetype="dashed",size=1/2) + 
+  scale_x_discrete(expand=expansion(0,0)) + scale_y_continuous(breaks=-10:10) +
+  theme_bw() + standard_theme + xlab("") + ylab(ylab_tag) + labs(color=unique(df_plot$parname)) +
+  theme(legend.position="top",strip.text=element_text(size=15),axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
+    legend.text=element_text(size=15),legend.title=element_text(size=16)) + scale_color_manual(values=colorpal)
+  # save
+  ggsave(paste0(foldername,"parsets_indiv_by_param/mean_age/",gsub(" ","_",sel_var),"_",sel_par,".png"),width=25,height=20,units="cm")
+  }
+}
+
+##################################################################
+# plot summary stats toggled by param values (shift in mean age inf)
+sel_vars <- c("mean_age_hosp_seas_under_5","mean_age_hosp_tot_under_5")
+sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
+for (k_plot_var in 1:length(sel_vars)) {
+  for (k_plot_par in 1:length(sel_pars)) {
+    sel_par <- sel_pars[k_plot_par]; dodge_val=1
+    df_plot <- summ_mean_age_inf_byvalue %>% filter(epi_year>2020 & (varname %in% sel_vars[k_plot_var]) & (parname %in% sel_par)) %>%
+      mutate(varname=case_when(grepl("mean_age_hosp_seas_under_5",varname) ~ "mean age of in-season hospitalisations",
+                               grepl("mean_age_hosp_tot_under_5",varname) ~ "mean age of annual hospitalisations")) %>% 
+      mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
+                               grepl("seasforc_width_wks",parname) ~ "season width (weeks)", 
+                               grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
+                               grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning (days)"))
+    n_par_value <- length(unique(df_plot$parvalue))
+    # colour palette
+    if (!grepl("age_exp_par_bins",sel_par)){ colorpal=colorRampPalette(colors=c("orange","red"))(n_par_value)} else  {
+      colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par_value) }
+    ggplot(df_plot,aes(x=factor(epi_year),color=factor(parvalue),group=parvalue)) + 
+      geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),position=position_dodge(width=dodge_val),alpha=0.6,size=52/n_par_value) + #
+      geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),position=position_dodge(width=dodge_val),alpha=0.3,size=28/n_par_value) + #
+      geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),width=(1/n_par_value)*0.75,size=1.25,color="black") + 
+      geom_vline(xintercept=(0:4)+1/2,size=1/5) + labs(color=unique(df_plot$parname)) + 
+      scale_x_discrete(expand=expansion(0.02,0)) + geom_hline(yintercept=0,linetype="dashed",size=1/2) +
+      xlab("") + ylab(paste0(unique(df_plot$varname)," (change from 2019 level)")) + scale_y_continuous(breaks=-10:10) +
+      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
+            axis.text.y=element_text(size=12),legend.text=element_text(size=11),legend.title=element_text(size=12),
+            legend.position=ifelse(grepl("expos|forcing",unique(df_plot$parname)),"bottom","right")) + scale_color_manual(values=colorpal)
+    # save
+    ggsave(paste0(foldername,"median_interquant_by_param_value/mean_age/CI95/",sel_vars[k_plot_var],"_",sel_par,".png"),
+           width=25,height=20,units="cm")
+    print(paste0(c(sel_vars[k_plot_var],sel_pars[k_plot_par]),collapse=", "))
+  }
+}
+
+####################################################################################################################
+####################################################################################################################
 # 2 more metrics needed: maximum hospitalisations + length of season (cases/hosp>n)
 norm_seas_length_wk <- round(length(as.Date("2020-10-07"):as.Date("2021-03-03"))/7,1)
 hosp_sum_prob_broad_agegr <- hosp_probabilities %>% mutate(
@@ -500,14 +636,13 @@ parsets_max_incid_seas_length <- left_join(left_join(summ_dyn_max_incid_seas_len
   mutate(value_norm=ifelse(grepl("seas_length_wk",vartype),value-value[epi_year==2018],value/value[epi_year==2018])) %>%
   mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% relocate(age_exp_par_bins,.after=PC1) %>%
   group_by(age_exp_par_bins) %>% mutate(age_exp_par_bins=round(mean(PC1),1))
-
+##############################################################
 # summary statistics collapse across all param values
-# summary plot (median, interquartile range)
 summ_max_incid_seas_length <- parsets_max_incid_seas_length %>% 
   group_by(agegroup_broad,epi_year,varname,vartype) %>% summarise(mean=mean(value_norm),
          median=median(value_norm),ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
          ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2])
-
+##############################################################
 # calculate summary statistics for each param value
 summ_max_incid_seas_length_byvalue <- parsets_max_incid_seas_length %>% # mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>%
   mutate(waning=round(waning)) %>% select(!c(PC1,value)) %>% relocate(age_exp_par_bins,.after=R0) %>% 
@@ -630,6 +765,8 @@ for (k_plot_var in 1:length(sel_vars)) {
       }
     }
 }
+
+# select some dynamic paths to illustrate points in summary stats plots
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
