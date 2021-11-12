@@ -9,16 +9,19 @@ data/*.odt
 data/*.txt
 data/Region_Mobility_Report_CSVs/
 data/datamart_weekly_rsv_data_2012wk40-2021wk24.csv 
+data/resp_detects_weekly_all_age_means_shares.csv 
 data/data_NSW_RSV.rds
 data/nature_plot_covid_npi_resp_virus.jpeg 
-data/resp_detects_weekly_all_age_means_shares.csv 
 manuscript/
 other_models/
 old/
 simul_output/
+# simul_output/parscan/parallel/*.csv
+# simul_output/parscan/parallel/*/*.csv
+# simul_output/scans_before_parallel/
 *.pdf
 *.odg
 *.png
 background/
-param_scan_parallel.R
+# param_scan_parallel.R
 refresh_gitignore.sh

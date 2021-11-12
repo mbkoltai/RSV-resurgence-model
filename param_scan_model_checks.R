@@ -644,9 +644,8 @@ summ_max_incid_seas_length <- parsets_max_incid_seas_length %>%
          ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2])
 ##############################################################
 # calculate summary statistics for each param value
-summ_max_incid_seas_length_byvalue <- parsets_max_incid_seas_length %>% # mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>%
-  mutate(waning=round(waning)) %>% select(!c(PC1,value)) %>% relocate(age_exp_par_bins,.after=R0) %>% 
-  pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,vartype,value_norm)) %>% 
+summ_max_incid_seas_length_byvalue <- parsets_max_incid_seas_length %>% mutate(waning=round(waning)) %>% select(!c(PC1,value)) %>% 
+  relocate(age_exp_par_bins,.after=R0) %>% pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,vartype,value_norm)) %>% 
   rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
   group_by(agegroup_broad,epi_year,parname,parvalue,varname,vartype) %>% summarise(mean=mean(value_norm),median=median(value_norm),
                            ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
@@ -682,10 +681,8 @@ for (k_plot in 1:length(sel_vars)) {
   print(sel_vars[k_plot])
   }
 }
-
 ################################################################################################
 # plot indiv parsets (toggled by param value), with median value as black line
-
 for (sel_var in c("incid_case","incid_hosp")){
   for (sel_par in c("age_exp_par_bins","seasforce_peak","waning","seasforc_width_wks","R0")){
     for (sel_vartype in sel_vartypes){
@@ -720,7 +717,6 @@ for (sel_var in c("incid_case","incid_hosp")){
   }
   }
 }
-
 ################################################################################################
 # PLOT summary statistics toggled by param values
 sel_vars <- c("incid_case","incid_hosp")
@@ -766,7 +762,70 @@ for (k_plot_var in 1:length(sel_vars)) {
     }
 }
 
+################################################################################################
+################################################################################################
 # select some dynamic paths to illustrate points in summary stats plots
+summ_dyn_all_parsets_broad_age <- left_join(dyn_all_parsets_broad_age, 
+          left_join(partable_regular_dyn %>% select(par_id,seasforc_width_wks,R0,seasforce_peak,omega),
+          pred_pca %>% select(par_id,PC1),by="par_id"), by="par_id") %>% 
+  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% group_by(age_exp_par_bins) %>% 
+  mutate(age_exp_par_bins=round(mean(PC1),1)) %>% rename(incid_case=value) %>% pivot_longer(c(incid_case,incid_hosp)) %>%
+  group_by(agegroup_broad,date,age_exp_par_bins,name) %>% summarise(mean=mean(value),median=median(value),
+    ci50_low=quantile(value,c(0.25,0.75))[1],ci50_up=quantile(value,c(0.25,0.75))[2],
+    ci95_low=quantile(value,c(0.025,0.975))[1],ci95_up=quantile(value,c(0.025,0.975))[2]) %>% rename(varname=name) %>% 
+  pivot_longer(c(mean,median,ci50_low,ci50_up,ci95_low,ci95_up)) %>% mutate(epi_year=ifelse(week(date)>=42,year(date),year(date)-1)) %>% 
+  rename(metric=name) %>% group_by(agegroup_broad,age_exp_par_bins,varname,metric) %>% # n_year=year(date)
+  mutate(peak_2019=max(value[epi_year %in% 2019])) %>% ungroup() %>% mutate(value_norm=value/peak_2019) %>% select(!peak_2019)
+
+# plot dynamics faceted by age_exp_dep
+sel_vars <- c("incid_case","incid_hosp"); n_par<-length(unique(summ_dyn_all_parsets_broad_age$age_exp_par_bins))
+colorpal <- colorRampPalette(colors=c("blue","grey","red"))(n_par); lim_dates<-as.Date(c("2022-04-01","2023-04-01"))
+for (k_age in 1:4) {
+  for (k_date in 1:2) {
+    for (value_type in c("value","value_norm")) {
+  val_type_excl <- c("value","value_norm")[!(c("value","value_norm") %in% value_type)]
+  sel_agegr<-unique(summ_dyn_all_parsets_broad_age$agegroup_broad)[k_age]
+  df_plot <- summ_dyn_all_parsets_broad_age %>% filter(varname %in% sel_vars[2] & date>=as.Date("2021-05-01") &
+        date<=lim_dates[k_date] & agegroup_broad %in% sel_agegr & (metric %in% c("median","ci50_low","ci50_up"))) %>% 
+    select(!c(varname,!!val_type_excl)) %>% pivot_wider(names_from = metric,values_from=!!value_type)
+  p<-ggplot(df_plot,aes(x=date,group=age_exp_par_bins,color=factor(age_exp_par_bins))) + 
+       geom_line(aes(y=median),size=1.1) + geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(age_exp_par_bins)),color=NA,alpha=0.2) + 
+  scale_color_manual(values=colorpal) + scale_fill_manual(values=colorpal) + # facet_wrap(~agegroup_broad,scales="free_y",nrow=3) + 
+  scale_x_date(date_breaks="1 month",expand=expansion(0.01,0)) + theme_bw() + standard_theme + theme(legend.position="top") + 
+  labs(color="exposure (-1) <-> age (1)",fill="exposure (-1) <-> age (1)")+xlab("")+
+    ylab(paste0("weekly hospitalisations (",sel_agegr,ifelse(grepl("norm",value_type),", normalised by 2019 peak",""),")"))
+  if (grepl("norm",value_type)) {p<-p+geom_hline(yintercept=1,linetype="dashed",size=1/3)}; p
+# save
+  abs_val_folder <- ifelse(!grepl("norm",value_type),"abs_val/","")
+  plot_fn<-paste0(foldername,"dynamics/",abs_val_folder,"weekly_hosp_by_ageexpdep_",ifelse(grepl("norm",value_type),"norm_2019_peak_",""),
+                  gsub("-","_",gsub("<","below",sel_agegr)),"_",substr(lim_dates,1,4)[k_date],".png")
+  ggsave(plot_fn,width=25,height=20,units="cm"); print(gsub(foldername,"",plot_fn))
+    }
+  }
+}
+
+# faceted by age/exp dependency
+value_type<-"value_norm"
+  for (k_date in 1:2) {
+    # for (value_type in c("value","value_norm")) {
+      # val_type_excl <- c("value","value_norm")[!(c("value","value_norm") %in% value_type)]
+      sel_agegr<-unique(summ_dyn_all_parsets_broad_age$agegroup_broad)[k_age]
+      df_plot <- summ_dyn_all_parsets_broad_age %>% filter(varname %in% sel_vars[2] & date>=as.Date("2021-05-01") &
+              !(agegroup_broad %in% "5+y") & date<=lim_dates[k_date] & (metric %in% c("median","ci50_low","ci50_up"))) %>% # 
+        select(!c(varname,value)) %>% pivot_wider(names_from=metric,values_from=!!value_type) %>% 
+        rename(`exposure (-1) <-> age (1)`=age_exp_par_bins)
+      p<-ggplot(df_plot,aes(x=date,group=agegroup_broad,color=factor(agegroup_broad))) + 
+        geom_line(aes(y=median),size=1.1) + geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(agegroup_broad)),color=NA,alpha=0.2) + 
+        facet_wrap(~`exposure (-1) <-> age (1)`,nrow=2,labeller=labeller(`exposure (-1) <-> age (1)`=label_both)) + 
+        scale_x_date(date_breaks="2 month",expand=expansion(0.01,0)) + theme_bw() + standard_theme + 
+        theme(legend.position="top",strip.text=element_text(size=11)) + labs(color="",fill="")+ xlab("") +
+        ylab("weekly hospitalisations (normalised by 2019 peak)")
+      if (grepl("norm",value_type)) {p<-p+geom_hline(yintercept=1,linetype="dashed",size=1/3)}; p
+# save
+  plot_fn<-paste0(foldername,"dynamics/facet_ageexpdep/","weekly_hosp_by_ageexpdep_",ifelse(grepl("norm",value_type),"norm_2019_peak_",""),
+                      "until",substr(lim_dates,1,4)[k_date],".png")
+      ggsave(plot_fn,width=35,height=20,units="cm"); print(gsub(foldername,"",plot_fn))
+}
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
