@@ -8,6 +8,10 @@ To reproduce results in the manuscript go to the file **param_scan_model_checks.
 -  RSV_model.R: script to run individual simulations
 -  UK_rsv_data.R: scripts to plot UK RSV data
 -  load_params.R: loads constant parameters of the model
--  **param_scan_model_checks.R**: *scripts to perform parameter scans and create plots shown in the manuscript*
+-  param_scan_model_checks.R scripts to perform parameter scans and create plots
 -  fcns/: custom-written functions for simulations and plotting
 -  data/: data files used for model set-up or data plots
+-  repo_data/: outputs from simulations required to reproduce figures in the article
+
+
+**Figures in the main text and SI can be reproduced by the script _reproduce_results.R_.**
