@@ -11,4 +11,4 @@ Code for modelling RSV resurgence after COVID-19-related Non-Pharmaceutical Inte
 -  param_scan_model_checks.R scripts to perform parameter scans and create plots
 -  fcns/: functions for simulations and plotting
 -  data/: data files used for model set-up or data plots
--  repo_data/: outputs from simulations required to reproduce figures in the article. Currently the full simulation outputs for the filtered paramete sets are uploaded to Google Drive, [available here](https://drive.google.com/file/d/12ohuGEPrVnOxazXnxEGZGwJIwj16frCc/view?usp=sharing.
+-  repo_data/: outputs from simulations required to reproduce figures in the article. Currently the full simulation outputs for the filtered paramete sets are uploaded to Google Drive, [available here](https://drive.google.com/file/d/12ohuGEPrVnOxazXnxEGZGwJIwj16frCc/view?usp=sharing).
