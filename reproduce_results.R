@@ -402,7 +402,8 @@ hosp_sum_prob_broad_agegr <- hosp_probabilities %>% mutate(
   group_by(agegroup_broad) %>% summarise(hosp_sum=sum(hosp_num_from_per_inf_prob)) %>% 
   mutate(hosp_per_week_season=hosp_sum/norm_seas_length_wk)
 # simplify dynamics to broad age groups
-# download and unzip the file `dyn_parsets_main.zip`
+# download and unzip the file `dyn_parsets_main.zip`: currently available at 
+# https://drive.google.com/file/d/12ohuGEPrVnOxazXnxEGZGwJIwj16frCc/view?usp=sharing
 dyn_all_parsets_broad_age <- left_join( # "simul_output/parscan/parallel/parsets_1255_filtered/"
   bind_rows(lapply(list.files(foldername,pattern="dyn_parsets.*csv"), 
                    function(x) read_csv(file=paste0(foldername,x)) %>% filter(par_id %in% parsets_regular_dyn$par_id) %>% 
