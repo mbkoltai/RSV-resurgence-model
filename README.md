@@ -1,7 +1,7 @@
-# Inferring the role of age versus immunity in susceptibility to RSV infection by modelling RSV resurgence
+# Determinants of RSV resurgence after the COVID-19-related non-pharmaceutical interventions
 
-Code for modelling RSV resurgence after COVID-19-related Nonpharmaceutical Interventions (NPIs) and how it can be used to infer the dependence of susceptibility to RSV infection on age versus immunity acquired by previous infections.
-To reproduce results in the manuscript go to the file **param_scan_model_checks.R**.
+Code for modelling RSV resurgence after COVID-19-related Non-Pharmaceutical Interventions (NPIs) and how the patterns of resurgence can be used to infer RSV epidemiology parameters.
+**Figures in the main text and SI can be reproduced by the script _reproduce_results.R_.**
 
 ## Files and folders:
 
@@ -9,9 +9,6 @@ To reproduce results in the manuscript go to the file **param_scan_model_checks.
 -  UK_rsv_data.R: scripts to plot UK RSV data
 -  load_params.R: loads constant parameters of the model
 -  param_scan_model_checks.R scripts to perform parameter scans and create plots
--  fcns/: custom-written functions for simulations and plotting
+-  fcns/: functions for simulations and plotting
 -  data/: data files used for model set-up or data plots
 -  repo_data/: outputs from simulations required to reproduce figures in the article
-
-
-**Figures in the main text and SI can be reproduced by the script _reproduce_results.R_.**
