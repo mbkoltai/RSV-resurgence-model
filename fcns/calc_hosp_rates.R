@@ -1,5 +1,5 @@
 # hospitalisations data
-uk_rsv_hospitalisation_estimate <- read_csv("data//uk_rsv_hospitalisation_estimate.csv")
+uk_rsv_hospitalisation_estimate <- read_csv("data/uk_rsv_hospitalisation_estimate.csv")
 # scatter
 n_source<-length(unique(uk_rsv_hospitalisation_estimate$source))
 hosp_coef <- data.frame(matrix(0,nrow=n_source,ncol=2)) %>% rename(a=X1,r=X2)
@@ -27,7 +27,7 @@ fit_vals_under18 <- bind_rows(lapply(1:nrow(hosp_coef),
 # ggsave(paste0("data//uk_rsv_hospitalisation_fit_5sources_log10.png"),width=32,height=20,units="cm")
 
 # join popul estimates from ONS
-ons_2020_midyear_estimates_uk <- read_csv("data//ons_2020_midyear_estimates_uk.csv") %>% 
+ons_2020_midyear_estimates_uk <- read_csv("data/ons_2020_midyear_estimates_uk.csv") %>% 
   mutate(age_num=as.numeric(gsub("\\+","",age)))
 fit_vals_under18_aver <- fit_vals_under18 %>% pivot_wider(names_from=source,values_from=fitvals)
 fit_vals_under18_aver <- fit_vals_under18_aver %>% 
@@ -57,9 +57,10 @@ hosp_rates <- hosp_rates %>% rename(agegroup_name=V1,hosp_rate_per_100K=V2) %>%
 # if (sum(hosp_rates$hosp_number)>50e3){ corr_r <- 50e3/sum(hosp_rates$hosp_number)
 #   hosp_rates[,2:3] <- hosp_rates[,2:3]*corr_r }
 
-hosp_probabilities <- read_csv("data//hospitalisation_probability_hodgson.csv") %>% mutate(size=rsv_age_groups$value,
-  hosp_num=size*(estim_attack_rates$median_all_inf/100)*prob_hosp_per_infection,agegroup_name=gsub("_","-",agegroup_name)) %>%
-  rename(hosp_num_from_per_inf_prob=hosp_num)
+hosp_probabilities <- read_csv("data/hosp_probabilities_hodgson_adjusted.csv") 
+# %>% mutate(size=rsv_age_groups$value,
+#   hosp_num=size*(estim_attack_rates$median_all_inf/100)*prob_hosp_per_infection,agegroup_name=gsub("_","-",agegroup_name)) %>%
+#  rename(hosp_num_from_per_inf_prob=hosp_num)
 
 # left_join(hosp_probabilities,hosp_rates,by="agegroup_name") %>% 
 #   select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_number_from_pop_estim)) %>% pivot_longer(!agegroup_name)
