@@ -11,4 +11,4 @@ Code for modelling RSV resurgence after COVID-19-related Non-Pharmaceutical Inte
 -  _load_params.R_: loads constant parameters of the model
 -  _fcns/_: functions for simulations and plotting
 -  _data/_: data files used for model set-up or data plots
--  _repo_data/_: outputs from simulations required to reproduce figures in the article. Currently the full simulation outputs for the filtered paramete sets are uploaded to Google Drive, [available here](https://drive.google.com/file/d/12ohuGEPrVnOxazXnxEGZGwJIwj16frCc/view?usp=sharing).
+-  _repo_data/_: outputs from simulations required to reproduce figures in the article. Currently the full simulation outputs for the filtered parameter sets are uploaded to Google Drive, [available here](https://drive.google.com/file/d/12ohuGEPrVnOxazXnxEGZGwJIwj16frCc/view?usp=sharing). 
