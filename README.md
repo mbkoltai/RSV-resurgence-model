@@ -1,6 +1,7 @@
 # Determinants of RSV resurgence after the COVID-19-related non-pharmaceutical interventions
 
 Code for modelling RSV resurgence after COVID-19-related Non-Pharmaceutical Interventions (NPIs) and how the patterns of resurgence can be used to infer RSV epidemiology parameters.
+
 **Figures in the main text and SI can be reproduced by the script [reproduce_results.R](https://github.com/mbkoltai/RSV-model/blob/master/reproduce_results.R).**
 
 ## Files and folders:
