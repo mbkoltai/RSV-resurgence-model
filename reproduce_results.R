@@ -2,11 +2,11 @@
 # Mihaly Koltai, Nov/2021
 ####
 # Setting up parameter sampling
-rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
+rm(list=ls()); 
 # load constant parameters and functions for simulations
 source("load_params.R")
 # folder where inputs are stored
-foldername <- "repo_data/"
+currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path); foldername <- "repo_data/"
 # estimated attack rates
 estim_attack_rates <- data.frame(agegroup_name=rsv_age_groups$agegroup_name, # paste0("age=",,"yr")
                     median_est=c(rep(65,4),rep(40,4),10,8,5)) %>% mutate(min_est=median_est*0.25,max_est=median_est*2.5,
