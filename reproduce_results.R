@@ -1,5 +1,5 @@
-# this script is to reproduce results in the manuscript
-# check the size (>x Mb) of objects you have in the workspace by `fcn_objs_mem_use(min_size=1)`
+# This script can be used for reproducing the results and figures of the manuscript at [...]
+# Mihaly Koltai, Nov/2021
 ####
 # Setting up parameter sampling
 rm(list=ls()); currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
@@ -23,6 +23,7 @@ partable <- partable %>% mutate(par_id=row_number(),
                                 npi_start=npi_dates[1],npi_stop=npi_dates[2],seas_start_wk=42,seas_stop_wk=8); rm(l_delta_susc)
 # filtering param sets: selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
 partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>% select(!age_dep_fit)
+# check the size (>x Mb) of objects you have in the workspace by `fcn_objs_mem_use(min_size=1)`
 # agegroup indices for maternal immunity
 mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),n_age,3),
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
