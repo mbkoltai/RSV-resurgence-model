@@ -1,11 +1,11 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-x1<-c("tidyverse","deSolve","gtools","rstudioapi","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo","RcppRoll")
+x1<-c("tidyverse","deSolve","gtools","rstudioapi","devtools","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo","RcppRoll")
 x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
+if (!any(grepl("ungeviz",row.names(installed.packages())))) {devtools::install_github("wilkelab/ungeviz")}
 # Load all packages    
 lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
-# require(plyr); require(dplyr)
 select <- dplyr::select; # row_number <- dplyr::row_number; summarise <- dplyr::summarise
 source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -62,7 +62,7 @@ C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
         orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
 # make it reciprocal for the larger group
 C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
-# bc of reinfections we need to input contact matrix repeatedly
+# bc of reinfections we need to input contact matrix repeatedly, normalisation by population is to construct the force of infection terms
 contmatr_rowvector=t(do.call(cbind, 
     lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))/rsv_age_groups$stationary_popul[col(C_m)]
 # build kinetic matrix
