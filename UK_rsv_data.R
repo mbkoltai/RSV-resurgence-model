@@ -7,7 +7,7 @@ standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),axis.text.x=elem
   axis.text.y=element_text(size=9),axis.title=element_text(size=14), text=element_text(family="Calibri"))
 ### UK RSV data  --------------------------------------------------------
 ### data with weekly resolution (no age resol) ----
-season_weeks=c(9,41)
+season_weeks=c(9,42)
 resp_detects_weekly_all_age=read_csv("data/Respiratory viral detections by any method UK.csv") %>% 
   mutate(year_week=factor(paste0(Year,"-",Week),unique(paste0(Year,"-",Week))), RSV_rolling_av=rollmean(RSV,k=7,align="center",fill=NA) ) %>% 
   select(-(contains("virus")|contains("flu"))) %>% mutate(epi_year=ifelse(Week>=season_weeks[2],Year+1,Year)-min(Year)+1) %>% 
@@ -25,11 +25,13 @@ ggplot(resp_detects_weekly_all_age %>% mutate(section=ceiling((as.numeric(year_w
 ggsave("simul_output/uk_rsv_data2020_allagegroups_weekly.png",width=32,height=20,units="cm")
 
 # concentration of cases within 'season'
-resp_detects_weekly_all_age_means_shares=round(left_join(
-  resp_detects_weekly_all_age %>% group_by(epi_year,on_off_season) %>% summarise(mean_on_off=mean(RSV)) %>% 
+resp_detects_weekly_all_age_means_shares=left_join(resp_detects_weekly_all_age %>% group_by(epi_year,on_off_season) %>% 
+  summarise(mean_on_off=mean(RSV,na.rm=T),cal_year=paste0(unique(Year),collapse="_")) %>% filter(epi_year>1&epi_year<8) %>% 
+    mutate(cal_year=ifelse(on_off_season %in% "off",paste0(as.numeric(cal_year)-1,"_",as.numeric(cal_year)),cal_year)) %>% 
     pivot_wider(names_from=on_off_season,values_from=mean_on_off,names_prefix="mean_"),  
-  resp_detects_weekly_all_age %>% group_by(epi_year) %>% filter(epi_year>1&epi_year<8) %>% summarise(season_share=unique(season_share)) ) %>%
-  mutate(on_off_ratio=mean_on/mean_off),2)
+  resp_detects_weekly_all_age %>% group_by(epi_year) %>% summarise(season_share=unique(season_share)),by="epi_year" ) %>%
+  mutate(on_off_ratio=round(mean_on/mean_off,1),mean_on=round(mean_on,1),mean_off=round(mean_off,1),season_share=round(season_share,3))
+# save
 write_csv(resp_detects_weekly_all_age_means_shares,"data/resp_detects_weekly_all_age_means_shares.csv")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 

@@ -1,10 +1,8 @@
-# This script can be used for reproducing the results and figures of the manuscript at [...]
+# This script is for reproducing the results and figures of the manuscript at [...]
 # Mihaly Koltai, Nov/2021
 ####
-# Setting up parameter sampling
-rm(list=ls()); 
 # load constant parameters and functions for simulations
-source("load_params.R")
+rm(list=ls()); source("load_params.R")
 # folder where inputs are stored
 currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path); foldername <- "repo_data/"
 # estimated attack rates
@@ -33,7 +31,6 @@ mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","
 source("fcns/calc_hosp_rates.R")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Figure 2: susceptibility as a function of age and exposure
-# plot dependence on age and exposure
 age_exp_dep_uniqvals <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,1/16),age=1:11,exp=1:3))) %>%
   mutate(suscept_unscaled=exp(-(exp_dep*exp+age_dep*age)))
 age_exp_dep_uniqvals <- age_exp_dep_uniqvals %>% 
@@ -191,11 +188,41 @@ partable_regular_dyn <- left_join(parsets_regular_dyn %>% select(!score_reg_dyn)
 pred_pca <- data.frame(predict(prcomp(partable_regular_dyn %>% select(c(exp_dep,age_dep))), newdata=partable_regular_dyn %>% 
       select(c(exp_dep,age_dep))),K_exp=partable_regular_dyn$exp_dep,K_age=partable_regular_dyn$age_dep,
       par_id=partable_regular_dyn$par_id)
-# SI Figure 4
+# SI Figure 4 (linear relationship between K_age and K_exp for selected param sets)
 ggplot(pred_pca %>% pivot_longer(!c(PC1,PC2,par_id)),aes(x=PC1,y=value)) + geom_point(aes(color=name)) + 
   geom_smooth(aes(group=name,color=name),fill=NA,method='lm') + scale_x_continuous(breaks=(-(2*3):(2*2))/4,limits=c(-1,1)) + theme_bw() + 
   standard_theme + ylab(expression(paste(kappa[exp],", ",kappa[age]))) + labs(color="",fill="") + theme(axis.title.y=element_text(size=14))
 # ggsave(paste0(foldername,"exp_age_PCA.png"),width=25,height=20,units="cm")
+# plot suscept ~ (age,exposure) for SELECTED parsets
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+suscept_sel_parsets <- left_join(pred_pca %>% rename(exp_dep=K_exp,age_dep=K_age),age_exp_dep_uniqvals,by=c("exp_dep","age_dep")) %>%
+  rename(`exposure-dependence`=exp_dep,`age-dependence`=age_dep) %>% mutate(age=factor(rsv_age_groups$agegroup_name[age],
+            levels=unique(rsv_age_groups$agegroup_name)),PC1_grouped=findInterval(PC1,seq(-1,1,by=1/5)) ) %>%
+  group_by(PC1_grouped) %>% mutate(PC1_grouped=round(mean(PC1),1)) %>% group_by(PC1_grouped,age,exp) %>% 
+  summarise(mean_val=mean(susc_scaled),med_val=median(susc_scaled),ci50_low=quantile(susc_scaled,c(0.25,0.75))[1],
+            ci50_up=quantile(susc_scaled,c(0.25,0.75))[2],ci95_low=quantile(susc_scaled,c(0.025,0.975))[1],
+            ci95_up=quantile(susc_scaled,c(0.025,0.975))[2]) %>% rename(exposure=exp)
+colorpal <- colorRampPalette(colors=c("blue","grey","red"))(length(unique(suscept_sel_parsets$PC1_grouped)))
+# facet by exposure level
+ggplot(suscept_sel_parsets) + geom_line(aes(x=age,color=factor(PC1_grouped),group=PC1_grouped,y=med_val),size=1.06) + 
+  facet_wrap(~exposure,labeller=labeller(exposure=label_both))+labs(color="exposure (-1) <-> age (1)") + scale_color_manual(values=colorpal)+
+  scale_y_log10() + theme_bw() + standard_theme + theme(strip.text=element_text(size=16),legend.title=element_text(size=16),
+      legend.text=element_text(size=15),legend.position="top",axis.text.x=element_text(size=14),axis.text.y=element_text(size=14)) + 
+  xlab("age group") + ylab(expression(delta[exp]^(age)))
+# save
+ggsave(paste0(foldername,"suscept_by_exp_level.png"),width=25,height=20,units="cm")
+# facet by 'dependence' parameter
+label_parseall <- function(variable, value) {plyr::llply(value, function(x) parse(text = paste(variable, x, sep = "==")))}
+ggplot(suscept_sel_parsets %>% rename(kappa=PC1_grouped) %>% ungroup() %>% mutate(kappa_num=as.numeric(factor(as.character(kappa)))) %>% 
+    filter(kappa_num %in% c(1,3,5,7,9,10)),aes(x=age,color=factor(exposure),group=exposure,fill=factor(exposure))) +
+  geom_line(aes(y=med_val),size=1.06) + geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up),color=NA,alpha=0.2) +
+  facet_wrap(~kappa,labeller=label_parseall)+labs(color="exposure",fill="exposure") + # scale_color_manual(values=colorpal) +
+  scale_y_log10() + theme_bw() + standard_theme + theme(strip.text=element_text(size=18),legend.title=element_text(size=16),
+      legend.text=element_text(size=15),legend.position="top",axis.text.x=element_text(size=14),axis.text.y=element_text(size=15),
+      axis.title.x=element_text(size=16),axis.title.y=element_text(size=18)) + xlab("age group") + ylab(expression(delta[exp]^(age)))
+# save
+ggsave(paste0(foldername,"suscept_by_dep_level.png"),width=25,height=20,units="cm")
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Analyse results by epidemiologic parameters
@@ -413,8 +440,8 @@ for (k_plot_var in 1:length(sel_vars)) {
       geom_vline(xintercept=(0:4)+1/2,size=1/5) + labs(color=unique(df_plot$parname)) + 
       scale_x_discrete(expand=expansion(0.02,0)) + geom_hline(yintercept=0,linetype="dashed",size=1/2) +
       xlab("") + ylab(paste0(unique(df_plot$varname)," (change from 2019 level)")) + scale_y_continuous(breaks=-10:10) +
-      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
-              axis.text.y=element_text(size=12),legend.text=element_text(size=11),legend.title=element_text(size=12),
+      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=14),
+              axis.text.y=element_text(size=14),legend.text=element_text(size=14),legend.title=element_text(size=16),
               legend.position=ifelse(grepl("expos|forcing",unique(df_plot$parname)),"bottom","right")) + scale_color_manual(values=colorpal)
     subfldr_name <- "median_interquant_by_param_value/mean_age_by_paramval/"
     if (!dir.exists(paste0(foldername,subfldr_name))) {dir.create(paste0(foldername,subfldr_name))}
@@ -553,7 +580,9 @@ for (k_age in 1:4) {
       p<-ggplot(df_plot,aes(x=date,group=age_exp_par_bins,color=factor(age_exp_par_bins))) + 
         geom_line(aes(y=median),size=1.1) + geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(age_exp_par_bins)),color=NA,alpha=0.2) + 
         scale_color_manual(values=colorpal) + scale_fill_manual(values=colorpal) + # facet_wrap(~agegroup_broad,scales="free_y",nrow=3) + 
-        scale_x_date(date_breaks="1 month",expand=expansion(0.01,0)) + theme_bw() + standard_theme + theme(legend.position="top") + 
+        scale_x_date(date_breaks="1 month",expand=expansion(0.01,0)) + theme_bw() + standard_theme + 
+        theme(legend.position="top",axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
+              axis.title.y=element_text(size=16),legend.text=element_text(size=15),legend.title=element_text(size=16)) + 
         labs(color="exposure (-1) <-> age (1)",fill="exposure (-1) <-> age (1)")+xlab("")+
         ylab(paste0("weekly hospitalisations (",sel_agegr,ifelse(grepl("norm",value_type),", normalised by 2019 peak",""),")"))
       if (grepl("norm",value_type)) {p<-p+geom_hline(yintercept=1,linetype="dashed",size=1/3)}; p
@@ -573,21 +602,23 @@ value_type<-"value_norm"
 for (k_date in 1:2) {
   sel_agegr<-unique(summ_dyn_all_parsets_broad_age$agegroup_broad)[k_age]
   df_plot <- summ_dyn_all_parsets_broad_age %>% filter(varname %in% sel_vars[2] & date>=as.Date("2021-05-01") &
-                  !(agegroup_broad %in% "5+y") & date<=lim_dates[k_date] & (metric %in% c("median","ci50_low","ci50_up"))) %>% # 
-    select(!c(varname,value)) %>% pivot_wider(names_from=metric,values_from=!!value_type) %>% 
+    !(agegroup_broad %in% "5+y")&date<=lim_dates[k_date]&(metric %in% c("median","ci50_low","ci50_up"))) %>% select(!c(varname,value)) %>%
+     pivot_wider(names_from=metric,values_from=!!value_type) %>% filter(as.numeric(factor(age_exp_par_bins)) %in% c(1,2,4,7,9,10)) %>%
     rename(`exposure (-1) <-> age (1)`=age_exp_par_bins)
   p<-ggplot(df_plot,aes(x=date,group=agegroup_broad,color=factor(agegroup_broad))) + 
     geom_line(aes(y=median),size=1.1) + geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(agegroup_broad)),color=NA,alpha=0.2) + 
     facet_wrap(~`exposure (-1) <-> age (1)`,nrow=2,labeller=labeller(`exposure (-1) <-> age (1)`=label_both)) + 
+    geom_vline(xintercept=as.Date(c("2021-10-15","2022-03-04","2022-10-15","2023-03-04")),size=1/3,linetype="dashed") +
     scale_x_date(date_breaks="2 month",expand=expansion(0.01,0)) + theme_bw() + standard_theme + 
-    theme(legend.position="top",strip.text=element_text(size=11)) + labs(color="",fill="")+ xlab("") +
-    ylab("weekly hospitalisations (normalised by 2019 peak)")
+    theme(legend.position="top",strip.text=element_text(size=15),axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
+          axis.title.y=element_text(size=16),legend.text=element_text(size=16)) + 
+    labs(color="",fill="")+ xlab("") +ylab("weekly hospitalisations (normalised by 2019 peak)")
   if (grepl("norm",value_type)) {p<-p+geom_hline(yintercept=1,linetype="dashed",size=1/3)}; p
   # save
   if (!dir.exists(paste0(foldername,"dynamics/facet_ageexpdep/"))) {dir.create(paste0(foldername,"dynamics/facet_ageexpdep/"))}
   plot_fn<-paste0(foldername,"dynamics/facet_ageexpdep/","weekly_hosp_by_ageexpdep_",ifelse(grepl("norm",value_type),"norm_2019_peak_",""),
                   "until",substr(lim_dates,1,4)[k_date],".png")
-  ggsave(plot_fn,width=35,height=20,units="cm"); print(gsub(foldername,"",plot_fn))
+  ggsave(plot_fn,width=30,height=20,units="cm"); print(gsub(foldername,"",plot_fn))
 }
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
