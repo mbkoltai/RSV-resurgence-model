@@ -550,9 +550,29 @@ for (k_plot_var in 1:length(sel_vars)) {
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-summ_broad_age_groups_byvalue %>% filter(varname %in% "hosp_tot")
-summ_mean_age_inf_byvalue %>% filter(varname %in% "mean_age_hosp_tot_under_5")
-summ_max_incid_seas_length_byvalue %>% filter(varname %in% "incid_hosp" & vartype %in% "max_value")
+cumul_peak_meanage_hosp_byvalue <- bind_rows(summ_broad_age_groups_byvalue %>% filter(varname %in% "hosp_tot"),
+  summ_mean_age_inf_byvalue %>% filter(varname %in% "mean_age_hosp_tot_under_5"),
+  summ_max_incid_seas_length_byvalue %>% filter(varname %in% "incid_hosp" & vartype %in% "max_value")) %>% 
+  mutate(varname=ifelse(!is.na(vartype),"peak_hosp",varname)) %>% select(!vartype) %>%
+  group_by(agegroup_broad,epi_year,parname,varname) %>% summarise(mean_val=mean(median),max_val=max(median),min_val=min(median)) %>%
+  filter(agegroup_broad %in% c("<1y","1-2y","2-5y"))
+
+# PLOT
+# install.packages("ggdist"); library(ggdist)
+ggplot(cumul_peak_meanage_hosp_byvalue %>% filter(epi_year<2024 & epi_year>2020 & (!parname %in% "seasforc_width_wks")) %>%
+       mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
+                   grepl("seasforce_peak",parname) ~ "seasonal forcing",
+                   grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning (days)") , 
+           varname=case_when(grepl("hosp_tot",varname) ~ "cumulative hospitalisations",
+                             grepl("peak_hosp",varname) ~ "peak hospitalisations")), aes(y=parname)) + 
+  geom_interval(aes(x=mean_val,group=varname,xmin=min_val,xmax=max_val,color=factor(varname)),position=position_dodge(width=dodge_val)) +
+  geom_vpline(aes(x=mean_val,group=varname),position=position_dodge(width=dodge_val),color="black",size=1,height=0.25) +
+  facet_grid(epi_year~agegroup_broad,scales="free_x") + geom_vline(xintercept=1,size=1/3,linetype="dashed") + 
+  geom_hline(yintercept=(0:4)+1/2,size=1/2) + scale_y_discrete(expand = expansion(0,0)) +
+  theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),axis.text.y=element_text(size=12),
+        legend.text=element_text(size=11),legend.title=element_text(size=12),legend.position="top") + xlab("") + ylab("") + labs(color="")
+# SAVE
+ggsave(paste0(foldername,"median_interquant_by_param_value/summary_plot_4params.png"),width=28,height=16,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
