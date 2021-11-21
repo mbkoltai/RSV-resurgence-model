@@ -550,29 +550,72 @@ for (k_plot_var in 1:length(sel_vars)) {
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-cumul_peak_meanage_hosp_byvalue <- bind_rows(summ_broad_age_groups_byvalue %>% filter(varname %in% "hosp_tot"),
-  summ_mean_age_inf_byvalue %>% filter(varname %in% "mean_age_hosp_tot_under_5"),
-  summ_max_incid_seas_length_byvalue %>% filter(varname %in% "incid_hosp" & vartype %in% "max_value")) %>% 
-  mutate(varname=ifelse(!is.na(vartype),"peak_hosp",varname)) %>% select(!vartype) %>%
-  group_by(agegroup_broad,epi_year,parname,varname) %>% summarise(mean_val=mean(median),max_val=max(median),min_val=min(median)) %>%
-  filter(agegroup_broad %in% c("<1y","1-2y","2-5y"))
+cumul_peak_meanage_hosp_byvalue <- bind_rows(
+  # cumulative hospitalisations
+  parsets_broad_age_groups %>% filter(name %in% "hosp_tot" & epi_year>2020) %>% ungroup() %>% rename(varname=name) %>% 
+    select(!c(value,PC1,par_id)) %>% pivot_longer(c(age_exp_par_bins,seasforce_peak,waning,seasforc_width_wks,R0)) %>% 
+    rename(parname=name,parvalue=value) %>% relocate(value_norm,.after=parvalue) %>% group_by(agegroup_broad,epi_year,parname,varname) %>%
+    summarise(mean_val=mean(value_norm),med_val=median(value_norm),
+              min_val=mean(value_norm[parvalue==ifelse(parname %in% c("waning","age_exp_par_bins"),max(parvalue),min(parvalue))]),
+              max_val=mean(value_norm[parvalue==ifelse(parname %in% c("waning","age_exp_par_bins"),min(parvalue),max(parvalue))])),
+  # ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
+  # ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]
+  # peak hospitalisations
+  parsets_max_incid_seas_length %>% filter(varname %in% "incid_hosp" & vartype %in% "max_value" & epi_year>2020) %>% ungroup() %>% 
+    select(!c(value,PC1,par_id)) %>% pivot_longer(c(age_exp_par_bins,seasforce_peak,waning,seasforc_width_wks,R0)) %>% 
+    rename(parname=name,parvalue=value) %>% relocate(value_norm,.after=parvalue) %>% group_by(agegroup_broad,epi_year,parname,varname) %>%
+    summarise(mean_val=mean(value_norm),med_val=median(value_norm),min_val=mean(value_norm[parvalue==min(parvalue)]),
+              max_val=mean(value_norm[parvalue==max(parvalue)])),
+  # mean age
+  parsets_mean_age_inf %>% filter(name %in% "mean_age_hosp_tot_under_5" & epi_year>2020) %>% ungroup() %>%
+    select(!c(value,PC1,par_id)) %>% rename(varname=name) %>% pivot_longer(c(age_exp_par_bins,seasforce_peak,waning,seasforc_width_wks,R0)) %>%
+    rename(parname=name,parvalue=value) %>% relocate(value_norm,.after=parvalue) %>% group_by(epi_year,parname,varname) %>%
+    summarise(mean_val=mean(value_norm),med_val=median(value_norm),min_val=mean(value_norm[parvalue==min(parvalue)]),
+              max_val=mean(value_norm[parvalue==max(parvalue)])) ) %>% filter(!agegroup_broad %in% "5+y")
 
 # PLOT
 # install.packages("ggdist"); library(ggdist)
-ggplot(cumul_peak_meanage_hosp_byvalue %>% filter(epi_year<2024 & epi_year>2020 & (!parname %in% "seasforc_width_wks")) %>%
-       mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
-                   grepl("seasforce_peak",parname) ~ "seasonal forcing",
-                   grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning (days)") , 
-           varname=case_when(grepl("hosp_tot",varname) ~ "cumulative hospitalisations",
-                             grepl("peak_hosp",varname) ~ "peak hospitalisations")), aes(y=parname)) + 
-  geom_interval(aes(x=mean_val,group=varname,xmin=min_val,xmax=max_val,color=factor(varname)),position=position_dodge(width=dodge_val)) +
-  geom_vpline(aes(x=mean_val,group=varname),position=position_dodge(width=dodge_val),color="black",size=1,height=0.25) +
-  facet_grid(epi_year~agegroup_broad,scales="free_x") + geom_vline(xintercept=1,size=1/3,linetype="dashed") + 
-  geom_hline(yintercept=(0:4)+1/2,size=1/2) + scale_y_discrete(expand = expansion(0,0)) +
-  theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),axis.text.y=element_text(size=12),
-        legend.text=element_text(size=11),legend.title=element_text(size=12),legend.position="top") + xlab("") + ylab("") + labs(color="")
+# change in CUMUL and PEAK HOSP
+p_cumul_peak_summ <- ggplot(cumul_peak_meanage_hosp_byvalue %>% mutate(epi_year=as.character(epi_year)) %>%
+         filter(epi_year<2023 & (!parname %in% "seasforc_width_wks") & !is.na(agegroup_broad)) %>%
+       mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)",
+          grepl("seasforce_peak",parname) ~ "seasonal forcing",grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning rate"),
+    varname=case_when(grepl("hosp_tot",varname) ~ "cumulative hospitalisations",grepl("incid_hosp",varname) ~ "peak hospitalisations"),
+    epi_year=case_when(epi_year %in% "2021" ~ "2021-2022",epi_year %in% "2022" ~ "2022-2023")), 
+    aes(x=mean_val,y=factor(epi_year))) + # parname
+  geom_interval(aes(group=parname,xmin=min_val,xmax=max_val,color=factor(parname)),position=position_dodge(width=dodge_val),size=6) +
+  geom_vpline(aes(group=parname),position=position_dodge(width=dodge_val),color="black",size=1.5,height=0.2) + # 
+  facet_grid(agegroup_broad~varname,scales="free_x") + geom_vline(xintercept=1,size=1/3,linetype="dashed") + 
+  geom_hline(yintercept=(0:4)+1/2,size=1/2) + scale_y_discrete(expand=expansion(0,0)) +
+  theme_bw() + standard_theme + theme(strip.text=element_text(size=18),axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),
+        legend.text=element_text(size=17),legend.position="top",axis.title.x=element_text(size=16)) + 
+  xlab("proportion of 2019-2020 value") + ylab("") + labs(color=""); p_cumul_peak_summ
 # SAVE
-ggsave(paste0(foldername,"median_interquant_by_param_value/summary_plot_4params.png"),width=28,height=16,units="cm")
+# ggsave(paste0(foldername,"median_interquant_by_param_value/cumul_peak_hosp_summary_plot_4params.png"),width=28,height=16,units="cm")
+
+# shift in average age of hosp
+p_aver_age_shift_summ <- ggplot(cumul_peak_meanage_hosp_byvalue %>% mutate(epi_year=as.character(epi_year)) %>%
+                              filter(epi_year<2023 & (!parname %in% "seasforc_width_wks") & is.na(agegroup_broad)) %>%
+  mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)",
+         grepl("seasforce_peak",parname) ~ "seasonal forcing",grepl("R0",parname) ~ "R0 (baseline)",grepl("waning",parname) ~ "waning rate"),
+  varname=case_when(grepl("hosp_tot",varname) ~ "cumulative hospitalisations",grepl("incid_hosp",varname) ~ "peak hospitalisations"),
+  epi_year=case_when(epi_year %in% "2021" ~ "2021-2022",epi_year %in% "2022" ~ "2022-2023")), aes(x=mean_val,y=factor(epi_year))) + # parname
+  geom_interval(aes(group=parname,xmin=min_val,xmax=max_val,color=factor(parname)),position=position_dodge(width=dodge_val),size=9) +
+  geom_vpline(aes(group=parname),position=position_dodge(width=dodge_val),color="black",size=1.5,height=0.2) + # 
+  geom_vline(xintercept=0,size=1/3,linetype="dashed") + # facet_grid(agegroup_broad~varname,scales="free_x") + 
+  geom_hline(yintercept=(0:2)+1/2,size=1/2) + scale_x_continuous(breaks=-3:5) + scale_y_discrete(expand=expansion(0,0)) +
+  theme_bw() + standard_theme + theme(axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),axis.title.x=element_text(size=16),
+      legend.position="null") + xlab("shift in average age of hospitalisations (months)") + ylab("")+ labs(color="")
+p_aver_age_shift_summ
+# legend.text=element_text(size=13),legend.title=element_text(size=14),
+# ggsave(paste0(foldername,"median_interquant_by_param_value/aver_age_hosp_summary_plot_4params.png"),width=26,height=16,units="cm")
+
+# concat figures # library(cowplot)
+# FIGURE 3 in main text
+# plot_grid(p_cumul_peak_summ, p_aver_age_shift_summ,labels="AUTO",rel_widths=c(1.5,1))
+plot_grid(p_cumul_peak_summ, p_aver_age_shift_summ,labels="AUTO",ncol = 1, rel_heights=c(2,1))
+# save
+ggsave(paste0(foldername,"median_interquant_by_param_value/comb_summary_plot_4params_1col.png"),width=40,height=32,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
