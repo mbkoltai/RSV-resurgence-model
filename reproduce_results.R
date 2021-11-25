@@ -56,16 +56,13 @@ partable_filename <- "repo_data/partable_filtered.csv"; n_row <- nrow(read_csv(p
 # write the file that will launch jobs
 command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,partable_filename,
           "SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
-system(command_print_runs)
+# run this command by:
+# system(command_print_runs)
 # run calculation (this is for multiple cores) by:
 # `start_batches.sh` in the folder `batch_run_files/` (currently needs to be moved to main folder and run from there)
-# calculate inter-year differences (this is for dynamics)
-# qsub start_batches_calc_interyear.sh
 # collect & merge results by:
 # summary statistics:
 # nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/ summ_parsets* results_summ_all.csv keep &
-# difference between incidence rates:
-# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/ summ_diff_interyr* summ_diff_interyr.csv keep &
 ####################################
 # Calculations work by the file "fcns/parscan_runner_cmd_line.R" receiving command line arguments from the parameter table and calling the 
 # function (sirs_seasonal_forc_mat_immun) that generates & solves ODEs. `sirs_seasonal_forc_mat_immun` is in "fcns/RSV_model_functions.R". 
@@ -127,12 +124,26 @@ ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_y
 # save
 # ggsave(paste0(foldername,"parscan_attack_rates_filtered_",color_var,".png"),width=32,height=20,units="cm")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# To remove model parameterisations that exhibit irregular patterns (varying from one year to another),
-# we need to calculate relative difference (see SI Methods) between 2018/19 and 19/20 season
-# write script for calculation:
-# system("Rscript fcns/write_interyear_calc_file.R 2018-09-01 2018-10-01 64 8")
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# after the filtering by attack rate and seasonal concentration we want to run and save the full dynamics for the selected parsets
+simul_length_yr<-25; n_post_npi_yr<-4; n_core<-32; memory_max <- 8; start_date_dyn_save <- "2018-09-01" 
+# this is the 1255 parameters selected based on the criteria of 1) attack rates 2) seasonal concentration of cases
+partable_filename <- "partable_filtered_AR_seasconc.csv"; n_row <- nrow(read_csv(partable_filename))
+# we will split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
+# write the file that will launch jobs
+command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,partable_filename,
+                             "SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
+system(command_print_runs)
 # run calculation:
 # system("qsub start_batches_calc_interyear.sh")  
+# run calculation (this is for multiple cores) by:
+# `start_batches.sh` in the folder `batch_run_files/` (currently needs to be moved to main folder and run from there)
+# To remove model parameterisations that exhibit irregular patterns (varying from one year to another),
+# we need to calculate relative difference (see SI Methods) between 2018/19 and 19/20 season
+# calculate inter-year differences (this is for dynamics)
+# qsub start_batches_calc_interyear.sh
+# difference between incidence rates:
+# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/ summ_diff_interyr* summ_diff_interyr.csv keep &
 
 # Results already in the repo_data folder
 summ_diff_interyr <- left_join(read_csv(paste0(foldername,"summ_diff_interyr_reg_dyn.csv")) %>% 
