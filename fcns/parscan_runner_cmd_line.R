@@ -7,12 +7,14 @@ partable_file_name<-commandArgs(trailingOnly=TRUE)[5]; print(partable_file_name)
 partable<-read_csv(partable_file_name)
 # estimated attack rates
 estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
-save_flag <- ifelse(grepl("nosave|no_save|nosavedyn",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
+save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
 start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
 # % cases within season (filtering parameter sets)
-seas_conc_lim<-unique(partable$seas_conc_lim)
+seas_conc_lim<-0.85 # unique(partable$seas_conc_lim)
+# SEASON LIMITS: we fix these for given RSV seasonality
+seas_start_wk <- 42; seas_stop_wk<-8; peak_week<-48
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
 # length of simulations
@@ -61,7 +63,7 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   print(paste0("PARSET: ",partable$par_id[k_par], "(",k_par,")")) # print("LOAD INITVALS")
   # set length of simulation and seasonality
   l_seas<-fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
-          season_width_wks=seasforc_width_wks,init_mt_day="06-01",partable$peak_week[k_par],
+          season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week,
           forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=0.5)
   g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas
   # if waning is a variable parameter
@@ -96,8 +98,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   # print(paste0("season start: ",partable$seas_start_wk[k_par]))
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
    epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
-   in_out_season=ifelse(week(date)>=partable$seas_start_wk[k_par]|week(date)<=partable$seas_stop_wk[k_par],"in","out")) %>%
-     group_by(epi_year,agegroup) %>% 
+   in_out_season=ifelse(week(date)>=seas_start_wk|week(date)<=seas_stop_wk,"in","out")) %>% group_by(epi_year,agegroup) %>% 
      summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
         max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
       filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(par_id=partable$par_id[k_par],
@@ -105,11 +106,11 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
           seasforce_peak=partable$seasforce_peak[k_par],R0=partable$R0[k_par],
           attack_rate_perc=100*inf_tot/final,seas_share=inf_in_seas/inf_tot)
   # store parameters # list_delta_primary[[k_par]]=delta_primary
-  # store outputs
-  sum_inf_epiyear_age <- left_join(sum_inf_epiyear_age %>%
-    mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
-    mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
-           seas_share_check=ifelse(seas_share>seas_conc_lim,T,F))
+  # store outputs: this step is not necessary, we can do it when extracting results
+  # sum_inf_epiyear_age <- left_join(sum_inf_epiyear_age %>%
+  #   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
+  #   mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
+  #          seas_share_check=ifelse(seas_share>seas_conc_lim,T,F))
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
   if (save_flag) {write_csv(df_cases_infs %>% select(!date),dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}

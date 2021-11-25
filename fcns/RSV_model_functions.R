@@ -36,7 +36,7 @@ gg_color_hue <- function(n) {
 }
 
 # Set up SIRS ODE model --------------------------------------------------------
-## with seasonal forcing using interpolation
+## with seasonal forcing using interpolation (not using this version bc it has no maternal immunity)
 sirs_seasonal_forc <- function(t,X,parms){
   birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]];infvars_inds=parms[[4]]
   suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; dimsys=nrow(Km) # elem_time_step=parms[[6]]; 
@@ -50,7 +50,7 @@ sirs_seasonal_forc <- function(t,X,parms){
   # append infection vector for incidence
   dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) }
 
-## model with MATERNAL IMMUNITY
+## model with MATERNAL IMMUNITY (i'm only using this!)
 sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
   suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
