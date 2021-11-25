@@ -6,11 +6,11 @@ source("load_params.R")
 partable_file_name<-commandArgs(trailingOnly=TRUE)[5]; print(partable_file_name)
 partable<-read_csv(partable_file_name)
 # estimated attack rates
-estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
-save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
+# estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
+save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[6]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
-start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
+start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[7]; print(paste0("SAVE output from: ",start_date_dyn_save))
 # % cases within season (filtering parameter sets)
 seas_conc_lim<-0.85 # unique(partable$seas_conc_lim)
 # SEASON LIMITS: we fix these for given RSV seasonality
@@ -103,8 +103,9 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
         max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
       filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(par_id=partable$par_id[k_par],
           exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],seasforc_width_wks=seasforc_width_wks,
-          seasforce_peak=partable$seasforce_peak[k_par],R0=partable$R0[k_par],
-          attack_rate_perc=100*inf_tot/final,seas_share=inf_in_seas/inf_tot)
+          seasforce_peak=partable$seasforce_peak[k_par],R0=partable$R0[k_par],omega=partable$omega[k_par],
+          attack_rate_perc=round(100*inf_tot/final,1),seas_share=round(inf_in_seas/inf_tot,3)) %>% 
+    relocate(c(inf_tot,inf_in_seas,max_incid_week,attack_rate_perc,seas_share),.after=omega)
   # store parameters # list_delta_primary[[k_par]]=delta_primary
   # store outputs: this step is not necessary, we can do it when extracting results
   # sum_inf_epiyear_age <- left_join(sum_inf_epiyear_age %>%

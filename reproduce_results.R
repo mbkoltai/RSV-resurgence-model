@@ -13,7 +13,7 @@ estim_attack_rates <- read_csv(paste0(foldername,"estim_attack_rates.csv"))
 npi_dates<-as.Date(c("2020-03-26","2021-05-17"))
 # set up the table of parameter vectors
 partable <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,1/16),seasforc_width_wks=c(3,5,7),
-                                       R0=1+(0:5)/10,seasforce_peak=c(3/4,1,5/4),omega=c(1/250,1/350,1/450)) ) ) # ,peak_week=c(48)
+                                       R0=1+(0:5)/10,seasforce_peak=c(3/4,1,5/4),omega=c(1/250,1/350,1/450)) ) )
 # calculating the susceptibility parameter (delta_i_j)
 l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
                                            function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
@@ -55,7 +55,7 @@ partable_filename <- "repo_data/partable_filtered.csv"; n_row <- nrow(read_csv(p
 # we will split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
 # write the file that will launch jobs
 command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,partable_filename,
-          "data/estim_attack_rates.csv SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
+          "SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
 system(command_print_runs)
 # run calculation (this is for multiple cores) by:
 # `start_batches.sh` in the folder `batch_run_files/` (currently needs to be moved to main folder and run from there)
@@ -79,21 +79,33 @@ system(command_print_runs)
 # results from the parameter sampling after filtering already stored in repo_data/
 # peak_week_lims <- c(46,5)
 results_summ_all <- read_csv(paste0(foldername,"results_summ_all.csv")) 
-#
+# how many param sets filtered out bc of attack rates or seasonal concentr
+fullscan_score_AR_seasconc <- left_join(results_summ_all, 
+  estim_attack_rates_log %>% mutate(agegroup=as.numeric(agegroup_name)), by="agegroup") %>% filter(epi_year==2019) %>% group_by(par_id) %>%
+  summarise(n_attack_rate_check=sum(attack_rate_check),n_seas_share_check=sum(seas_share_check)) %>% 
+  mutate(attack_rate_fail=n_attack_rate_check<11, seas_conc_fail=n_seas_share_check<11,both_fail=attack_rate_fail&seas_conc_fail) %>% 
+  summarise(n_both_fail=sum(both_fail),n_attack_rate_fail=sum(attack_rate_fail)-n_both_fail,n_seas_conc_fail=sum(seas_conc_fail)-n_both_fail)
 # filter for parameter sets where 10/11 (or 11/11) age groups satisfy criteria for attack rates and seasonal concentration
 check_crit=11/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
-all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all %>% filter(epi_year %in% sel_yrs),partable,
-      by=c("par_id","seasforce_peak","R0","exp_dep","age_dep","seasforc_width_wks")) %>% 
+all_sum_inf_epiyear_age_filtered <- left_join(results_summ_all, 
+      estim_attack_rates_log %>% mutate(agegroup=as.numeric(agegroup_name)), by="agegroup") %>% 
+      mutate(attack_rate_check=(attack_rate_perc>=min_est & attack_rate_perc<=max_est),seas_share_check=seas_share>=0.85) %>% 
+      select(!c(min_est,median_est,max_est)) %>% filter(epi_year %in% sel_yrs) %>% 
   group_by(seasforce_peak,exp_dep,age_dep,seasforc_width_wks,par_id) %>% 
-  filter(sum(attack_rate_check)>=round(n_age*n_sel_yr*check_crit) & sum(seas_share_check)>=round(n_age*n_sel_yr*check_crit) 
-    # & sum(max_incid_week_check)>=round(n_age*n_sel_yr*check_crit) # criteria for peak incidence week (not important as seas conc is ~same)
-         ) %>% select(!c(median_est,min_est,max_est,median_all_inf,min_est_all_inf,max_est_all_inf,attack_rate_check,seas_share_check,
-                         final)) %>% relocate(par_id,.before=epi_year) # seas_conc_lim,npi_start,npi_stop,seas_start_wk,seas_stop_wk,
-# this leads to 1100 (11/11) or 1153 (10/11) parameter sets: 
+  filter(sum(attack_rate_check)>=n_age*n_sel_yr*check_crit & sum(seas_share_check)>=n_age*n_sel_yr*check_crit ) %>% 
+  select(!c(attack_rate_check,seas_share_check,final)) %>% relocate(par_id,.before=epi_year)
+# this leads to 1084 parameter sets: 
 length(unique(all_sum_inf_epiyear_age_filtered$par_id))
 # print selected parsets:
-write_csv(partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id)),
-          paste0(foldername,"partable_filtered_AR_seasconc.csv"))
+partable_filtered_AR_seasconc <- partable %>% filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id))
+write_csv(partable_filtered_AR_seasconc,paste0(foldername,"partable_filtered_AR_seasconc.csv"))
+# correlations?
+ggplot(partable_filtered_AR_seasconc) + 
+  geom_jitter(aes(x=exp_dep,y=age_dep,color=factor(age_dep)),position=position_jitter(height=0.02,width=0.02)) + standard_theme + theme_bw() 
+ggsave(paste0(foldername,"age_exp_corr_partable_filtered_AR_seasconc.png"),width=25,height=20,units="cm")
+ggplot(partable_filtered_AR_seasconc) + geom_jitter(aes(x=exp_dep,y=omega,color=factor(round(omega,4))),
+  position=position_jitter(height=0.0002,width=0.02)) + standard_theme + theme_bw() 
+ggsave(paste0(foldername,"waning_exp_corr_partable_filtered_AR_seasconc.png"),width=25,height=20,units="cm")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT attack rates, seasonal share, peak week (this is not a figure in manuscript)
 sel_var<-c("attack_rate_perc","seas_share","max_incid_week")
@@ -109,7 +121,8 @@ ggplot(all_sum_inf_epiyear_age_filtered %>% mutate(attack_rate_perc=ifelse(epi_y
   geom_hpline(aes(x=age_dep,y=value,color=get(color_var),group=par_id),width=0.1,size=1/2) +
   facet_grid(name~agegroup_name,scales="free_y") + scale_y_continuous(expand=expansion(0.02,0))+
   scale_color_gradient2(midpoint=median(c(t(unique(all_sum_inf_epiyear_age_filtered[,color_var])))),low="blue",mid="white",high="red") +
-  geom_hline(data=estim_rates,aes(yintercept=value),linetype="dashed",size=1/4)+ 
+  geom_hline(data=estim_rates %>% filter(!type %in% "median_est"),aes(yintercept=value),size=3/4)+
+  geom_hline(data=estim_rates %>% filter(type %in% "median_est"),aes(yintercept=value),linetype="dashed",size=1/2)+ 
   xlab("age-dependence")+ylab("")+theme(legend.position="top")+theme_bw()+standard_theme+labs(color=color_var)
 # save
 # ggsave(paste0(foldername,"parscan_attack_rates_filtered_",color_var,".png"),width=32,height=20,units="cm")
@@ -817,7 +830,7 @@ if (n_par>3) {p <- p + scale_color_manual(values=colorpal) + scale_fill_manual(v
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
 # correlations btwn params: partable_regular_dyn_corrs # partable_filtered
-part_x <- partable_filtered %>% select(c(exp_dep,age_dep,seasforc_width_wks,R0,seasforce_peak,omega)) %>% 
+part_x <- partable_filtered_AR_seasconc %>% select(c(exp_dep,age_dep,seasforc_width_wks,R0,seasforce_peak,omega)) %>% 
   rename(waning=omega) %>% mutate(waning=round(1/waning))
 ggplot(part_x) + geom_jitter(aes(x=exp_dep,y=factor(waning),color=factor(waning)),position=position_jitter(height=0.4,width=0.02)) + 
   geom_hline(yintercept = (0:3)+1/2) + scale_y_discrete(expand = expansion(0,0)) + labs(color="waning") +
