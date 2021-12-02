@@ -11,7 +11,7 @@ parscan_split <- lapply(1:n_core,function(x) matrix(sort(c(round(seq(1,n_row,len
 command_list <- unlist(lapply(1:n_core, # "#!/bin/bash\n",
   function(x) paste0("nohup Rscript --vanilla fcns/parscan_runner_cmd_line.R ",
  paste0(c(parscan_split[[x]],simul_dur,post_npi,partable_filename,saveflag,start_date_dyn_save),collapse=" "),
- " > simul_output/parscan/parallel/nohup_",x,".out",ifelse(x<n_core," & \n",""),collapse="") ))
+ " > simul_output/parscan/nohup_",x,".out",ifelse(x<n_core," & \n",""),collapse="") ))
 
 if (grepl("sep",sep_flag)) {
   qsub_start_rows <- "#!/usr/bin/bash \nmodule load R/3.6.3\n"

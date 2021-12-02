@@ -32,7 +32,7 @@ age_exp_dep_uniqvals <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_de
   mutate(suscept_unscaled=exp(-(exp_dep*exp+age_dep*age)))
 age_exp_dep_uniqvals <- age_exp_dep_uniqvals %>% 
                 mutate(const_delta=1/unlist(lapply(lapply(1:nrow(age_exp_dep_uniqvals), function(n_p) {sapply(1:n_age,
-                 function(x) {(1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})} ) , 
+          function(x) {(1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})}),
                  function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),susc_scaled=suscept_unscaled*const_delta)
 ggplot(age_exp_dep_uniqvals %>% filter(exp_dep %in% seq(1/4,2,3/4) & age_dep %in% seq(1/8,1,1/4)) %>%
          rename(`exposure-dependence`=exp_dep,`age-dependence`=age_dep) %>% 
@@ -52,11 +52,11 @@ ggplot(age_exp_dep_uniqvals %>% filter(exp_dep %in% seq(1/4,2,3/4) & age_dep %in
 # `n_core`: number of cores used, `memory_max`: allocated memory (GB); start_date_dyn_save: date from which to save results
 simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01" 
 # this is the 1255 parameters selected based on the criteria of 1) attack rates 2) seasonal concentration of cases
-partable_filename <- "repo_data/partable_filtered.csv"; n_row <- nrow(read_csv(partable_filename))
+partable_filename <- "repo_data/partable_filtered_AR_seasconc.csv"; n_row <- nrow(read_csv(partable_filename))
 # we will split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
 # write the file that will launch jobs
 command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,partable_filename,
-          "SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
+          "NOSAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
 # run this command by:
 # system(command_print_runs)
 # run calculation (this is for multiple cores) by:
