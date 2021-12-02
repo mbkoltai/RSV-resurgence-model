@@ -16,7 +16,7 @@ partable <- bind_rows(expand.grid(list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,
                                        R0=1+(0:5)/10,seasforce_peak=c(3/4,1,5/4),omega=c(1/250,1/350,1/450)) ) )
 # calculating the susceptibility parameter (delta_i_j)
 l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
-                                           function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
+                         function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
 partable <- partable %>% mutate(par_id=row_number(), const_delta=R0/unlist(lapply(l_delta_susc, function(x)
      R0_calc_SIRS(C_m,x,rho,n_inf)))) %>% relocate(par_id,.before=exp_dep); rm(l_delta_susc)
 # seas_conc_lim=0.85,npi_start=npi_dates[1],npi_stop=npi_dates[2],seas_start_wk=42,seas_stop_wk=8
@@ -142,26 +142,26 @@ partable_filename <- "partable_filtered_AR_seasconc.csv"; n_row <- nrow(read_csv
 # # write the file that will launch jobs
 command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,partable_filename,
                               "SAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
-# create run files by: # system(command_print_runs)
-# run calculation (this is for multiple cores) by moving sh files into main folder:
-# scp batch_run_files/batch*.sh .; scp batch_run_files/start_batches.sh .
-# and run (this is using qsub!): sh start_batches.sh
+# write file to run all simulations:
+write.table(paste0("# master start file \n#!/usr/bin/bash \n",command_print_runs,
+  "\nscp batch_run_files/start_batches.sh . \nscp batch_run_files/batch*.sh . \nmodule load R/3.6.3
+sh start_batches.sh \nrm batch*.sh \nrm start_batches.sh",collapse = "\n"),
+  file="master_start.sh",col.names=F,row.names=F,quote=F)
+# run calculation (this is for multiple cores) by `sh master_start.sh`
 # collect summary stat results:
-# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/parsets_filtered_1084/ summ_parsets* results_summ_all.csv keep &
+# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parsets_filtered_1084/ summ_parsets* results_summ_all.csv keep &
 ##########################################
 # To remove model parameterisations that exhibit irregular patterns (varying from one year to another),
 # need to calculate relative difference (see SI Methods) between 2018/19 and 19/20 season
 # in `start_batches_calc_interyear.sh` adjust the folder name that contains the files of the dynamic simulations
 # qsub start_batches_calc_interyear.sh
 # collect outputs of cumul difference between incidence rates:
-# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/ summ_diff_interyr* summ_diff_interyr.csv keep &
-
+# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/FOLDER/ summ_diff_interyr* summ_diff_interyr.csv keep &
 foldername <- "repo_data/"
 # Results in the repo_data/ folder
 summ_diff_interyr <- left_join(read_csv(paste0(foldername,"summ_diff_interyr.csv")) %>% 
       mutate(par_id_sort=as.numeric(factor(par_id))),rsv_age_groups %>% mutate(agegroup=row_number()) %>% 
         select(c(agegroup,stationary_popul)),by="agegroup") %>% mutate(attack_rate=cumul_mean_incid/stationary_popul)
-
 # SI Figure 3: CDF of interyear difference in incidence 
 # (only taking those infection types with at least 1% attack rate. Eg. 1st infections for adults are negligible, so inter-year differences 
 # in these small numbers we don't take into account)

@@ -1,7 +1,7 @@
 # nohup Rscript --vanilla --verbose my_script.R 1 5 1 5 &> nohup_1.out &
 arg_vals=as.numeric(commandArgs(trailingOnly=TRUE)[1:4])
 n_core=arg_vals[1]; n_row=arg_vals[2]; simul_dur=arg_vals[3]; post_npi=arg_vals[4]
-partable_filename <- commandArgs(trailingOnly=TRUE)[5]; # estim_attack_rate_filename <- commandArgs(trailingOnly=TRUE)[6]
+partable_filename <- commandArgs(trailingOnly=TRUE)[5]
 saveflag <- commandArgs(trailingOnly=TRUE)[6]; sep_flag<-commandArgs(trailingOnly=TRUE)[7]
 start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[8]
 memory_max <- commandArgs(trailingOnly=TRUE)[9]
@@ -24,10 +24,8 @@ if (grepl("sep",sep_flag)) {
   master_file <- unlist(lapply(1:length(full_strings), function(x_k)
     paste0("qsub -V -cwd -M lshmk17@lshtm.ac.uk -m ea -N batch",x_k," -l mem_free=1G,h_vmem=",memory_max,
            "G -q short.q batch",x_k,".sh",collapse="")))
-  write.table(paste0(master_file,collapse = "\n"),file="batch_run_files/start_batches.sh",
-              col.names=F,row.names=F,quote=F)
+  write.table(paste0(master_file,collapse = "\n"),file="batch_run_files/start_batches.sh",col.names=F,row.names=F,quote=F)
 } else {
 write.table(paste0(c("#!/bin/bash\n",paste0(paste0(command_list,collapse="")),"PID=$!","wait $PID",
-            "Rscript fcns/collect_save_fullruns.R"),collapse="\n\n"),file="run_all_parallel_scan.sh",
-            col.names=F,row.names=F,quote=F)
+  "Rscript fcns/collect_save_fullruns.R"),collapse="\n\n"),file="run_all_parallel_scan.sh",col.names=F,row.names=F,quote=F)
 }
