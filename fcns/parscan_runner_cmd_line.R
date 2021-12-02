@@ -1,5 +1,5 @@
 # CMD LINE input:
-# nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/parallel/initconds_all.csv
+# nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/initconds_all.csv
 # load constant parameters and functions
 source("load_params.R")
 # parameter table
@@ -35,9 +35,9 @@ partable <- partable[k_start_end[1]:k_start_end[2],] # %>% filter(R0_no!=1)
 # init conds
 init_cond_file_name <- commandArgs(trailingOnly=TRUE)[5]; init_conds <- read_csv(init_cond_file_name)
 serial_loop=TRUE
-summ_filename <- paste0("simul_output/parscan/parallel/summ_parsets_main",
+summ_filename <- paste0("simul_output/parscan/summ_parsets_main",
                         paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv")
-dyn_filename <- paste0("simul_output/parscan/parallel/dyn_parsets_main",
+dyn_filename <- paste0("simul_output/parscan/dyn_parsets_main",
                        paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv")
 # print("STARTING LOOP")
 all_sum_inf_epiyear_age <- data.frame(); df_cases_infs_all <- data.frame()
