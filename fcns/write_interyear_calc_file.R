@@ -13,7 +13,7 @@ master_file <- paste0(c("#!/bin/bash
 #$ -q short.q
 #$ -l mem_free=1G,h_vmem=",memory_max,"G
 #$ -t 1-",no_files,"\n",
-  rscript_command," ${SGE_TASK_ID} > ",foldername,"${SGE_TASK_ID}.out"),collapse="")
+  rscript_command," ${SGE_TASK_ID} > ",foldername,"nohup_${SGE_TASK_ID}.out"),collapse="")
   
 write.table(paste0(master_file,collapse = "\n"),file="start_batches_calc_interyear.sh",
             col.names=F,row.names=F,quote=F)
