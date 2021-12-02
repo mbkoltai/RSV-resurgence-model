@@ -15,6 +15,8 @@ start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[7]; print(paste0("SAVE outpu
 seas_conc_lim<-0.85 # unique(partable$seas_conc_lim)
 # SEASON LIMITS: we fix these for given RSV seasonality
 seas_start_wk <- 42; seas_stop_wk<-8; peak_week<-48
+# reduction in contact levels during NPIs
+contact_reduction <- 0.9
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
 # length of simulations
@@ -27,7 +29,6 @@ mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
               c("S","I","R"),11,3),fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # LOOP
-# nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/parallel/initconds_all.csv
 # tm<-proc.time()
 k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
 partable <- partable[k_start_end[1]:k_start_end[2],] # %>% filter(R0_no!=1)
@@ -64,7 +65,7 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # set length of simulation and seasonality
   l_seas<-fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
           season_width_wks=seasforc_width_wks,init_mt_day="06-01",peak_week,
-          forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=0.5)
+          forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=contact_reduction)
   g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas
   # if waning is a variable parameter
   if (any(colnames(partable) %in% "omega")){
@@ -106,21 +107,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
           seasforce_peak=partable$seasforce_peak[k_par],R0=partable$R0[k_par],omega=partable$omega[k_par],
           attack_rate_perc=round(100*inf_tot/final,1),seas_share=round(inf_in_seas/inf_tot,3)) %>% 
     relocate(c(inf_tot,inf_in_seas,max_incid_week,attack_rate_perc,seas_share),.after=omega)
-  # store parameters # list_delta_primary[[k_par]]=delta_primary
-  # store outputs: this step is not necessary, we can do it when extracting results
-  # sum_inf_epiyear_age <- left_join(sum_inf_epiyear_age %>%
-  #   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup])),estim_attack_rates,by="agegroup_name") %>% 
-  #   mutate(attack_rate_check=ifelse(attack_rate_perc>=min_est&attack_rate_perc<=max_est,T,F),
-  #          seas_share_check=ifelse(seas_share>seas_conc_lim,T,F))
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
   if (save_flag) {write_csv(df_cases_infs %>% select(!date),dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
 } # end loop
-
-# summary of simuls
-# write_csv(all_sum_inf_epiyear_age,summ_filename)
-# # dynamics
-# # par_id_vals=partable$par_id
-# if (save_flag) {
-# write_csv(df_cases_infs_all %>% select(!c(name,date)),dyn_filename )
-# }
