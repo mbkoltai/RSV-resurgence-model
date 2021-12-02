@@ -154,9 +154,10 @@ sh start_batches.sh \nrm batch*.sh \nrm start_batches.sh",collapse = "\n"),
 # To remove model parameterisations that exhibit irregular patterns (varying from one year to another),
 # need to calculate relative difference (see SI Methods) between 2018/19 and 19/20 season
 # to do this, run:
-FOLDERNAME <- "simul_output/parscan/parsets_filtered_1084_90pct_reduct/"; n_file<-64; mem_max<-4
-system(paste0(c("Rscript fcns/write_interyear_calc_file.R",FOLDERNAME,"2018-09-01","2018-10-01",n_file,mem_max),collapse=" "))
-              
+FOLDERNAME <- "simul_output/parscan/parsets_filtered_1084_90pct_red/"; n_file<-64; mem_max<-4; seas_calc_start<-"2018-10-01"
+command_interydiff_calc<-paste0(c("Rscript fcns/write_interyear_calc_file.R",FOLDERNAME,start_date_dyn_save,seas_calc_start,
+                                  n_file,mem_max),collapse=" ")
+system(command_interydiff_calc)
 # qsub start_batches_calc_interyear.sh
 # collect outputs of cumul difference between incidence rates:
 # nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/FOLDER/ summ_diff_interyr* summ_diff_interyr.csv keep &
