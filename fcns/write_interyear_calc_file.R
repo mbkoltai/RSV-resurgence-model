@@ -7,7 +7,7 @@
 #                                           42 9 (5-6)
 #                                           64 4" (7-8)
 foldername <- commandArgs(trailingOnly=TRUE)[1]
-rscript_command <- paste0(c("Rscript fcns/calc_interyear_diff.R ",foldername,
+rscript_command <- paste0(c("Rscript fcns/calc_interyear_diff.R",foldername,
         commandArgs(trailingOnly=TRUE)[2],commandArgs(trailingOnly=TRUE)[3],commandArgs(trailingOnly=TRUE)[4],
         commandArgs(trailingOnly=TRUE)[5],commandArgs(trailingOnly=TRUE)[6]),collapse=" ")
 no_files <- as.numeric(commandArgs(trailingOnly=TRUE)[7])
