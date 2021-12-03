@@ -4,7 +4,7 @@ library(lubridate); library(dplyr)
 # Load all packages    
 lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
 foldername<-commandArgs(trailingOnly=TRUE)[1]; print("FOLDERNAME: "); print(foldername)
-file_list <- list.files(path=foldername,pattern="dyn_parsets*")
+file_list <- list.files(path=foldername,pattern="dyn_parsets*"); print(file_list)
 start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[2]
 yday_start_end<-yday(as.Date(commandArgs(trailingOnly=TRUE)[3])); print("start of season calc"); print(yday_start_end)
 
