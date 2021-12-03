@@ -1,11 +1,17 @@
 # write file for checking interyear difference
 
-# Rscript fcns/calc_interyear_diff.R simul_output/parscan/parallel/parsets_filtered_1084_35y/ 2018-09-01 2018-10-01
+# "Rscript fcns/write_interyear_calc_file.R simul_output/parscan/parsets_filtered_1084_90pct_red/  (1)
+#                                           2018-09-01 (2)
+#                                           2018-10-10 (3)
+#                                           2020-03-15 (4)
+#                                           42 9 (5-6)
+#                                           64 4" (7-8)
 foldername <- commandArgs(trailingOnly=TRUE)[1]
-rscript_command <- paste0("Rscript fcns/calc_interyear_diff.R ",foldername," ", # nohup
-                    commandArgs(trailingOnly=TRUE)[2]," ",commandArgs(trailingOnly=TRUE)[3])
-no_files <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
-memory_max <- as.numeric(commandArgs(trailingOnly=TRUE)[5])
+rscript_command <- paste0(c("Rscript fcns/calc_interyear_diff.R ",foldername,
+        commandArgs(trailingOnly=TRUE)[2],commandArgs(trailingOnly=TRUE)[3],commandArgs(trailingOnly=TRUE)[4],
+        commandArgs(trailingOnly=TRUE)[5],commandArgs(trailingOnly=TRUE)[6]),collapse=" ")
+no_files <- as.numeric(commandArgs(trailingOnly=TRUE)[7])
+memory_max <- as.numeric(commandArgs(trailingOnly=TRUE)[8])
 
 master_file <- paste0(c("#!/bin/bash
 #$ -N ARRAY_TEST_JOB
