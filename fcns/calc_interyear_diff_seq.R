@@ -15,6 +15,7 @@ print("starting loop")
 # k_file <- as.numeric(commandArgs(trailingOnly=TRUE)[7]); print(file_list[k_file])
 for (k_file in 1:length(file_list)){
 dyn_df <- read_csv(paste0(foldername,file_list[k_file])); 
+cntr=0
 for (k_par in unique(dyn_df$par_id)) {
   x <- dyn_df %>% filter(par_id==k_par) %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
     # usual limits of calc: "2018-10-10" | "2020-03-15"

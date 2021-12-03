@@ -152,20 +152,20 @@ sh start_batches.sh \nrm batch*.sh \nrm start_batches.sh",collapse = "\n"),
 # nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parsets_filtered_1084/ summ_parsets* results_summ_all.csv keep &
 ##########################################
 # To remove model parameterisations that exhibit irregular patterns (varying from one year to another),
-# need to calculate relative difference (see SI Methods) between 2018/19 and 19/20 season
-# to do this, run:
+# need to calculate relative difference (see SI Methods) between 2018/19 and 19/20 season, to do this, run:
 FOLDERNAME <- "simul_output/parscan/parsets_filtered_1084_90pct_red/"; n_file<-64; mem_max<-4; 
 start_date_calc<-"2018-10-10"; stop_date_calc<-"2020-03-15"; start_week<-42; stop_week<-9
-command_interydiff_calc<-paste0(c("Rscript fcns/write_interyear_calc_file.R",FOLDERNAME,start_date_dyn_save,
-                                  start_date_calc,stop_date_calc,start_week,stop_week,n_file,mem_max),collapse=" ")
+# command_interydiff_calc<-paste0(c("Rscript fcns/write_interyear_calc_file.R",FOLDERNAME,start_date_dyn_save,
+#                                   start_date_calc,stop_date_calc,start_week,stop_week,n_file,mem_max),collapse=" ")
+command_interydiff_calc<-paste0(c("Rscript fcns/fcns/calc_interyear_diff_seq.R",FOLDERNAME,start_date_dyn_save,
+                                  start_date_calc,stop_date_calc,start_week,stop_week),collapse=" ")
 system(command_interydiff_calc)
-# RUN calculation (on a cluster) by: 
-# `qsub start_batches_calc_interyear.sh`
 # collect outputs of cumul difference between incidence rates:
-# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/FOLDER/ summ_diff_interyr* summ_diff_interyr.csv keep &
+system(paste0(c("Rscript fcns/collect_save_any_output.R",FOLDERNAME,
+                              "summ_diff_interyr* summ_diff_interyr_all.csv"),collapse=" "))
 foldername <- "repo_data/"
 # Results in the repo_data/ folder
-summ_diff_interyr <- left_join(read_csv(paste0(foldername,"summ_diff_interyr.csv")) %>% 
+summ_diff_interyr <- left_join(read_csv(paste0(foldername,"summ_diff_interyr_all.csv")) %>% 
       mutate(par_id_sort=as.numeric(factor(par_id))),rsv_age_groups %>% mutate(agegroup=row_number()) %>% 
         select(c(agegroup,stationary_popul)),by="agegroup") %>% mutate(attack_rate=cumul_mean_incid/stationary_popul)
 # SI Figure 3: CDF of interyear difference in incidence 
