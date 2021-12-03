@@ -159,7 +159,8 @@ start_date_calc<-"2018-10-10"; stop_date_calc<-"2020-03-15"; start_week<-42; sto
 command_interydiff_calc<-paste0(c("Rscript fcns/write_interyear_calc_file.R",FOLDERNAME,start_date_dyn_save,
                                   start_date_calc,stop_date_calc,start_week,stop_week,n_file,mem_max),collapse=" ")
 system(command_interydiff_calc)
-# RUN calculation by: `qsub start_batches_calc_interyear.sh`
+# RUN calculation (on a cluster) by: 
+# `qsub start_batches_calc_interyear.sh`
 # collect outputs of cumul difference between incidence rates:
 # nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/FOLDER/ summ_diff_interyr* summ_diff_interyr.csv keep &
 foldername <- "repo_data/"
