@@ -1,10 +1,10 @@
 # CMD LINE input:
 # nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/initconds_all.csv
-k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
 # load constant parameters and functions
 source("load_params.R")
 ### ###
 print("# cmd line arguments:"); print(length(commandArgs(trailingOnly=TRUE)))
+k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
 ### ###
 # length of simulations
 simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); post_npi_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[4])
