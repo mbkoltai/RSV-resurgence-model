@@ -110,7 +110,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
            seasforc_width_wks=seasforc_width_wks,seasforce_peak=partable$seasforce_peak[k_par],
            R0=partable$R0[k_par],omega=partable$omega[k_par],attack_rate_perc=round(100*inf_tot/final,1),
            seas_share=round(inf_in_seas/inf_tot,3)) %>% 
-    relocate(c(inf_tot,inf_in_seas,max_incid_week,attack_rate_perc,seas_share),.after=omega)
+    relocate(c(inf_tot,inf_in_seas,peak_inf,max_incid_week,attack_rate_perc,seas_share),.after=omega)
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
   if (save_flag) {write_csv(df_cases_infs %>% select(!date),dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
