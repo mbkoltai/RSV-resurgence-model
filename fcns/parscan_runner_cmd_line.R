@@ -4,9 +4,11 @@ k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("
 partable <- partable[k_start_end[1]:k_start_end[2],]
 # load constant parameters and functions
 source("load_params.R")
+### ###
+print("# cmd line arguments:") print(length(commandArgs(trailingOnly=TRUE)))
+### ###
 # length of simulations
-simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3])
-post_npi_yr <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
+simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); post_npi_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[4])
 # reduction in contact levels during NPIs
 contact_reduction <- commandArgs(trailingOnly=TRUE)[5] # 0.9=90%
 # parameter table
