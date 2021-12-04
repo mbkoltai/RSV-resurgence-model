@@ -1,7 +1,6 @@
 # CMD LINE input:
 # nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/initconds_all.csv
 k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
-partable <- partable[k_start_end[1]:k_start_end[2],]
 # load constant parameters and functions
 source("load_params.R")
 ### ###
@@ -13,7 +12,7 @@ simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); post_npi_yr<-as.
 contact_reduction <- commandArgs(trailingOnly=TRUE)[5] # 0.9=90%
 # parameter table
 partable_file_name<-commandArgs(trailingOnly=TRUE)[6]; print(partable_file_name)
-partable<-read_csv(partable_file_name)
+partable <- read_csv(partable_file_name)[k_start_end[1]:k_start_end[2],]
 # estimated attack rates
 # estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
 save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
