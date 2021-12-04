@@ -15,6 +15,7 @@ data/nature_plot_covid_npi_resp_virus.jpeg
 manuscript/
 other_models/
 old/
+repo_data/90pct_red/
 simul_output/
 # simul_output/parscan/parallel/*.csv
 # simul_output/parscan/parallel/*/*.csv
