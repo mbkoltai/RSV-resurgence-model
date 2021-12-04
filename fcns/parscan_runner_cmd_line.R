@@ -36,8 +36,6 @@ month_day_epiyear_start <- "07-01"
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # LOOP
 # tm<-proc.time()
-# init conds
-init_cond_file_name <- commandArgs(trailingOnly=TRUE)[5]; init_conds <- read_csv(init_cond_file_name)
 serial_loop=TRUE
 summ_filename <- paste0("simul_output/parscan/summ_parsets_main",
                         paste0(k_start_end[c(1,length(k_start_end))],collapse="_"),".csv")
@@ -54,13 +52,11 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   const_delta <- partable$const_delta[k_par]; delta_primary <- const_delta*exp(-exp_dep*(1:3)) # 1.24
   delta_susc <- sapply(1:n_age, function(x) {delta_primary/(exp(age_dep*x))})
   # manual adjusting of parameters to get 'right' attack rates?
-  # delta_susc[1,1]<-delta_susc[1,1]/16; delta_susc[3,7:ncol(delta_susc)] <- delta_susc[3,7:ncol(delta_susc)]*1.4; print(delta_susc)
   # width of season (from peak)
   seasforc_width_wks<-partable$seasforc_width_wks[k_par]
   # NPI dates
   npi_dates=as.Date(c("2020-03-26","2021-05-17"))
   # set initial conds
-  # initvals_sirs_model <- t(t(((init_conds %>% filter(dep_type==partable$dep_type[k_par] & R0==partable$R0[k_par]))[,1])))
   initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
           init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="")
   print(format(Sys.time(),"%Y/%b/%d | %X"))
