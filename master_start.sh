@@ -6,5 +6,5 @@ module load R/3.6.3
 sh start_batches.sh
 rm start_batches.sh
 rm batch*.sh
-rm batch*.*e
-rm batch*.*o
+rm batch*.e*
+rm batch*.o*
