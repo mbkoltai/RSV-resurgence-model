@@ -4,7 +4,7 @@ k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("
 # load constant parameters and functions
 source("load_params.R")
 ### ###
-print("# cmd line arguments:") print(length(commandArgs(trailingOnly=TRUE)))
+print("# cmd line arguments:"); print(length(commandArgs(trailingOnly=TRUE)))
 ### ###
 # length of simulations
 simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); post_npi_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[4])
