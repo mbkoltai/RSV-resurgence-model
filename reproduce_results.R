@@ -55,17 +55,16 @@ ggplot(age_exp_dep_uniqvals %>% filter(exp_dep %in% seq(1/4,2,3/4) & age_dep %in
 # `start_date_dyn_save` will define the timepoint from which to save simulation outputs
 # `simul_length_yr` is the length of simulations (in years), `n_post_npi_yr` is the number of years after the NPIs
 # `n_core`: number of cores used, `memory_max`: allocated memory (GB);start_date_dyn_save: date to save results from
-# simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01" 
+simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01"
 # # this is the 1255 parameters selected based on the criteria of 1) attack rates 2) seasonal concentration of cases
-# partable_filename <- "repo_data/partable_full.csv"; n_row <- nrow(read_csv(partable_filename))
-# # we will split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
-# # write the file that will launch jobs
-# command_print_runs<-paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,
-#   partable_filename,"NOSAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
+partable_filename <- "repo_data/partable_full.csv"; n_row <- nrow(read_csv(partable_filename))
+# # we split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
+# # write the files launching jobs
+command_print_runs <- paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,
+   partable_filename,"NOSAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
 # run this command by:
 # system(command_print_runs)
-# run calculation (this is for multiple cores) by:
-# `start_batches.sh` in the folder `batch_run_files/` (currently needs to be moved to main folder and run from there)
+# run calculation (on a cluster, requires multiple cores) by: `sh master_start.sh`
 # collect & merge results by:
 # summary statistics:
 # nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/ summ_parsets* results_summ_all.csv keep &
@@ -770,12 +769,13 @@ p_cumul_peak_summ <- ggplot(cumul_peak_meanage_hosp_byvalue %>% mutate(epi_year=
   geom_interval(aes(group=parname,xmin=min_val,xmax=max_val,color=factor(parname)),
                 position=position_dodge(width=dodge_val),size=10) +
   geom_vpline(aes(group=parname),position=position_dodge(width=dodge_val),color="black",size=0.9,height=0.2) + # 
-  facet_grid(~varname,scales = "free_x") + # agegroup_broad
-  geom_hline(yintercept=(0:4)+1/2,size=1/2) + geom_vline(xintercept=1,size=1/2,linetype="dashed") + 
-  scale_x_log10(breaks=c(0.3,0.5,0.75,1,1.5,2,3)) + scale_y_discrete(expand=expansion(0,0)) + theme_bw() +standard_theme+
-  theme(strip.text=element_text(size=18),axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),
-        legend.text=element_text(size=17),legend.position="top",axis.title.x=element_text(size=16)) + 
-  xlab("relative hospitalisation risk compared to pre-pandemic years") + ylab("") + labs(color=""); p_cumul_peak_summ
+  facet_grid(~varname,scales = "free_x") + geom_hline(yintercept=(0:4)+1/2,size=1/2) + 
+  geom_vline(xintercept=1,size=1/2,linetype="dashed") + 
+  scale_x_log10(breaks=c(0.3,0.5,0.75,1,1.5,2,3)) + scale_y_discrete(expand=expansion(0,0)) + 
+  theme_bw() + standard_theme + theme(strip.text=element_text(size=18),axis.text.x=element_text(size=16),
+    axis.text.y=element_text(size=16),legend.text=element_text(size=17),legend.position="top",
+    axis.title.x=element_text(size=16)) + xlab("relative hospitalisation risk compared to pre-pandemic years") +
+  ylab("") + labs(color=""); p_cumul_peak_summ
 # SAVE
 subfldr_name<-paste0(foldername,"median_interquant_by_param_value/summary_range/")
 if (!dir.exists(subfldr_name)) {dir.create(subfldr_name)}
@@ -828,10 +828,9 @@ summ_dyn_all_parsets_broad_age <- left_join(dyn_all_parsets_broad_age,
          value=round(value,1),value_norm=round(value_norm,3))
 
 ##############################################################
-# Plot dynamics faceted by the age vs immunity dependence of susceptibility (Figure 5)
+# Plot dynamics faceted by the age vs immunity dependence of susceptibility (Figure 2)
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# normalise time wrt peak week pre-NPI
+# normalise time wrt peak week pre-NPI 
 summ_dyn_all_parsets_norm_time <- summ_dyn_all_parsets_broad_age %>% filter(varname %in% "incid_hosp") %>% 
   group_by(agegroup_broad,parname,parvalue) %>% mutate(max_val=max(value[(epi_year %in% 2019) & 
       (metric %in% "median")])) %>% group_by(agegroup_broad,parname,parvalue,epi_year) %>% 
