@@ -20,10 +20,10 @@ l_delta_susc <- lapply(1:nrow(partable), function(n_p) {sapply(1:n_age,
                          function(x) {(1*exp(-partable$exp_dep[n_p]*(1:3)))/(exp(partable$age_dep[n_p]*x))})} ) 
 partable <- partable %>% mutate(par_id=row_number(), const_delta=R0/unlist(lapply(l_delta_susc, function(x)
      R0_calc_SIRS(C_m,x,rho,n_inf)))) %>% relocate(par_id,.before=exp_dep); rm(l_delta_susc)
-# seas_conc_lim=0.85,npi_start=npi_dates[1],npi_stop=npi_dates[2],seas_start_wk=42,seas_stop_wk=8
 # filtering param sets: selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
-# partable <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>% 
-# select(!age_dep_fit)
+partable_full_linear_kage_kexp <- partable %>%
+          mutate(age_dep_fit=5/6-exp_dep/3) %>% filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>% select(!age_dep_fit)
+# write_csv(partable_full_linear_kage_kexp,"repo_data/partable_full_linear_kage_kexp.csv")
 # check the size (>x Mb) of objects you have in the workspace by `fcn_objs_mem_use(min_size=1)`
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # load hospitalisation data: `hosp_probabilities` contains hospitalisation/infection probabilities to 
