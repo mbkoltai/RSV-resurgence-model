@@ -1,7 +1,12 @@
 # CMD LINE input:
 # nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/initconds_all.csv
+k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
+partable <- partable[k_start_end[1]:k_start_end[2],]
 # load constant parameters and functions
 source("load_params.R")
+# length of simulations
+simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3])
+post_npi_yr <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
 # reduction in contact levels during NPIs
 contact_reduction <- commandArgs(trailingOnly=TRUE)[5] # 0.9=90%
 # parameter table
@@ -19,9 +24,6 @@ seas_conc_lim<-0.85 # unique(partable$seas_conc_lim)
 seas_start_wk <- 42; seas_stop_wk<-9; peak_week<-48
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
-# length of simulations
-simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3])
-post_npi_yr <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
 # when does an epi_year start?
 month_day_epiyear_start <- "07-01"
 ### ### ### ### ### ### ### ###
@@ -33,8 +35,6 @@ month_day_epiyear_start <- "07-01"
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # LOOP
 # tm<-proc.time()
-k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
-partable <- partable[k_start_end[1]:k_start_end[2],] # %>% filter(R0_no!=1)
 # init conds
 init_cond_file_name <- commandArgs(trailingOnly=TRUE)[5]; init_conds <- read_csv(init_cond_file_name)
 serial_loop=TRUE
