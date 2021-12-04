@@ -9,7 +9,7 @@ k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("
 # length of simulations
 simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); post_npi_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[4])
 # reduction in contact levels during NPIs
-contact_reduction <- commandArgs(trailingOnly=TRUE)[5] # 0.9=90%
+contact_reduction <- as.numeric(commandArgs(trailingOnly=TRUE)[5]) # 0.9=90%
 # parameter table
 partable_file_name<-commandArgs(trailingOnly=TRUE)[6]; print(partable_file_name)
 partable <- read_csv(partable_file_name)[k_start_end[1]:k_start_end[2],]
@@ -19,8 +19,6 @@ save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailing
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
 start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
-# % cases within season (filtering parameter sets)
-seas_conc_lim<-0.85 # unique(partable$seas_conc_lim)
 # SEASON LIMITS: we fix these for given RSV seasonality
 seas_start_wk <- 42; seas_stop_wk<-9; peak_week<-48
 # save the stat sol of all param sets
