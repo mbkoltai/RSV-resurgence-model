@@ -55,19 +55,19 @@ ggplot(age_exp_dep_uniqvals %>% filter(exp_dep %in% seq(1/4,2,3/4) & age_dep %in
 # `start_date_dyn_save` will define the timepoint from which to save simulation outputs
 # `simul_length_yr` is the length of simulations (in years), `n_post_npi_yr` is the number of years after the NPIs
 # `n_core`: number of cores used, `memory_max`: allocated memory (GB);start_date_dyn_save: date to save results from
-simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max <- 8; start_date_dyn_save <- "2018-09-01"
+simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max<-8; start_date_dyn_save <- "2018-09-01"; contact_red<-0.5
 # # this is the 1255 parameters selected based on the criteria of 1) attack rates 2) seasonal concentration of cases
 partable_filename <- "repo_data/partable_full.csv"; n_row <- nrow(read_csv(partable_filename))
 # # we split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
 # # write the files launching jobs
-command_print_runs <- paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,
+command_print_runs <- paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,simul_length_yr,n_post_npi_yr,contact_red,
    partable_filename,"NOSAVE sep_qsub_files",start_date_dyn_save,memory_max),collapse=" ")
 # run this command by:
 # system(command_print_runs)
 # run calculation (on a cluster, requires multiple cores) by: `sh master_start.sh`
 # collect & merge results by:
 # summary statistics:
-# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/parallel/ summ_parsets* results_summ_all.csv keep &
+# nohup Rscript fcns/collect_save_any_output.R simul_output/parscan/ summ_parsets* results_summ_all.csv keep &
 ####################################
 # Calculations work by the file "fcns/parscan_runner_cmd_line.R" receiving command line arguments from 
 # the parameter table and calling the 

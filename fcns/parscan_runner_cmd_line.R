@@ -2,21 +2,21 @@
 # nohup Rscript --vanilla parscan_runner_cmd_line.R 62 91 6 3 simul_output/parscan/initconds_all.csv
 # load constant parameters and functions
 source("load_params.R")
+# reduction in contact levels during NPIs
+contact_reduction <- commandArgs(trailingOnly=TRUE)[5] # 0.9=90%
 # parameter table
-partable_file_name<-commandArgs(trailingOnly=TRUE)[5]; print(partable_file_name)
+partable_file_name<-commandArgs(trailingOnly=TRUE)[6]; print(partable_file_name)
 partable<-read_csv(partable_file_name)
 # estimated attack rates
 # estim_attack_rates <- read_csv(commandArgs(trailingOnly=TRUE)[6])
-save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[6]),FALSE,TRUE)
+save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
-start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[7]; print(paste0("SAVE output from: ",start_date_dyn_save))
+start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
 # % cases within season (filtering parameter sets)
 seas_conc_lim<-0.85 # unique(partable$seas_conc_lim)
 # SEASON LIMITS: we fix these for given RSV seasonality
-seas_start_wk <- 42; seas_stop_wk<-8; peak_week<-48
-# reduction in contact levels during NPIs
-contact_reduction <- 0.9
+seas_start_wk <- 42; seas_stop_wk<-9; peak_week<-48
 # save the stat sol of all param sets
 stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partable))
 # length of simulations
@@ -60,9 +60,8 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   npi_dates=as.Date(c("2020-03-26","2021-05-17"))
   # set initial conds
   # initvals_sirs_model <- t(t(((init_conds %>% filter(dep_type==partable$dep_type[k_par] & R0==partable$R0[k_par]))[,1])))
-  initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,
-                            init_set=c("previous","fromscratch")[2],init_cond_src=c("output","file")[1],
-                            NA,init_seed=10,seed_vars="all",filename="") # ode_solution[1:(ncol(ode_solution)-1),]
+  initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
+          init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="")
   print(format(Sys.time(),"%Y/%b/%d | %X"))
   print(paste0("PARSET: ",partable$par_id[k_par], "(",k_par,")")) # print("LOAD INITVALS")
   # set length of simulation and seasonality
