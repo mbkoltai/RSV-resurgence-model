@@ -30,3 +30,6 @@ for (k_par in unique(dyn_df$par_id)) {
   write_csv(x,paste0(foldername,"summ_diff_interyr",k_file,".csv"),append=ifelse(k_par==unique(dyn_df$par_id)[1],F,T))
 }
 }
+
+write_csv(bind_rows(lapply(list.files(path=foldername,pattern="summ_diff_interyr"),
+              function(x) read_csv(paste0(parall_foldername,x)))),file=paste0(foldername,"summ_diff_interyr_all.csv"))

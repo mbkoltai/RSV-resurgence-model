@@ -22,11 +22,14 @@ stat_sol_allparsets=matrix(0,nrow=(n_compartment+1)*n_age*n_inf,ncol=nrow(partab
 # length of simulations
 simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3])
 post_npi_yr <- as.numeric(commandArgs(trailingOnly=TRUE)[4])
+# when does an epi_year start?
+month_day_epiyear_start <- "07-01"
+### ### ### ### ### ### ### ###
 # agegroup indices for maternal immunity
-mat_imm_flag <- TRUE
-mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
-                   fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",
-              c("S","I","R"),11,3),fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
+# mat_imm_flag <- TRUE
+# mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),11,3),
+#                    fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",
+#               c("S","I","R"),11,3),fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3))
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # LOOP
 # tm<-proc.time()
@@ -98,14 +101,15 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   # calc attack rates
   # print(paste0("season start: ",partable$seas_start_wk[k_par]))
   sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
-   epi_year=ifelse(date>ymd(paste(year(date),"-07-01")),year(date),year(date)-1),
+   epi_year=ifelse(date>ymd(paste0(year(date),month_day_epiyear_start)),year(date),year(date)-1),
    in_out_season=ifelse(week(date)>=seas_start_wk|week(date)<=seas_stop_wk,"in","out")) %>% group_by(epi_year,agegroup) %>% 
      summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
-        max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% group_by(agegroup) %>% 
-      filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% mutate(par_id=partable$par_id[k_par],
-          exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],seasforc_width_wks=seasforc_width_wks,
-          seasforce_peak=partable$seasforce_peak[k_par],R0=partable$R0[k_par],omega=partable$omega[k_par],
-          attack_rate_perc=round(100*inf_tot/final,1),seas_share=round(inf_in_seas/inf_tot,3)) %>% 
+               peak_inf=round(max(value,na.rm=T)),max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% 
+     group_by(agegroup) %>% filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% 
+    mutate(par_id=partable$par_id[k_par],exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],
+           seasforc_width_wks=seasforc_width_wks,seasforce_peak=partable$seasforce_peak[k_par],
+           R0=partable$R0[k_par],omega=partable$omega[k_par],attack_rate_perc=round(100*inf_tot/final,1),
+           seas_share=round(inf_in_seas/inf_tot,3)) %>% 
     relocate(c(inf_tot,inf_in_seas,max_incid_week,attack_rate_perc,seas_share),.after=omega)
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
