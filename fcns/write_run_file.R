@@ -5,13 +5,14 @@ n_core=arg_vals[1]; n_row=arg_vals[2]; simul_dur=arg_vals[3]; post_npi=arg_vals[
 contact_red<-commandArgs(trailingOnly=TRUE)[5]
 partable_filename <- commandArgs(trailingOnly=TRUE)[6]
 saveflag <- commandArgs(trailingOnly=TRUE)[7]; sep_flag<-commandArgs(trailingOnly=TRUE)[8]
-start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[9]
-memory_max <- commandArgs(trailingOnly=TRUE)[10]
+start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[9]; agegroup_res<-commandArgs(trailingOnly=TRUE)[10]
+memory_max <- commandArgs(trailingOnly=TRUE)[11]
 parscan_split <- lapply(1:n_core,function(x) matrix(sort(c(round(seq(1,n_row,length.out=n_core+1)),
                                 round(seq(1,n_row,length.out=n_core+1))[2:n_core]+1)),nrow=2)[,x])
 command_list <- unlist(lapply(1:n_core, # "#!/bin/bash\n",
   function(x) paste0("nohup Rscript --vanilla fcns/parscan_runner_cmd_line.R ",
- paste0(c(parscan_split[[x]],simul_dur,post_npi,contact_red,partable_filename,saveflag,start_date_dyn_save),collapse=" "),
+ paste0(c(parscan_split[[x]],simul_dur,post_npi,contact_red,partable_filename,saveflag,
+          start_date_dyn_save,agegroup_res),collapse=" "),
  " > simul_output/parscan/nohup_",x,".out",ifelse(x<n_core," & \n",""),collapse="") ))
 
 if (grepl("sep",sep_flag)) {

@@ -19,6 +19,7 @@ save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailing
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
 start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
+agegroup_res<-commandArgs(trailingOnly=TRUE)[9]
 # SEASON LIMITS: we fix these for given RSV seasonality
 seas_start_wk <- 42; seas_stop_wk<-9; peak_week<-48
 # save the stat sol of all param sets
@@ -94,17 +95,25 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     function(x_sum) sum(stat_sol_allparsets[1:(n_age*n_inf*n_compartment),k_par][x_sum])))))
   # calc attack rates
   # print(paste0("season start: ",partable$seas_start_wk[k_par]))
-  sum_inf_epiyear_age <- left_join(df_cases_infs %>% mutate(year=year(date),
-   epi_year=ifelse(date>ymd(paste0(year(date),month_day_epiyear_start)),year(date),year(date)-1),
+  
+  if (grepl("broad|BROAD",agegroup_res)) {
+    df_cases_infs <- df_cases_infs %>% mutate(agegroup_broad=findInterval(agegroup,c(2,4,7)+1)+1) %>% 
+      group_by(t,agegroup_broad,par_id) %>% summarise(value=sum(value)) %>% rename(agegroup=agegroup_broad)
+    final_pop <- final_pop %>% mutate(agegroup_broad=findInterval(agegroup,c(2,4,7)+1)+1) %>% 
+      group_by(agegroup_broad) %>% summarise(final=sum(final)) %>% rename(agegroup=agegroup_broad) }
+  sum_inf_epiyear_age <- left_join(df_cases_infs %>%
+    mutate(year=year(date),epi_year=ifelse(date>ymd(paste0(year(date),month_day_epiyear_start)),year(date),year(date)-1),
    in_out_season=ifelse(week(date)>=seas_start_wk|week(date)<=seas_stop_wk,"in","out")) %>% group_by(epi_year,agegroup) %>% 
-     summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
+     # summing 1st, 2nd, 3rd infections
+      summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
                peak_inf=round(max(value,na.rm=T)),max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% 
-     group_by(agegroup) %>% filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>% 
+     group_by(agegroup) %>% filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>%  # 
     mutate(par_id=partable$par_id[k_par],exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],
            seasforc_width_wks=seasforc_width_wks,seasforce_peak=partable$seasforce_peak[k_par],
            R0=partable$R0[k_par],omega=partable$omega[k_par],attack_rate_perc=round(100*inf_tot/final,1),
            seas_share=round(inf_in_seas/inf_tot,3)) %>% 
-    relocate(c(inf_tot,inf_in_seas,peak_inf,max_incid_week,attack_rate_perc,seas_share),.after=omega)
+    relocate(c(inf_tot,inf_in_seas,peak_inf,max_incid_week,attack_rate_perc,seas_share),.after=omega) %>%
+    relocate(par_id,.before=epi_year)
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
   if (save_flag) {write_csv(df_cases_infs %>% select(!date),dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
