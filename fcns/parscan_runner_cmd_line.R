@@ -98,7 +98,7 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
   
   if (grepl("broad|BROAD",agegroup_res)) {
     df_cases_infs <- df_cases_infs %>% mutate(agegroup_broad=findInterval(agegroup,c(2,4,7)+1)+1) %>% 
-      group_by(t,agegroup_broad,par_id) %>% summarise(value=sum(value)) %>% rename(agegroup=agegroup_broad)
+      group_by(t,agegroup_broad,par_id,date) %>% summarise(value=sum(value)) %>% rename(agegroup=agegroup_broad)
     final_pop <- final_pop %>% mutate(agegroup_broad=findInterval(agegroup,c(2,4,7)+1)+1) %>% 
       group_by(agegroup_broad) %>% summarise(final=sum(final)) %>% rename(agegroup=agegroup_broad) }
   sum_inf_epiyear_age <- left_join(df_cases_infs %>%
