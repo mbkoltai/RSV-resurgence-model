@@ -701,10 +701,9 @@ for (k_plot_var in 1:length(sel_vars)) {
 # install.packages("googledrive"); library(googledrive)
 # drive_download(as_id("12ohuGEPrVnOxazXnxEGZGwJIwj16frCc"),path=paste0(foldername,"/dyn.zip"))
 # and unzip:
-# unzip(temp,exdir=foldername); 
-dyn_folder <- "simul_output/parscan/parsets_filtered_1084_50pct_red/"
+unzip(zipfile=paste0(foldername,"dyn_all_parsets_broad_age.zip"),exdir=paste0(foldername))
 # LOAD dynamics of simulations
-dyn_all_parsets_broad_age <- read_csv("simul_output/parscan/parsets_filtered_1084_50pct_red/dyn_all_parsets_broad_age.csv")
+dyn_all_parsets_broad_age <- read_csv(paste0(foldername,"dyn_all_parsets_broad_age.csv"))
 
 ##############################################################
 # plot pre-pandemic dynamics for all parameter sets (Figure 1): all age groups <5y, compare to data
