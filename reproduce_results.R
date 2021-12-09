@@ -41,7 +41,7 @@ partable_full_linear_kage_kexp <- partable %>%
 # SAVE filtered parameter table
 # write_csv(partable_full_linear_kage_kexp,"repo_data/partable_full_linear_kage_kexp.csv")
 # check the size of objects (>x Mb) you have in the workspace by: fcn_objs_mem_use(min_size=1)
-# start of simulations in output data
+# start date of simulations
 start_date_dyn_save <- "2016-09-01"
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # load hospitalisation data: `hosp_probabilities` contains hospitalisation/infection probabilities to 
@@ -225,8 +225,8 @@ ggplot(right_join(summ_diff_interyr,
   facet_wrap(~agegroup,nrow=2,labeller=labeller(agegroup=label_both)) + 
   geom_vline(xintercept=2/10,linetype="dashed",size=1/2) +
   scale_x_log10() +
-  standard_theme + xlab("relative difference in incidence") + ylab("CDF") + labs(color="# infection")+
-  theme_bw() + theme(legend.position="top",strip.text=element_text(size=14),
+  xlab("relative difference in incidence") + ylab("CDF") + labs(color="# infection")+
+  theme_bw() + standard_theme + theme(legend.position="top",strip.text=element_text(size=14),
         legend.title=element_text(size=15),legend.text=element_text(size=14),
         axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
         axis.title.x=element_text(size=16))
@@ -439,6 +439,7 @@ median_parset <- results_summ_all_fullscan %>% ungroup() %>%
 # calculate the values at the min and max of the parameter that is varied
 # take median parameter set, calculate the range in ONE parameter, 
 # for ALL param sets and for the selected parsets
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 for (k in 1:ncol(median_parset)){ if (k==1) {
   output_ranges_full_scan<-data.frame(); mean_age_shift_ranges<-data.frame()}
   # all parameterisations
@@ -494,9 +495,14 @@ for (k in 1:ncol(median_parset)){ if (k==1) {
     output_ranges_full_scan <- output_ranges_full_scan %>% 
                                   relocate(c(scan_param,range,vartype),.after=epi_year) }
 }
-
+### END OF LOOP
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT
-if (!any(grepl("tidybayes",row.names(installed.packages())))) {install.packages("tidybayes")}; library(tidybayes)
+# load tidybayes library
+if (!any(grepl("tidybayes",row.names(installed.packages())))) {
+  install.packages("tidybayes")}; library(tidybayes)
+# 
 df_plot_fullrange <- output_ranges_full_scan %>%
                         mutate(
                           scan_param=case_when(
@@ -523,10 +529,11 @@ ggplot() +
   geom_vline(xintercept=1,size=1/2,linetype="dashed") + 
   guides(color=guide_legend(nrow=2,byrow=TRUE)) +
   scale_x_log10(breaks=c(0.3,0.5,0.75,1,1.5,2,3,5,10)) + scale_y_discrete(expand=expansion(0,0)) + 
-  theme_bw() + standard_theme + theme(strip.text=element_text(size=18),axis.text.x=element_text(size=16),
-        axis.text.y=element_text(size=16),legend.text=element_text(size=16),legend.position="top",
-        axis.title.x=element_text(size=16)) + 
-  xlab("relative hospitalisation risk compared to pre-pandemic years") + ylab("") + labs(color="")
+  xlab("relative hospitalisation risk compared to pre-pandemic years") + ylab("") + labs(color="") +
+  theme_bw() + standard_theme + theme(strip.text=element_text(size=18),
+        axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),
+        legend.text=element_text(size=16),legend.position="top",axis.title.x=element_text(size=16))
+  
 # save
 # subfldr_name<-here::here(foldername,"median_interquant_by_param_value/summary_range/")
 # if (!dir.exists(subfldr_name)) {dir.create(subfldr_name)}
@@ -562,9 +569,10 @@ ggplot() +
   geom_hline(yintercept=(0:4)+1/2,size=1/2) + geom_vline(xintercept=0,size=1/2,linetype="dashed") + 
   guides(color=guide_legend(nrow=2,byrow=TRUE)) + 
   scale_x_continuous(breaks=(-1:5)) + scale_y_discrete(expand=expansion(0,0)) + 
+  xlab("shift in average age (months)") + ylab("") + labs(color="") +
   theme_bw() + standard_theme + theme(strip.text=element_text(size=18),axis.text.x=element_text(size=16),
         axis.text.y=element_text(size=16),legend.text=element_text(size=16),legend.position="null",
-        axis.title.x=element_text(size=16)) + xlab("shift in average age (months)") + ylab("") + labs(color="")
+        axis.title.x=element_text(size=16))
 # save
 # ggsave(here::here(subfldr_name,"aver_age_hosp_summary_plot_all_par.png"),width=28,height=6,units="cm")
 
@@ -852,7 +860,8 @@ summ_mean_age_inf_byvalue <- parsets_mean_age_inf %>%
             ci95_low=quantile(value_norm,c(0.025,0.975))[1],
             ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
   filter(epi_year>2019)
-###########################################################
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # PLOT summary stats (mean age inf)
 # Figure 3C
 sel_vars <- c("mean_age_hosp_seas_under_5","mean_age_hosp_tot_under_5")
@@ -886,7 +895,7 @@ for (k_plot in 1:length(sel_vars)) {
   print(sel_vars[k_plot])
 }
 
-###########################################################
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # Plot of shift in average age of inf toggled by param values
 # Figure 8, SI Fig 10, 11
 sel_vars <- c("mean_age_hosp_tot_under_5") # "mean_age_hosp_seas_under_5",
@@ -986,7 +995,7 @@ SARI_watch_all_hosp_scaled <- left_join(
     mutate(rate_per_100000_scaled=rate_per_100000*scale_fact) %>% 
     select(!c(incid_hosp_per100k,incid_hosp_med_val))
 # overlay plot
-date_limits <- as.Date(c("2017-09-15","2022-04-01"))
+date_limits <- as.Date(c("2017-09-15","2020-04-01"))
 ggplot() + 
   geom_line(data=dyn_all_parsets_broad_age %>% 
                     filter(date>date_limits[1] & date<date_limits[2] & 
@@ -1012,9 +1021,9 @@ ggplot() +
         axis.text.y=element_text(size=12),legend.text=element_text(size=11),
         legend.title=element_text(size=12),legend.position="null")
 # SAVE
-ggsave(here::here(foldername,
-          "prepandemic_dynamics_all_sel_pars_hosp_per_popul_SARIwatch_under5_median_simul.png"),
-          width=28,height=16,units="cm")
+# ggsave(here::here(foldername,
+#           "prepandemic_dynamics_all_sel_pars_hosp_per_popul_SARIwatch_under5_median_simul.png"),
+#           width=28,height=16,units="cm")
 
 ##############################################################
 # filter out discarded parameterisations 
@@ -1156,7 +1165,7 @@ for (k_plot_var in 1:length(sel_vars)) {
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Evaluating the dynamics as a function of parameters
+# Evaluating DYNAMICS as a function of parameters
 comp_year <- c(2018,2019)[2] # 
 dyn_all_parsets_broad_age_params <- left_join(
   dyn_all_parsets_broad_age %>% 
@@ -1349,8 +1358,16 @@ parsets_max_incid_seas_length %>%
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Plot UK RSV case data, calculate seasonal concentration
 
+season_weeks=c(9,42)
 resp_detects_weekly_all_age <- read_csv(here::here(foldername,
-                  "Respiratory_viral_detections_by_any_method_UK.csv"))
+                  "Respiratory_viral_detections_by_any_method_UK.csv")) %>% 
+  mutate(year_week=factor(paste0(Year,"-",Week),unique(paste0(Year,"-",Week))), 
+         RSV_rolling_av=rollmean(RSV,k=7,align="center",fill=NA) ) %>% 
+  select(-(contains("virus")|contains("flu"))) %>% 
+  mutate(epi_year=ifelse(Week>=season_weeks[2],Year+1,Year)-min(Year)+1) %>% 
+  group_by(epi_year) %>% mutate(perc_yearly=RSV/sum(RSV)) %>% group_by(epi_year) %>% 
+  mutate(season_share=sum(perc_yearly[Week>=season_weeks[2] | Week<=season_weeks[1]]),
+         on_off_season=ifelse(findInterval(Week,season_weeks+c(1,0))==1,"off","on"))
 
 # SI Table 5
 resp_detects_weekly_all_age_means_shares <- left_join(
@@ -1367,9 +1384,10 @@ resp_detects_weekly_all_age_means_shares <- left_join(
   mutate(on_off_ratio=round(mean_on/mean_off,1),
   mean_on=round(mean_on,1),mean_off=round(mean_off,1),season_share=round(season_share,3))
 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SI Figure 1 (RSV case data with age)
 resp_virus_data_uk_tidy <- read_csv(here::here(foldername,
-                            "Respiratory_viral_detections_by_any_method UK Ages.csv")) %>% 
+                            "Respiratory_viral_detections_by_any_method_UK_Ages.csv")) %>% 
   pivot_longer(!c("Year","startweek","Age")) %>% 
   mutate(Age=factor(gsub(" Y","Y",Age),levels=unique(gsub(" Y","Y",Age))),
          date=as.Date(paste(Year,startweek,1,sep="-"),"%Y-%U-%u"))
