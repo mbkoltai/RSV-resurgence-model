@@ -998,9 +998,11 @@ ggplot() +
       aes(x=date,y=incid_hosp_per100k),color="red",linetype="dashed",size=1.02) + # median simulation
   theme_bw() + standard_theme + 
   xlab("") + ylab("weekly hospitalisations <5y per 100.000 persons") + labs(alpha="",color="") +
-  scale_x_date(expand=expansion(1/100,0),date_breaks="2 months") + scale_y_continuous(expand=expansion(0.01,0))+
-  theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),axis.text.y=element_text(size=12),
-    legend.text=element_text(size=11),legend.title=element_text(size=12),legend.position="null") 
+  scale_x_date(expand=expansion(1/100,0),date_breaks="2 months") + 
+  scale_y_continuous(expand=expansion(0.01,0)) +
+  theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
+        axis.text.y=element_text(size=12),legend.text=element_text(size=11),
+        legend.title=element_text(size=12),legend.position="null")
 # SAVE
 ggsave(here::here(foldername,
           "prepandemic_dynamics_all_sel_pars_hosp_per_popul_SARIwatch_under5_median_simul.png"),
@@ -1061,9 +1063,10 @@ summ_max_incid_seas_length_byvalue <- parsets_max_incid_seas_length %>% mutate(w
   rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
   group_by(agegroup_broad,epi_year,parname,parvalue,varname,vartype) %>% 
   summarise(mean=mean(value_norm),median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
-  filter(epi_year>2019)
+            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
+            ci50_up=quantile(value_norm,c(0.25,0.75))[2],
+            ci95_low=quantile(value_norm,c(0.025,0.975))[1],
+            ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
 
 ##############################################################
 # plot PEAK VALUE of cases/hospitalisations (+ season length), disaggregated by parameter values
@@ -1204,12 +1207,14 @@ for (k_par in c("exposure (-1) <-> age (1)","waning")){
     geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(parvalue)),color=NA,alpha=0.05) + 
     facet_grid(agegroup_broad~`epi-year`,labeller=labeller(`epi-year`=label_both),scales = "free_y") +
     scale_x_continuous(limits=c(-23,15)) + theme_bw() + standard_theme + 
-    theme(axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),axis.title.y=element_text(size=16),
-        legend.position="top",legend.text=element_text(size=15),legend.title=element_text(size=16),
-        strip.text=element_text(size=18)) +
+    theme(axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
+          axis.title.y=element_text(size=16),legend.position="top",
+          legend.text=element_text(size=15),legend.title=element_text(size=16),
+          strip.text=element_text(size=18)) +
     xlab("distance in weeks from (pre-pandemic) peak week") +  
     ylab(paste0("weekly hospitalisations (1=pre-pandemic peak)")) + labs(color=k_par,fill=k_par) +
-    geom_hline(yintercept=1,linetype="dashed",size=1/3) + geom_vline(xintercept=c(-9,9),linetype="dashed",size=1/3)
+    geom_hline(yintercept=1,linetype="dashed",size=1/3) + 
+    geom_vline(xintercept=c(-9,9),linetype="dashed",size=1/3)
 if (n_par>3) {p <- p + scale_color_manual(values=colorpal) + scale_fill_manual(values=colorpal)}; p 
   # save
   if (!dir.exists(here::here(foldername,"dynamics"))) {
