@@ -956,6 +956,8 @@ for (k_plot_var in 1:length(sel_vars)) {
 unzip(zipfile=here::here(foldername,"dyn_all_parsets_broad_age.zip"),exdir=here::here(foldername))
 # LOAD dynamics of simulations
 dyn_all_parsets_broad_age <- read_csv(here::here(foldername,"dyn_all_parsets_broad_age.csv"))
+# delete csv: 
+# unlink(here::here(foldername,"dyn_all_parsets_broad_age.csv"))
 
 ##############################################################
 # plot pre-pandemic dynamics for all parameter sets (Figure 1): all age groups <5y, compare to data
