@@ -11,7 +11,6 @@ Code for modelling how the patterns of RSV resurgence after COVID-19-related Non
 -  _repo_data/_: data files from simulations to reproduce figures in the article.
 -  **[reproduce_results.R](https://github.com/mbkoltai/RSV-model/blob/master/reproduce_results.R): reproduce figures of the article**
 -  _load_params.R_: loads constant parameters of the model
--   _param_scan_model_checks.R_: scripts to perform parameter scans and create plots; contains some extra scripts for which inputs might not be available. For reproducing results use [reproduce_results.R](https://github.com/mbkoltai/RSV-model/blob/master/reproduce_results.R). (not maintained)
--  _RSV_model.R_: script to run individual simulations (not maintained)
+-  _param_scan_model_checks.R_: scripts to perform parameter scans and create plots; not maintained, some inputs might not be available
 -  _UK_rsv_data.R_: scripts to plot UK RSV data
 
