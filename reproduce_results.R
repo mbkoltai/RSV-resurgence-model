@@ -1349,6 +1349,7 @@ parsets_max_incid_seas_length %>%
   group_by(par_id,agegroup_broad) %>% 
   mutate(value_norm=value/value[epi_year==comp_year]) %>% 
   arrange(par_id) %>% ungroup() %>% 
+  # strong exposure dependence
   filter(epi_year==2021 & age_exp_par_bins==min(age_exp_par_bins)) %>% 
   group_by(agegroup_broad) %>%
   summarise(mean=mean(value_norm),median=median(value_norm),
