@@ -29,7 +29,7 @@ popul_struct=fcn_cntr_fullpop(n_year="2020",country_sel)
 rsv_age_groups<-fun_rsv_agegroups(standard_age_groups,popul_struct,rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,15, 45, 65),
                                   rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3), 9, 29, 19, 34))
 # rsv_age_groups$value=rsv_age_groups$value*67e6/sum(rsv_age_groups$value)
-ons_2020_midyear_estimates_uk<-read_csv("data/ons_2020_midyear_estimates_uk.csv") %>% 
+ons_2020_midyear_estimates_uk<-read_csv(here::here("repo_data/ons_2020_midyear_estimates_uk.csv")) %>% 
   mutate(age_num=as.numeric(gsub("\\+","",age)))
 low_inds<-findInterval(rsv_age_groups$age_low,ons_2020_midyear_estimates_uk$age_num)
 high_inds <- findInterval(rsv_age_groups$age_low+rsv_age_groups$duration-0.1,ons_2020_midyear_estimates_uk$age_num)
@@ -61,7 +61,7 @@ l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list);inf_vars_inds=l_in
 # make matrix reciprocal
 # C_m_polymod=Reduce('+',list_contmatrs) # fun_recipr_contmatr(Reduce('+',list_contmatrs),
 #   age_group_sizes=standard_age_groups$values)
-C_m_polymod<-readRDS("data/UK_contact_matrix_sum.RDS")
+C_m_polymod<-readRDS(here::here("repo_data/UK_contact_matrix_sum.RDS"))
 
 # create for our age groups
 C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
