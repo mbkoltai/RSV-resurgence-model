@@ -496,8 +496,7 @@ for (k in 1:ncol(median_parset)){ if (k==1) {
 }
 
 # PLOT
-if (!any(grepl("tidybayes",row.names(installed.packages())))) { install.packages("tidybayes") } else {
-  library(tidybayes)}
+if (!any(grepl("tidybayes",row.names(installed.packages())))) {install.packages("tidybayes")}; library(tidybayes)
 df_plot_fullrange <- output_ranges_full_scan %>%
                         mutate(
                           scan_param=case_when(
@@ -532,7 +531,6 @@ ggplot() +
 # subfldr_name<-here::here(foldername,"median_interquant_by_param_value/summary_range/")
 # if (!dir.exists(subfldr_name)) {dir.create(subfldr_name)}
 # ggsave(paste0(subfldr_name,"cumul_peak_hosp_summary_plot.png"),width=28,height=24,units="cm")
-# ggsave(paste0(subfldr_name,"cumul_peak_hosp_summary_plot_sel_parsets.png"),width=28,height=24,units="cm")
 
 # check entire range across all params:
 df_plot_fullrange %>% 
@@ -569,8 +567,6 @@ ggplot() +
         axis.title.x=element_text(size=16)) + xlab("shift in average age (months)") + ylab("") + labs(color="")
 # save
 # ggsave(here::here(subfldr_name,"aver_age_hosp_summary_plot_all_par.png"),width=28,height=6,units="cm")
-# ggsave(paste0(subfldr_name,"aver_age_hosp_summary_plot_sel_par.png"),width=28,height=6,units="cm")
-
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Analyse accepted simulations by epidemiologic parameters
@@ -1171,6 +1167,7 @@ dyn_all_parsets_broad_age_params <- left_join(
 
 #######
 # calculate statistics at time points relative to peak week of selected reference year
+# (this command can take 10-20 secs)
 summ_dyn_all_parsets_broad_age_relat_time <- dyn_all_parsets_broad_age_params %>% 
   group_by(agegroup_broad,epi_year,peak_week_distance,parname,parvalue,varname) %>%
   summarise(mean=mean(value_norm),median=median(value_norm),
