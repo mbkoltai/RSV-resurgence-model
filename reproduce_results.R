@@ -979,7 +979,7 @@ median_weekly_pred <- dyn_all_parsets_broad_age %>%
 # scaling: take mean value per week for years with data in SARIwatch, take the maximal weekly value -> 
 # divide the maximal value of the median simulated weekly peak by this value
 # data from SARI_watch
-SARI_watch_all_hosp <- read_csv("repo_data/SARI_watch_all_hosp.csv")
+SARI_watch_all_hosp <- read_csv(here::here(foldername,"SARI_watch_all_hosp.csv"))
 # this data is under-reported (not everyone hospitalised is tested for RSV), so we scale by the ratio 
 scale_fact <- max((median_weekly_pred %>% 
                      filter(date<as.Date("2020-04-01")) %>% 
@@ -1310,7 +1310,7 @@ cumul_hosp_by_age <- results_summ_all_hosp %>%
   group_by(age_exp_par_bins) %>% 
   mutate(age_exp_par_bins=round(mean(PC1),1)) %>% ungroup() 
 
-# CUMUL burden SUM increase
+# CUMUL burden SUM relative increase
 cumul_hosp_by_age %>% filter(name %in% "hosp_tot") %>% 
   group_by(epi_year,par_id) %>% 
   summarise(value=sum(value)) %>% group_by(par_id) %>% 
