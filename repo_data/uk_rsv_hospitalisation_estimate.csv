@@ -1,0 +1,15 @@
+age_group,midpoint,abs_num_per_year,rate_per_100e3_person_year,source,note
+0_0.5,0.25,13862,4184,taylor_2015_bmj_open,NA
+0.5_2,1.25,12862,1272,taylor_2015_bmj_open,NA
+2_5,3.5,2436,114,taylor_2015_bmj_open,NA
+0_0.5,0.25,16202,4879,reeves_2017_influenza,NA
+0.5_1,0.75,7108,2141,reeves_2017_influenza,NA
+1_4,2.5,10251,531,reeves_2017_influenza,NA
+0_0.5,0.25,15126,4402,reeves_2019_journal_inf,rate_calculated_ons_2020
+0.5_1,0.75,5233,1523,reeves_2019_journal_inf,rate_calculated_ons_2020
+18_49,33.1,1033,4,fleming_2015_bmc_inf_dis,NA
+50_64,56.7,3067,30,fleming_2015_bmc_inf_dis,NA
+65_74,69.5,4236,86,fleming_2015_bmc_inf_dis,NA
+75_100,82,9463,234,fleming_2015_bmc_inf_dis,NA
+65_74,69.5,3565,71,sharp_2021_influenza,NA
+75_100,82,10808,251,sharp_2021_influenza,NA

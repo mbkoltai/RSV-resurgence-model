@@ -1325,7 +1325,7 @@ filter(age_exp_par_bins==max(age_exp_par_bins) & epi_year==2021) %>%
             ci50_low=quantile(value_norm,c(0.25,0.75))[1],
             ci50_up=quantile(value_norm,c(0.25,0.75))[2])
 
-# complete range of increase in (weekly) peaks
+# complete range of increase in (weekly) peaks in ALL AGE GROUPS
 parsets_max_incid_seas_length %>% 
   filter(varname %in% "incid_hosp" & vartype %in% "max_value" & 
            epi_year %in% c(comp_year,2021) & 
@@ -1341,7 +1341,24 @@ parsets_max_incid_seas_length %>%
             ci50_low=quantile(value_norm,c(0.25,0.75))[1],
             ci50_up=quantile(value_norm,c(0.25,0.75))[2])
 
-# ranges of increase in peak values by agegroup
+# complete range of increase in (weekly) peaks in AGE GROUPS >1y
+parsets_max_incid_seas_length %>% 
+  filter(varname %in% "incid_hosp" & vartype %in% "max_value" & 
+           epi_year %in% c(comp_year,2021) & 
+           agegroup_broad %in% c("1-2y","2-5y")) %>%
+  group_by(epi_year,par_id) %>% 
+  summarise(value=sum(value),kappa=unique(age_exp_par_bins)) %>%
+  group_by(par_id) %>% 
+  mutate(value_norm=value/value[epi_year==comp_year]) %>% 
+  arrange(par_id) %>% ungroup() %>% 
+  filter(epi_year==2021 & kappa==min(kappa)) %>% 
+  summarise(mean=mean(value_norm),median=median(value_norm),
+            min=min(value_norm),max=max(value_norm),
+            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
+            ci50_up=quantile(value_norm,c(0.25,0.75))[2])
+
+
+# ranges of increase in peak values by agegroup AT MAX EXP DEP
 parsets_max_incid_seas_length %>% 
   filter(varname %in% "incid_hosp" & vartype %in% "max_value" & 
           epi_year %in% c(comp_year,2021) & 
@@ -1356,6 +1373,35 @@ parsets_max_incid_seas_length %>%
             min=min(value_norm),max=max(value_norm),
             ci50_low=quantile(value_norm,c(0.25,0.75))[1],
             ci50_up=quantile(value_norm,c(0.25,0.75))[2])
+
+# ranges of increase in peak values by agegroup AT MAX AGE DEP
+parsets_max_incid_seas_length %>% 
+  filter(varname %in% "incid_hosp" & vartype %in% "max_value" & 
+           epi_year %in% c(comp_year,2021) & 
+           agegroup_broad %in% c("<1y","1-2y","2-5y")) %>%
+  group_by(par_id,agegroup_broad) %>% 
+  mutate(value_norm=value/value[epi_year==comp_year]) %>% 
+  arrange(par_id) %>% ungroup() %>% 
+  # strong exposure dependence
+  filter(epi_year==2021 & age_exp_par_bins==max(age_exp_par_bins)) %>% 
+  group_by(agegroup_broad) %>%
+  summarise(mean=mean(value_norm),median=median(value_norm),
+            min=min(value_norm),max=max(value_norm),
+            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
+            ci50_up=quantile(value_norm,c(0.25,0.75))[2])
+
+# % simuls where peak goes down if MAX AGE DEP
+parsets_max_incid_seas_length %>% 
+  filter(varname %in% "incid_hosp" & vartype %in% "max_value" & 
+           epi_year %in% c(comp_year,2021) & 
+           agegroup_broad %in% c("<1y","1-2y","2-5y")) %>%
+  group_by(par_id,agegroup_broad) %>% 
+  mutate(value_norm=value/value[epi_year==comp_year]) %>% 
+  arrange(par_id) %>% ungroup() %>% 
+  # strong exposure dependence
+  filter(epi_year==2021 & age_exp_par_bins==max(age_exp_par_bins)) %>% 
+  group_by(agegroup_broad) %>%
+  summarise(perc_decrease=sum(value_norm<1)/n(),perc_increase=sum(value_norm<1)/n())
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
