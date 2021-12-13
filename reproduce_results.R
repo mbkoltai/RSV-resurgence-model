@@ -737,7 +737,8 @@ for (k_plot in c(3,5)) {
 # PLOT summary stats disaggregated by parameter VALUES
 # the figures produced by this loop include: Figure 3A-B (main text) and SI Fig 6-11
 
-sel_vars <- c("attack rate","cumulative hospitalisations", "cumulative infections","% cases in-season")[c(2,3)]
+sel_vars <- c("attack rate","cumulative hospitalisations", 
+              "cumulative infections","% cases in-season")[c(2,3)]
 sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
 start_year<-2021
 for (k_plot_var in 1:length(sel_vars)) {
@@ -978,7 +979,7 @@ median_weekly_pred <- dyn_all_parsets_broad_age %>%
 # scaling: take mean value per week for years with data in SARIwatch, take the maximal weekly value -> 
 # divide the maximal value of the median simulated weekly peak by this value
 # data from SARI_watch
-SARI_watch_all_hosp <- read_csv("data/SARI_watch_all_hosp.csv")
+SARI_watch_all_hosp <- read_csv("repo_data/SARI_watch_all_hosp.csv")
 # this data is under-reported (not everyone hospitalised is tested for RSV), so we scale by the ratio 
 scale_fact <- max((median_weekly_pred %>% 
                      filter(date<as.Date("2020-04-01")) %>% 
@@ -1309,14 +1310,35 @@ cumul_hosp_by_age <- results_summ_all_hosp %>%
   group_by(age_exp_par_bins) %>% 
   mutate(age_exp_par_bins=round(mean(PC1),1)) %>% ungroup() 
 
-# range at maximal exposure dependence
+# CUMUL burden SUM increase
+cumul_hosp_by_age %>% filter(name %in% "hosp_tot") %>% 
+  group_by(epi_year,par_id) %>% 
+  summarise(value=sum(value)) %>% group_by(par_id) %>% 
+  mutate(value_norm=value/value[epi_year==comp_year]) %>% 
+  filter(epi_year==2021) %>% ungroup() %>%
+  summarise(mean=mean(value_norm),median=median(value_norm),
+            min=min(value_norm),max=max(value_norm),
+            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
+            ci50_up=quantile(value_norm,c(0.25,0.75))[2])
+
+# CUMUL burden increase each age group, all params
+cumul_hosp_by_age %>% group_by(agegroup_broad) %>%
+  filter(epi_year==2021) %>%
+  summarise(mean=mean(value_norm),median=median(value_norm),
+            min=min(value_norm),max=max(value_norm),
+            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
+            ci50_up=quantile(value_norm,c(0.25,0.75))[2])
+
+
+# CUMUL BURDEN range at maximal exposure dependence, by age groups
 cumul_hosp_by_age %>% group_by(agegroup_broad) %>%
   filter(age_exp_par_bins==min(age_exp_par_bins) & epi_year==2021) %>%
           summarise(mean=mean(value_norm),median=median(value_norm),
               min=min(value_norm),max=max(value_norm),
               ci50_low=quantile(value_norm,c(0.25,0.75))[1],
               ci50_up=quantile(value_norm,c(0.25,0.75))[2])
-# range at minimal exposure dependence
+
+# CUMUL BURDEN range at minimal exposure dependence
 cumul_hosp_by_age %>% group_by(agegroup_broad) %>%
 filter(age_exp_par_bins==max(age_exp_par_bins) & epi_year==2021) %>%
   summarise(mean=mean(value_norm),
