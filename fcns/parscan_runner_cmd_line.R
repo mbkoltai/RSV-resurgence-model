@@ -4,10 +4,12 @@
 source("load_params.R")
 ### ###
 print("# cmd line arguments:"); print(length(commandArgs(trailingOnly=TRUE)))
-k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
+k_start_end <- as.numeric(commandArgs(trailingOnly=TRUE))[1:2]; 
+print(paste0(c("PARAM SETS:", k_start_end),collapse=" "))
 ### ###
 # length of simulations
-simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); post_npi_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[4])
+simul_length_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[3]); 
+post_npi_yr<-as.numeric(commandArgs(trailingOnly=TRUE)[4])
 # reduction in contact levels during NPIs
 contact_reduction <- as.numeric(commandArgs(trailingOnly=TRUE)[5]) # 0.9=90%
 # parameter table
@@ -79,7 +81,8 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
   approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*10))
   # run simul
-if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc,parms=params) } else {
+if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,
+                                          func=sirs_seasonal_forc,parms=params) } else {
     ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sirs_seasonal_forc_mat_immun,parms=params)     }
   # process output
   df_cases_infs <- fcn_process_odesol_incid(ode_solution,n_age,n_inf,n_compartment,simul_start_end) %>% 
@@ -102,11 +105,13 @@ if (!mat_imm_flag){ ode_solution <- lsoda(initvals_sirs_model,timesteps,func=sir
     final_pop <- final_pop %>% mutate(agegroup_broad=findInterval(agegroup,c(2,4,7)+1)+1) %>% 
       group_by(agegroup_broad) %>% summarise(final=sum(final)) %>% rename(agegroup=agegroup_broad) }
   sum_inf_epiyear_age <- left_join(df_cases_infs %>%
-    mutate(year=year(date),epi_year=ifelse(date>ymd(paste0(year(date),month_day_epiyear_start)),year(date),year(date)-1),
-   in_out_season=ifelse(week(date)>=seas_start_wk|week(date)<=seas_stop_wk,"in","out")) %>% group_by(epi_year,agegroup) %>% 
-     # summing 1st, 2nd, 3rd infections
-      summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
-               peak_inf=round(max(value,na.rm=T)),max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>% 
+    mutate(year=year(date),epi_year=ifelse(date>ymd(paste0(year(date),month_day_epiyear_start)),
+                                           year(date),year(date)-1),
+   in_out_season=ifelse(week(date)>=seas_start_wk|week(date)<=seas_stop_wk,"in","out")) %>% 
+     group_by(epi_year,agegroup) %>% 
+  # summing 1st, 2nd, 3rd infections
+  summarise(inf_tot=round(sum(value,na.rm=T)),inf_in_seas=round(sum(value[in_out_season=="in"])),
+      peak_inf=round(max(value,na.rm=T)),max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>%
      group_by(agegroup) %>% filter(epi_year>min(epi_year)),final_pop,by="agegroup") %>%  # 
     mutate(par_id=partable$par_id[k_par],exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],
            seasforc_width_wks=seasforc_width_wks,seasforce_peak=partable$seasforce_peak[k_par],

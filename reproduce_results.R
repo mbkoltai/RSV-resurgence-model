@@ -1474,9 +1474,9 @@ ggplot(subset(resp_virus_data_uk_tidy,name %in% "RSV"),
         legend.position="bottom",legend.text=element_text(size=15),
         axis.title.y=element_text(size=16))
 
-#####
-# PS: 
-# in "fcns/model_checks.R" there are other checks and plots about the model, 
-# eg. looking at dynamics of individual simulations
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 ### THE END :)
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# PS: 
+# To run individual simulations and plot results go to "indiv_simul.R" 
 #
