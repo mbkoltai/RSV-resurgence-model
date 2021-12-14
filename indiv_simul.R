@@ -35,7 +35,7 @@ npi_dates=as.Date(c("2020-03-26","2021-05-17")); seaspeakval=1; seasforc_width_w
 g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,
         years_pre_post_npi=c(15,3),
         season_width_wks=seasforc_width_wks,init_mt_day="06-01",
-        peak_week=44,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
+        peak_week=48,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
 # plot seasonal forcing
 fcn_plot_seas_forc(simul_start_end,forcing_vector_npi,seas_lims_wks=c(7,42),
                    npi_dates,date_resol="3 month")
@@ -55,11 +55,11 @@ approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_n
 approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*5))
 tm<-proc.time(); ode_sol<-lsoda(initvals_sirs_model,timesteps,
                                 func=sirs_seasonal_forc,parms=params); round(proc.time()-tm,2)
-# reshape data | # check size of objs: fcn_objs_mem_use(1)
-# g(final_pop,ode_solution,NA) %=% fun_process_simul_output(ode_sol,varname_list,
-#                               incidvar="newinf",incid_only=T,
-#                               init_date=simul_start_end[1],n_age,n_inf,rsv_age_groups,neg_thresh=-0.01)
-# calculate incident infections
+# reshape data: get all variables in `ode_solution_tidy`
+g(final_pop,ode_solution,ode_solution_tidy) %=% fun_process_simul_output(ode_sol,varname_list,
+                              incidvar="newinf",incid_only=F,init_date=simul_start_end[1],n_age,n_inf,
+                              rsv_age_groups,neg_thresh=-0.01)
+# extract incident infections only
 df_cases_infs <- fcn_process_odesol_incid(ode_sol,n_age,n_inf,n_compartment,simul_start_end) %>% 
   mutate(value=round(value,2))
 
@@ -69,13 +69,11 @@ sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>%
   filter(date==min(date) & infection==1)
 
 # PLOT incident infections, disaggregated by age AND 1/2/3rd infection
-varname<-"value"
 df_cases_infs %>% 
-  filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")) %>% 
+  filter(t %% 7==0 & agegroup<=9 & date>as.Date("2018-09-01") & date<as.Date("2022-04-01")) %>% 
   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],
                               unique(rsv_age_groups$agegroup_name))) %>%
-ggplot() + geom_area(aes(x=date,y=get(varname)*ifelse(grepl("fract",varname),1e2,1),
-                fill=factor(infection)),position=position_stack(reverse=T),
+ggplot() + geom_area(aes(x=date,y=value,fill=factor(infection)),position=position_stack(reverse=T),
                 alpha=0.3,color="black",size=0.25) + 
   facet_wrap(~agegroup_name,scales="free_y") + xlab("") + 
   geom_vline(data=sel_weeks %>% filter(agegroup<=9),
@@ -89,10 +87,10 @@ ggplot() + geom_area(aes(x=date,y=get(varname)*ifelse(grepl("fract",varname),1e2
 
 # disaggregate by age, summed over infection type (1/2/3)
 df_cases_infs %>% 
-  filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & date<as.Date("2022-04-01")) %>% 
+  filter(agegroup<=9 & date>as.Date("2018-09-01") & date<as.Date("2022-04-01")) %>% # t %% 7==0 & 
   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],
-                              unique(rsv_age_groups$agegroup_name))) %>% group_by(t,date,agegroup_name) %>%
-  summarise(value=sum(value)) %>%
+  unique(rsv_age_groups$agegroup_name))) %>% 
+  group_by(t,date,agegroup_name) %>% summarise(value=sum(value)) %>%
   ggplot() + geom_line(aes(x=date,y=value)) + facet_wrap(~agegroup_name,scales="free_y") + 
   geom_vline(data=sel_weeks %>% filter(agegroup<=9),
              aes(xintercept=date,linetype=ifelse(week==unique(sel_weeks$week)[2],"solid","dashed"),
@@ -106,7 +104,7 @@ df_cases_infs %>%
 
 
 # sum across age groups
-df_cases_infs %>% filter(t %% 7==0 & agegroup<=9 & date>as.Date("2017-07-01") & 
+df_cases_infs %>% filter(agegroup<=9 & date>as.Date("2018-09-01") & # t %% 7==0 & 
       date<as.Date("2023-04-01")) %>% group_by(date,infection) %>% summarise(value=sum(value)) %>%
   ggplot(aes(x=date,y=value,fill=factor(infection),group=infection)) + 
   geom_area(position=position_stack(reverse=T),alpha=0.3,color="black",size=0.25) + 

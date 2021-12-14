@@ -6,7 +6,8 @@ Code for modelling how patterns of RSV resurgence following COVID-19-related Non
 
 ## Files and folders:
 
--  _fcns/_: functions for simulations and plotting
--  _repo_data/_: data files from simulations to reproduce figures in the article.
 -  **[reproduce_results.R](https://github.com/mbkoltai/RSV-model/blob/master/reproduce_results.R): reproduce figures of the article**
--  _load_params.R_: loads constant parameters of the model
+- _load_params.R_: loads constant parameters of the model
+- _indiv_simul.R_: run and visualise individual simulations
+- _fcns/_: folder for functions for simulations and plotting
+- _repo_data/_: data files from simulations to reproduce figures in the article.
