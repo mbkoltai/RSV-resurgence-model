@@ -1,7 +1,8 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-x1<-c("tidyverse","deSolve","gtools","rstudioapi","devtools","wpp2019","Rcpp","lubridate","tsibble","pracma","qs","ungeviz","zoo","RcppRoll")
+x1<-c("tidyverse","deSolve","gtools","rstudioapi","devtools","wpp2019","Rcpp","lubridate",
+      "tsibble","pracma","qs","ungeviz","zoo","RcppRoll")
 x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
 if (!any(grepl("ungeviz",row.names(installed.packages())))) {devtools::install_github("wilkelab/ungeviz")}
 # Load all packages    
@@ -29,7 +30,7 @@ popul_struct=fcn_cntr_fullpop(n_year="2020",country_sel)
 rsv_age_groups<-fun_rsv_agegroups(standard_age_groups,popul_struct,rsv_age_groups_low=c(0,0.5,1,1.5, 2,3,4, 5,15, 45, 65),
                                   rsv_age_group_sizes=c(rep(0.4,4),rep(0.9,3), 9, 29, 19, 34))
 # rsv_age_groups$value=rsv_age_groups$value*67e6/sum(rsv_age_groups$value)
-ons_2020_midyear_estimates_uk<-read_csv(here::here("repo_data/ons_2020_midyear_estimates_uk.csv")) %>% 
+ons_2020_midyear_estimates_uk <- read_csv(here::here("repo_data/ons_2020_midyear_estimates_uk.csv")) %>% 
   mutate(age_num=as.numeric(gsub("\\+","",age)))
 low_inds<-findInterval(rsv_age_groups$age_low,ons_2020_midyear_estimates_uk$age_num)
 high_inds <- findInterval(rsv_age_groups$age_low+rsv_age_groups$duration-0.1,ons_2020_midyear_estimates_uk$age_num)
@@ -48,11 +49,12 @@ daily_births=2314; birth_rates=matrix(c(daily_births,rep(0,dim_sys-1)),dim_sys,1
 # we want population to be stationary (at 2019 or 2020 value), so deaths = births
 if (!any(grepl("death",colnames(rsv_age_groups)))){
   rsv_age_groups <- rsv_age_groups %>% mutate(deaths_per_person_per_day=uk_death_rate,
- stationary_popul=fcn_calc_stat_popul(rsv_age_groups,rsv_age_groups$duration,daily_births,uk_death_rate,output_type="")) }
+          stationary_popul=fcn_calc_stat_popul(rsv_age_groups,rsv_age_groups$duration,daily_births,uk_death_rate,output_type="")) 
+}
 # query variables: fun_sub2ind(1:3,11,"R",varname_list,n_age,n_inf)
 # force of infection terms
 # linear indices of the I & S variables
-l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list);inf_vars_inds=l_inf_susc[[1]];susc_vars_inds=l_inf_susc[[2]]
+l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_inf_susc[[1]]; susc_vars_inds=l_inf_susc[[2]]
 # CONTACT MATRIX
 # contact matrix from covidm ("home","work","school","other")
 # cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
@@ -68,7 +70,8 @@ C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
         orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
 # make it reciprocal for the larger group
 C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
-# bc of reinfections we need to input contact matrix repeatedly, normalisation by population is to construct the force of infection terms
+# bc of reinfections we need to input contact matrix repeatedly, 
+# normalisation by population is to construct the force of infection terms
 contmatr_rowvector=t(do.call(cbind, 
     lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))/rsv_age_groups$stationary_popul[col(C_m)]
 # build kinetic matrix

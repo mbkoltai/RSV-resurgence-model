@@ -1,4 +1,10 @@
 # gitignore
+background/
+data/
+manuscript/
+other_models/
+simul_output/
+extras/
 odeint-v2/
 data/*.png
 data/*.pdf
@@ -7,24 +13,19 @@ data/*.xlsx
 data/*.jpeg
 data/*.odt
 data/*.txt
-data/
 data/Region_Mobility_Report_CSVs/
 data/datamart_weekly_rsv_data_2012wk40-2021wk24.csv 
 data/resp_detects_weekly_all_age_means_shares.csv 
 data/data_NSW_RSV.rds
 data/nature_plot_covid_npi_resp_virus.jpeg 
-manuscript/
-other_models/
 old/
 repo_data/90pct_red/
-simul_output/
 # simul_output/parscan/parallel/*.csv
 # simul_output/parscan/parallel/*/*.csv
 # simul_output/scans_before_parallel/
 *.pdf
 *.odg
 *.png
-background/
 # param_scan_parallel.R
 refresh_gitignore.sh
 single_simul_calibrate.R 

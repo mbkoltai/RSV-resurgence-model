@@ -99,7 +99,7 @@ ggplot(age_exp_dep_uniqvals %>%
 # Simulations are launched by the file "fcns/parscan_runner_cmd_line.R" receiving command line arguments from 
 # the parameter table and calling the function `sirs_seasonal_forc_mat_immun` that generates & solves ODEs. 
 # The fcn for `sirs_seasonal_forc_mat_immun` is in "fcns/RSV_model_functions.R".
-# The force of infection term is partly constructed outside this function and passed as a set of inputs, 
+# The structure of the force of infection is built outside this function and passed as a set of inputs:
 # most importantly the input `contmatr_rowvector` is the contact matrix stacked 3x times (3 infections) 
 # and normalised by population sizes to generate the force of infection terms normalised by age group sizes. 
 # See SI Methods

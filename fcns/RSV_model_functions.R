@@ -50,13 +50,14 @@ sirs_seasonal_forc <- function(t,X,parms){
   # append infection vector for incidence
   dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) }
 
-## model with MATERNAL IMMUNITY (i'm only using this!)
+## model with MATERNAL IMMUNITY (I am only using this!)
 sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
   suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
   prot_inf_ind=parms[[7]][[1]]; prot_adults_childb=parms[[7]][[2]]; susc_adults_childb=parms[[7]][[3]]
   dimsys=nrow(Km); proport_adult_susc=sum(X[susc_adults_childb])/(sum(X[susc_adults_childb])+sum(X[prot_adults_childb]))
-  birthrates[prot_inf_ind,]=(1-proport_adult_susc)*birthrates[1,]; birthrates[1,]=proport_adult_susc*birthrates[1,]
+  birthrates[prot_inf_ind,]=(1-proport_adult_susc)*birthrates[1,]
+  birthrates[1,]=proport_adult_susc*birthrates[1,]
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(infvars_inds, function(x){X[x]}))
   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
@@ -65,7 +66,9 @@ sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   F_vect=matrix(0,dimsys,1)
   F_vect[c(unlist(suscvars_inds),unlist(infvars_inds))]=rbind(-infection_vect,infection_vect+approx_introd(t))
   # append infection vector for incidence
-  dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) }
+  dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) 
+}
+
 # protected infants: fun_sub2ind(1,1,"R",c("S","I","R"),11,3)
 # S adults (15-45): fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),11,3)
 # I: fun_sub2ind(i_inf=c(1,2,3),j_age=9,c("I"),c("S","I","R"),11,3)
@@ -129,17 +132,18 @@ fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varna
 }
 
 ### R0 calculation --------------
-R0_calc_SIRS <- function(C_m,deltasusc,rho,n_inf) {
-  # po = parameters$pop[[population]];
-  # dIp = sum(po$dIp * seq(0, by = parameters$time_step, length.out = length(po$dIp)));
-  # dIs = sum(po$dIs * seq(0, by = parameters$time_step, length.out = length(po$dIs)));
-  # dIa = sum(po$dIa * seq(0, by = parameters$time_step, length.out = length(po$dIa)));
-  # cm = Reduce('+', mapply(function(c, m) c * m, po$contact, po$matrices, SIMPLIFY = F));
+R0_calc_SIRS <- function(Cm,deltasusc,rho,n_inf) {
   susc_matrs=lapply(1:n_inf, function(x) {matrix(rep(deltasusc[x,],ncol(deltasusc)),ncol = ncol(deltasusc))})
-  # ngm = po$u * t(t(cm) * (    po$y * (po$fIp * dIp + po$fIs * dIs) + (1 - po$y) * po$fIa * dIa) )
-  ngm=Reduce('+',lapply(susc_matrs, function(x) {x* C_m}))*(1/rho)*(1/n_inf)
+  ngm=Reduce('+',lapply(susc_matrs, function(x) {x*Cm}))*(1/rho)*(1/n_inf)
   abs(eigen(ngm)$values[1])
 }
+
+# po = parameters$pop[[population]];
+# dIp = sum(po$dIp * seq(0, by = parameters$time_step, length.out = length(po$dIp)));
+# dIs = sum(po$dIs * seq(0, by = parameters$time_step, length.out = length(po$dIs)));
+# dIa = sum(po$dIa * seq(0, by = parameters$time_step, length.out = length(po$dIa)));
+# cm = Reduce('+', mapply(function(c, m) c * m, po$contact, po$matrices, SIMPLIFY = F));
+# ngm = po$u * t(t(cm) * (    po$y * (po$fIp * dIp + po$fIs * dIs) + (1 - po$y) * po$fIa * dIa) )
 
 ### fcn susceptibility matrices
 fcn_delta_susc <- function(deltaprim,n_agegr,n_infect,agedepfact,total_pop){
@@ -389,11 +393,12 @@ fcn_process_odesol_incid <- function(odesol,n_agegr,n_infect,n_comp,date_start_e
 }
 
 ### seasonal forcing term ------------------
-fun_seas_forc=function(time_input,peak_day,st_dev_season,forcing_above_baseline,day_num){
+fun_seas_forc <- function(time_input,peak_day,st_dev_season,forcing_above_baseline,day_num){
 # peak_day=60; st_dev_season=27; forcing_above_baseline=0.1; 
   if (!day_num) { time_input = time_input %% 365}
 dist_from_peak=apply(data.frame( abs(time_input - peak_day),365-peak_day+time_input ),1,min)
-forcing_vector= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector }
+forcing_vector= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector 
+}
 
 # shutdown term ----------------------
 fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,init_mt_day,
@@ -407,39 +412,8 @@ fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,i
   npi_ind=simul_dates>npidates[1] & simul_dates<npidates[2]
   forcingvector_npi[npi_ind]=forcingvector_npi[npi_ind]*(1-npireduc_strength)
   # n_years=length(forcing_vector_npi)/365; timesteps <- seq(1,length(forcing_vector_npi),by=1)
-  list(length(forcingvector_npi)/365,seq(1,length(forcingvector_npi),by=1),start_end,forcingvector_npi) }
-
-# fun_shutdown_seasforc=function(timesteps,seas_lims_real,forcing_above_baseline,npi_strength,npi_year,peak_week,
-#                                season_width,npi_lims,first_season_off,n_prec,n_sd){
-#   npi_on=npi_lims[1]; npi_off=npi_lims[2]
-#   # seasonal forcing without shutdown
-#   max_time=max(timesteps); elem_time_step=unique(diff(timesteps))
-#   seas_forcing=fun_seas_forc(timesteps,peak_day=peak_week*7,st_dev_season=season_width*7,forcing_above_baseline)
-#   # dist_from_peak=apply(data.frame( abs(timesteps %% 365-(peak_week*7)),365-(peak_week*7)+(timesteps %% 365) ),1,min)
-#   # seas_forcing=1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/season_width*7)^2)
-#   # shutdown
-#   seaslims=t(data.frame(lapply(n_sd, 
-#                                function(n) {lapply(0:(max_time/365),function(x){x+(peak_week+c(-n*season_width,n*season_width))/52})})))
-#   rownames(seaslims)=c(); colnames(seaslims)=c("on","off"); seaslims=subset(data.frame(seaslims),on<=max(timesteps)/365)
-#   seaslims$on=floor(seaslims$on)+seas_lims_real[1]*7/365; seaslims$off=round(seaslims$off)+seas_lims_real[2]*7/365
-#   seaslims[,"season"]=ceiling(seaslims$on)
-#   # forcing with NPI vector
-#   forcing_vector_npi=seas_forcing
-#   shutdown_start_day=seaslims$on[seaslims$season==(npi_year+1)]*365 - npi_on*7
-#   shutdown_stop_day=seaslims$off[seaslims$season==(npi_year+1)]*365 + npi_off*7
-#   # shutdown: flat
-#   forcing_vector_npi[round(shutdown_start_day/elem_time_step):round(shutdown_stop_day/elem_time_step)]=1-npi_strength
-#   if (sum(forcing_vector_npi>seas_forcing)>0){
-#     forcing_vector_npi[forcing_vector_npi>seas_forcing] <- seas_forcing[forcing_vector_npi>seas_forcing]}
-#   # first period should not be on-season
-#   if (first_season_off){
-#   if (forcing_vector_npi[1]>forcing_above_baseline*1.02){
-#     onsetpoint=min(which(timesteps>(peak_week-season_width*3)*7)) # max(which(timesteps/365 < seaslims$on[1]-0.1)); 
-#     forcing_vector_npi[1:onsetpoint]=1 #forcing_vector_npi[onsetpoint]
-#     seas_forcing[1:onsetpoint]=1 } } # seas_forcing[onsetpoint]
-#   
-#   list(forcing_vector_npi,timesteps[c(round(shutdown_start_day/elem_time_step),round(shutdown_stop_day/elem_time_step))],
-#        seas_forcing,seaslims) }
+  list(length(forcingvector_npi)/365,seq(1,length(forcingvector_npi),by=1),start_end,forcingvector_npi) 
+}
 
 ### plot seasonal forcing ----------------------
 fcn_plot_seas_forc <- function(simul_startend,forcingvector_npi,seas_lims_wks,npidates,date_resol){
@@ -520,14 +494,18 @@ if (stationary_init){
     # at t=0 entire popul into susceptibles
         initvals_sirs_model=matrix(0,ncol(simul_output)-1,1); # stationary_init=FALSE
 initvals_sirs_model[sapply(susc_vars_inds,"[[",1)]=agegr_sizes } # rsv_age_groups$value
-round(matrix(initvals_sirs_model)) }
+round(matrix(initvals_sirs_model)) 
+}
 
 # initial-final totals by age group ----------------------
-fun_agegroup_init_final_pop=function(odesol,dimsys){
+fun_agegroup_init_final_pop <- function(odesol,dimsys){
   finalpop=data.frame(t(odesol[c(1,nrow(odesol)),2:(dimsys+1)])) %>% rownames_to_column(var="name")
-  colnames(finalpop)=c("name","init","final"); finalpop<-finalpop %>% separate(name,sep="_",into=c("compartment","inf","agegroup")) %>%
-    group_by(agegroup) %>% summarise(init=sum(init),final=sum(final)) %>% mutate(agegroup=as.numeric(agegroup)) %>% arrange(agegroup)
-  finalpop }
+  colnames(finalpop)=c("name","init","final"); 
+  finalpop <- finalpop %>% separate(name,sep="_",into=c("compartment","inf","agegroup")) %>% group_by(agegroup) %>% 
+    summarise(init=sum(init),final=sum(final)) %>% mutate(agegroup=as.numeric(agegroup)) %>% arrange(agegroup)
+  finalpop 
+}
+
 # fun_agegroup_init_final_pop<-function(df_ode_solution_tidy,incidvar){
 # df_initial_final_totals=cbind(
 #     df_ode_solution_tidy %>% filter(compartment!=incidvar) %>% group_by(agegroup) %>% filter(t==min(t)) %>% summarise(agegroup_sum_popul=sum(value)),
