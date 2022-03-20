@@ -1,7 +1,6 @@
-# essential functions 
+# essential functions needed to run individual simulations
 
-
-### assign multiple variables -----------------
+### assign multiple variables ----------------------------------------------------------
 # use as: g(a,b,c) %=% c(1,2,3)
 '%=%' = function(l, r, ...) UseMethod('%=%')
 # Binary Operator
@@ -51,7 +50,8 @@ fun_sirs_varnames=function(varname_list,n_age,n_inf){
 fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname_list,agegroup_durations){
   K_m=matrix(0,nrow=dim_sys,ncol=dim_sys)
   # S_i_j -> S_1_1 is S, subscript=1, superscript=1. subscript: # infection, superscript= # age group
-  # varname_list=c('S','I','R') # conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
+  # varname_list=c('S','I','R') 
+  # conversion between i,j and X_k, when variables are stacked as S_i_1,I_i_1,R_i_1, S_i_2,I_i_2,R_i_2 ...
   # waning terms: omega=1/1e2. flow: R_i_j -> S_min(i+1,n_inf)_j;  eg. R_1_1 -> S_2_1
   for (j_age in 1:n_age) {
     for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {waning_terms_source_target=data.frame()}
@@ -64,11 +64,14 @@ fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varna
     for (i_inf in 1:n_inf) { if (j_age==1 & i_inf==1) {aging_terms_source_target=data.frame()}
       agevals=rbind( 
         # S_i_j -> S_i_(j+1)
-        c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age ),
+        c(fun_sub2ind(i_inf,j_age,'S',varname_list,n_age,n_inf),
+          fun_sub2ind(i_inf,j_age+1,'S',varname_list,n_age,n_inf),j_age ),
         # R_i_j -> R_i_(j+1)
-        c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'R',varname_list,n_age,n_inf),j_age),
+        c(fun_sub2ind(i_inf,j_age,'R',varname_list,n_age,n_inf),
+          fun_sub2ind(i_inf,j_age+1,'R',varname_list,n_age,n_inf),j_age),
         # I_i_j -> I_i_(j+1)
-        c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),fun_sub2ind(i_inf,j_age+1,'I',varname_list,n_age,n_inf),j_age)
+        c(fun_sub2ind(i_inf,j_age,'I',varname_list,n_age,n_inf),
+          fun_sub2ind(i_inf,j_age+1,'I',varname_list,n_age,n_inf),j_age)
       )
       # bundle
       aging_terms_source_target=rbind(aging_terms_source_target,agevals) } }
@@ -96,7 +99,7 @@ fun_K_m_sirs_multiage=function(dim_sys,n_age,n_inf,n_compartment,rho,omega,varna
 
 ###
 
-# age structure of country --------------
+# age structure of country ----------------------------------------------------------
 fun_cntr_agestr <- function(i_cntr,i_year,age_low_vals,age_high_vals){
   age_groups=data.frame(age_low=seq(0,75,5), age_high=c(seq(4,74,5),100))
   if (!any((.packages()) %in% "wpp2019")) {library(wpp2019)}; if (!exists("popF")) {data("pop")}
@@ -104,14 +107,14 @@ fun_cntr_agestr <- function(i_cntr,i_year,age_low_vals,age_high_vals){
                            popM[popM$name %in% i_cntr,i_year])
   agegr_truthvals=sapply(strsplit(as.character(cntr_agestr$agegroups),"-"),"[[",1) %in% age_groups$age_low
   N_tot=cntr_agestr$values[agegr_truthvals]
-  N_tot[length(N_tot)]=N_tot[length(N_tot)]+sum(cntr_agestr$values[!agegr_truthvals]); N_tot=N_tot*1e3; # N_tot
+  N_tot[length(N_tot)]=N_tot[length(N_tot)]+sum(cntr_agestr$values[!agegr_truthvals])
+  N_tot=N_tot*1e3; # N_tot
   data.frame(age_low=age_low_vals, age_high=age_high_vals,values=N_tot, duration=(age_high_vals-age_low_vals)+1) %>%
     mutate(proportion=values/sum(values))
 }
 
 
-
-### country full popul struct --------------
+### country full popul struct ----------------------------------------------------------
 fcn_cntr_fullpop <- function(n_year,country_sel){
   uk_popul=left_join(subset(popF,name %in% country_sel)[,c("age",n_year)],
                      subset(popM,name %in% country_sel)[,c("age",n_year)],by="age",suffix=c("F","M"))
@@ -126,7 +129,7 @@ fcn_cntr_fullpop <- function(n_year,country_sel){
   uk_popul
 }
 
-### fcn RSV age groups --------------
+### fcn RSV age groups ----------------------------------------------------------
 fun_rsv_agegroups<-function(standard_age_groups,popul_struct,rsv_age_groups_low,rsv_age_group_sizes){
   rsv_age_groups=data.frame(age_low=rsv_age_groups_low,age_high=rsv_age_groups_low+rsv_age_group_sizes)
   truthvals=which(match(rsv_age_groups$age_low,standard_age_groups$age_low)==
@@ -148,11 +151,12 @@ fun_rsv_agegroups<-function(standard_age_groups,popul_struct,rsv_age_groups_low,
   rsv_age_groups[,"agegroup_name"]=paste(rsv_age_groups$age_low,rsv_age_groups$age_low+rsv_age_groups$duration,sep='-'); 
   rsv_age_groups
   
-  agegroup_match=data.frame(model_agegroup=1:nrow(rsv_age_groups),age_low=rsv_age_groups$age_low,age_high=rsv_age_groups$age_high,
+  agegroup_match=data.frame(model_agegroup=1:nrow(rsv_age_groups),
+                            age_low=rsv_age_groups$age_low,age_high=rsv_age_groups$age_high,
                             wpp_agegroup_low=unlist(lapply(rsv_age_groups$age_low,
-                                                           function(x){which(x>=popul_struct$lower & x<=popul_struct$upper)})),
+                                          function(x){which(x>=popul_struct$lower & x<=popul_struct$upper)})),
                             wpp_agegroup_high=unlist(lapply(rsv_age_groups$age_high,
-                                                            function(x){which(x>=popul_struct$lower & x<=popul_struct$upper)}))) %>%
+                                          function(x){which(x>=popul_struct$lower & x<=popul_struct$upper)}))) %>%
     mutate(age_high=ifelse(model_agegroup<max(model_agegroup),age_low[model_agegroup+1],age_high),
            mean_age_arithm=(age_low+age_high)/2, mean_age_weighted=sapply(1:max(model_agegroup),function(x) {
              sum((popul_struct$totalpop[wpp_agegroup_low[x]:wpp_agegroup_high[x]]*
@@ -280,11 +284,13 @@ fcn_plot_seas_forc <- function(simul_startend,forcingvector_npi,seas_lims_wks,np
 ### set up initial condition ----------------------
 fcn_set_initconds<-function(rsv_agegroup_sizes,init_set,init_cond_src,input_from_prev_simul,init_seed,seed_vars,filename){
   if (grepl("previous",init_set)){     # print("using init cond from previous simulation")
-    initvals_sirs_model=fcn_init_susc_vals(stationary_init=TRUE,from_file_or_output=init_cond_src,simul_output=input_from_prev_simul,
+    initvals_sirs_model=fcn_init_susc_vals(stationary_init=TRUE,
+                                           from_file_or_output=init_cond_src,simul_output=input_from_prev_simul,
                                         susc_vars_inds,agegr_sizes=rsv_agegroup_sizes,sim_filepath=filename) } else {
-                                        # INITIAL INFECTION (taking stationary sol should contain [I]s so no need to re-seed it)
+  # INITIAL INFECTION (taking stationary sol should contain [I]s so no need to re-seed it)
  # set up susceptibles from scratch
-              initvals_sirs_model=matrix(0,nrow=dim_sys*4/3); initvals_sirs_model[sapply(susc_vars_inds,'[[',1)]=rsv_agegroup_sizes
+              initvals_sirs_model=matrix(0,nrow=dim_sys*4/3); 
+              initvals_sirs_model[sapply(susc_vars_inds,'[[',1)]=rsv_agegroup_sizes
  # all first infection groups: sapply(inf_vars_inds, '[[',1) | first infection in first age group: inf_vars_inds[[1]][1]
           if (seed_vars=="all") {seed_vars=sapply(inf_vars_inds,'[[',1)} else {seed_vars=inf_vars_inds[[1]][1]}
                                              initvals_sirs_model[seed_vars]=init_seed
@@ -292,7 +298,7 @@ fcn_set_initconds<-function(rsv_agegroup_sizes,init_set,init_cond_src,input_from
   round(initvals_sirs_model)
 }
 
-## model with MATERNAL IMMUNITY ---------------------- (I am only using this!)
+## model with MATERNAL IMMUNITY (I am only using this!) ---------------------- 
 sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
   suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
@@ -311,9 +317,9 @@ sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) 
 }
 
-
 ### process simul output----------------------
-fun_process_simul_output=function(ode_solution,varnamelist,incidvar,incid_only,init_date,n_age,n_inf,rsvagegroups,neg_thresh){
+fun_process_simul_output <- function(ode_solution,varnamelist,incidvar,incid_only,
+                                     init_date,n_age,n_inf,rsvagegroups,neg_thresh){
   # init_date=as.Date(paste0(as.numeric(format(Sys.Date(),"%Y"))-(npiyear+1),"-01-01"))
   df_ode_solution=ode_solution %>% as.data.frame() %>% 
     setNames(c("t",c(fun_sirs_varnames(varnamelist,n_age,n_inf),fun_sirs_varnames(incidvar,n_age,n_inf)) ))
@@ -332,11 +338,13 @@ fun_process_simul_output=function(ode_solution,varnamelist,incidvar,incid_only,i
   finalvals=df_ode_solution_tidy %>% filter(t==max(t) & compartment!=incidvar) %>% group_by(agegroup) %>% 
     summarise(agegroup_sum_popul=sum(value))
   if (any(is.na(finalvals$agegroup_sum_popul))) {
-    finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==0) %>% summarise(agegroup_sum_popul=sum(value)) }
+    finalvals=df_ode_solution_tidy %>% group_by(agegroup) %>% filter(t==0) %>% summarise(agegroup_sum_popul=sum(value)) 
+    }
   df_ode_solution_tidy = df_ode_solution_tidy %>% mutate(value_fract=value/finalvals$agegroup_sum_popul[agegroup]) %>%
-    mutate(agegroup_name=paste0(rsvagegroups$agegroup_name[agegroup]),date=init_date+t, # ,"yr"
-           agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% group_by(name) %>%
-    mutate(infection=paste0("infection #",infection)) %>% mutate(value=ifelse(compartment==incidvar,c(0,diff(value)),value),
+    mutate(agegroup_name=paste0(rsvagegroups$agegroup_name[agegroup]),date=init_date+t,
+           agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% 
+    group_by(name) %>% mutate(infection=paste0("infection #",infection)) %>% 
+    mutate(value=ifelse(compartment==incidvar,c(0,diff(value)),value),
                      value_fract=ifelse(compartment==incidvar,c(0,diff(value_fract)),value_fract))
   if (incid_only) {df_ode_solution_tidy = df_ode_solution_tidy %>% filter(compartment==incidvar)}
   finpop=fun_agegroup_init_final_pop(df_ode_solution,n_age*n_inf*length(varnamelist))
@@ -348,8 +356,10 @@ fun_process_simul_output=function(ode_solution,varnamelist,incidvar,incid_only,i
 fcn_process_odesol_incid <- function(odesol,n_agegr,n_infect,n_comp,date_start_end){
   odesol[,c(1,(n_agegr*n_infect*n_comp+2):ncol(odesol))] %>% as.data.frame() %>% 
     setNames(c("t",paste0(rep(1:3,n_agegr),"_", unlist(lapply(1:n_agegr, function(x) rep(x,n_infect)))))) %>%
-    pivot_longer(!t) %>% group_by(name) %>% mutate(value=value-lag(value,n=1,order_by=t),date=t+date_start_end[1],
-                agegroup=as.numeric(sapply(strsplit(name,"_"),"[[",2)),infection=as.numeric(sapply(strsplit(name,"_"),"[[",1)))
+    pivot_longer(!t) %>% group_by(name) %>% 
+    mutate(value=value-lag(value,n=1,order_by=t),date=t+date_start_end[1],
+                agegroup=as.numeric(sapply(strsplit(name,"_"),"[[",2)),
+                infection=as.numeric(sapply(strsplit(name,"_"),"[[",1)))
 }
 
 ### sub-function to create seasonal forcing term ----------------------
@@ -363,11 +373,13 @@ fun_seas_forc <- function(time_input,peak_day,st_dev_season,forcing_above_baseli
 ### initial susceptible populs -----------------
 fcn_init_susc_vals <- function(stationary_init,from_file_or_output,simul_output,susc_vars_inds,agegr_sizes,sim_filepath){
   if (stationary_init){
-    if (grepl("file",from_file_or_output)) { x=readRDS(sim_filepath); initvals_sirs_model=as.numeric(x[nrow(x),2:ncol(x)]) 
+    if (grepl("file",from_file_or_output)) { 
+      x=readRDS(sim_filepath); initvals_sirs_model=as.numeric(x[nrow(x),2:ncol(x)]) 
     } else { initvals_sirs_model[,1]=as.numeric(simul_output[nrow(simul_output),2:ncol(simul_output)]) } } else {
       # at t=0 entire popul into susceptibles
       initvals_sirs_model=matrix(0,ncol(simul_output)-1,1); # stationary_init=FALSE
-      initvals_sirs_model[sapply(susc_vars_inds,"[[",1)]=agegr_sizes } # rsv_age_groups$value
+      initvals_sirs_model[sapply(susc_vars_inds,"[[",1)]=agegr_sizes 
+      }
   round(matrix(initvals_sirs_model)) 
 }
 

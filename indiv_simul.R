@@ -40,16 +40,17 @@ high_inds <- findInterval(rsv_age_groups$age_low+rsv_age_groups$duration-0.1,ons
 rsv_age_groups$value <- unlist(lapply(1:length(low_inds), 
             function(x) sum(ons_2020_midyear_estimates_uk$value[low_inds[x]:high_inds[x]])*ifelse(rsv_age_groups$duration[x]<1,
             rsv_age_groups$duration[x],1) ))
+
 # DEATHS (2019: 530841 deaths [England and Wales!]) # "uk_death_rate_byage_rsv_agegroups.csv" is for 1000 population!
 # read_csv("data/uk_death_rate_byage_rsv_agegroups.csv")
-# I slightly adjusted the age-specific deaths rates to get a stationary population at the 2019 total and age struct
+# slightly adjusted age-specific death rates to get stationary population as close as possible to 2019 total & age struct
 uk_death_rate=c(rep(1e-5,2)*3,rep(1e-6,5),rep(0,2),1e-6,1.79e-4) 
 # number of age groups, reinfections and variables (S,I,R)
 n_age=nrow(rsv_age_groups); varname_list=c('S','I','R'); n_compartment=length(varname_list); n_inf=3
 dim_sys=n_age*n_compartment*n_inf; n_days_year=365
 # BIRTH RATE into S_1_1 (Germany 2019: 778e3 births)
 daily_births=2314; birth_rates=matrix(c(daily_births,rep(0,dim_sys-1)),dim_sys,1)
-# we want population to be stationary (at 2019 or 2020 value), so deaths = births
+# we want population to be stationary (at 2019 value), so deaths = births
 if (!any(grepl("death",colnames(rsv_age_groups)))){
   rsv_age_groups <- rsv_age_groups %>% mutate(deaths_per_person_per_day=uk_death_rate,
       stationary_popul=fcn_calc_stat_popul(rsv_age_groups,rsv_age_groups$duration,daily_births,uk_death_rate,output_type="")) 
@@ -64,8 +65,9 @@ l_inf_susc<-fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds<-l
 C_m_polymod <- readRDS(here::here("repo_data/UK_contact_matrix_sum.RDS"))
 
 # create for our age groups
-C_m_merged_nonrecipr <- fun_create_red_C_m(C_m_polymod,rsv_age_groups,
-                        orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
+C_m_merged_nonrecipr <- fun_create_red_C_m(C_m_full=C_m_polymod,rsv_agegroups=rsv_age_groups,
+                          orig_age_groups_duration=standard_age_groups$duration,
+                          orig_age_groups_sizes=standard_age_groups$values)
 # make it reciprocal for the larger group
 C_m <- fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
 # bc of reinfections we need to input contact matrix repeatedly for the ODE system, 
@@ -102,10 +104,14 @@ R0_calc_SIRS(C_m,delta_susc,rho,n_inf)
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
 npi_dates=as.Date(c("2020-03-26","2021-05-17")); seaspeakval=1; seasforc_width_wks=5
 g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,
-        years_pre_post_npi=c(6,3),season_width_wks=seasforc_width_wks,init_mt_day="06-01",
+        years_pre_post_npi=c(3,3),season_width_wks=seasforc_width_wks,init_mt_day="06-01",
         peak_week=48,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
 # plot seasonal forcing
 fcn_plot_seas_forc(simul_start_end,forcing_vector_npi,seas_lims_wks=c(7,42),npi_dates,date_resol="3 month")
+# interpolation fcns for seas forcing & extern introds
+approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
+# how many introductions every 30 days?
+approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*5))
 
 # set initial condition: init_set can be "from scratch" (all susceptible) OR last state of a previous simulation
 initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,
@@ -117,10 +123,6 @@ params <- list(list(birth_rates,
                   matrix(unlist(lapply(uk_death_rate,function(x) rep(x,n_inf*n_compartment))))),
                   K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,delta_susc,mat_imm_inds)
 
-# interpolation fcns for seas forcing & extern introds
-approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_npi))
-# how many introductions every 30 days?
-approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*5))
 # SOLVE ODE system
 # can use 'lsoda' (faster) or 'lsodes'
 tm <- proc.time(); ode_sol <- lsoda(initvals_sirs_model,timesteps,
@@ -144,7 +146,7 @@ sel_weeks <- df_cases_infs %>% mutate(week=week(date),year=year(date)) %>%
 # PLOT RESULTS
 # disaggregate by age, summed over infection type (1/2/3)
 df_cases_infs %>% 
-  filter(agegroup<=9 & date>as.Date("2016-09-01") & date<as.Date("2022-04-01")) %>% # t %% 7==0 & 
+  filter(agegroup<=9 & date>max(c(as.Date("2016-09-01"),min(df_cases_infs$date))) & date<as.Date("2023-05-01")) %>%
   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],
   unique(rsv_age_groups$agegroup_name))) %>% 
   group_by(t,date,agegroup_name) %>% summarise(value=sum(value)) %>%
