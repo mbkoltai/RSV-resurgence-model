@@ -63,7 +63,6 @@ l_inf_susc<-fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds<-l
 # contact matrix from covidm ("home","work","school","other")
 # if UK -> England's contact matrix
 C_m_polymod <- readRDS(here::here("repo_data/UK_contact_matrix_sum.RDS"))
-
 # create for our age groups
 C_m_merged_nonrecipr <- fun_create_red_C_m(C_m_full=C_m_polymod,rsv_agegroups=rsv_age_groups,
                           orig_age_groups_duration=standard_age_groups$duration,
@@ -86,8 +85,10 @@ K_m <- fun_K_m_sirs_multiage(dim_sys,n_age,n_inf,n_compartment,rho,omega,varname
 mat_imm_flag <- TRUE; mat_imm_inds<-list(fun_sub2ind(i_inf=1,j_age=1,"R",c("S","I","R"),n_age,3),
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"R",c("S","I","R"),n_age,3),
                                          fun_sub2ind(i_inf=c(1,2,3),j_age=9,"S",c("S","I","R"),n_age,3))
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
-# set parameters
+# set variable/control parameters
 # SUSCEPTIBILITY (normalised by age group sizes, for infection terms ~ delta*(I1+I2+...+In)*S_i/N_i)
 # agedep_fact determines strength of age dependence, if agedep_fact>1, decreasing susceptibility with age
 exp_dep <- 1.750; age_dep <- 0.3125 # partable$exp_dep[k_par]
@@ -98,14 +99,15 @@ delta_susc <- sapply(1:n_age, function(x) {delta_primary/(exp(age_dep*x))})
 # calculate R0
 R0_calc_SIRS(C_m,delta_susc,rho,n_inf)
 
+### ### ### ### ### ### ### ### ### ### ### ### 
 # DURATION of SIMULATION
 # seasonal forcing (baseline level=1, forcing_strength=2 means 200% above baseline) 
 # npi_reduc_strength: reduction from baseline 
 # set seas lims from UK data: peak is weeks 49/50, on/off is 41,11
-npi_dates=as.Date(c("2020-03-26","2021-05-17")); seaspeakval=1; seasforc_width_wks=5
+npi_dates=as.Date(c("2020-03-26","2021-05-17"))
 g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% fun_shutdown_seasforc(npi_dates,
-        years_pre_post_npi=c(3,3),season_width_wks=seasforc_width_wks,init_mt_day="06-01",
-        peak_week=48,forcing_above_baseline=seaspeakval,npireduc_strength=0.5)
+        years_pre_post_npi=c(6,3),season_width_wks=5,init_mt_day="06-01",
+        peak_week=48,forcing_above_baseline=1,npireduc_strength=0.5)
 # plot seasonal forcing
 fcn_plot_seas_forc(simul_start_end,forcing_vector_npi,seas_lims_wks=c(7,42),npi_dates,date_resol="3 month")
 # interpolation fcns for seas forcing & extern introds
@@ -113,20 +115,22 @@ approx_seas_forc <- approxfun(data.frame(t=timesteps,seas_force=forcing_vector_n
 # how many introductions every 30 days?
 approx_introd <- approxfun(data.frame(t=timesteps,as.numeric(timesteps %% 30==0)*5))
 
-# set initial condition: init_set can be "from scratch" (all susceptible) OR last state of a previous simulation
+### ### ### ### ### ### ### ### ### ### ### ### 
+# set INITIAL VALUES
+# init_set can be "from scratch" (all susceptible) OR last state of a previous simulation
 initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,
       init_set=c("previous","fromscratch")[1],init_cond_src=c("output","file")[1], # 
       input_from_prev_simul=ode_solution,init_seed=10,seed_vars="all",filename="")
 
-# all parameters as argument to fcn that'll run ODE solver
-params <- list(list(birth_rates,
-                  matrix(unlist(lapply(uk_death_rate,function(x) rep(x,n_inf*n_compartment))))),
+# all parameters collected as a list (sent to fcn running ODE solver)
+params <- list(list(birth_rates, matrix(unlist(lapply(uk_death_rate,function(x) rep(x,n_inf*n_compartment))))),
                   K_m,contmatr_rowvector,inf_vars_inds,susc_vars_inds,delta_susc,mat_imm_inds)
 
-# SOLVE ODE system
+# SOLVE ODE SYSTEM
 # can use 'lsoda' (faster) or 'lsodes'
 tm <- proc.time(); ode_sol <- lsoda(initvals_sirs_model,timesteps,
                                 func=sirs_seasonal_forc_mat_immun,parms=params); round(proc.time()-tm,2)
+# PROCESS OUTPUT
 ### ### ### ### ### ### ### ### ### ### ### ### 
 # this step only needed if want to investigate other variables or want to use it as input for next simulation (initial conds)
 # reshape data: get all variables in `ode_solution_tidy` 

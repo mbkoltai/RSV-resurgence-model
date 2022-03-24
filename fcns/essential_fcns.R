@@ -39,7 +39,10 @@ g = function(...) {
 
 # linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
-  varnum=which(varname_list %in% varname); k=(j_age-1)*length(varname_list)*n_inf + (varnum-1)*n_inf + i_inf; k }
+  varnum=which(varname_list %in% varname); 
+  k=(j_age-1)*length(varname_list)*n_inf + (varnum-1)*n_inf + i_inf;
+  k 
+}
 
 # generate all model names ----------------------------------------------------------
 fun_sirs_varnames=function(varname_list,n_age,n_inf){
@@ -254,21 +257,6 @@ R0_calc_SIRS <- function(Cm,deltasusc,rho,n_inf) {
   abs(eigen(ngm)$values[1])
 }
 
-# shutdown term ----------------------
-fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,init_mt_day,
-                                  peak_week,forcing_above_baseline,npireduc_strength){
-  start_end=as.Date(c(paste0(year(npidates[1]-years_pre_post_npi[1]*365),"-",init_mt_day),
-                      paste0(year(npidates[2]+years_pre_post_npi[2]*365),"-",init_mt_day)))
-  # print(start_end)
-  simul_dates=seq(start_end[1],start_end[2],by=1)
-  forcingvector_npi=fun_seas_forc(yday(simul_dates),peak_day=peak_week*7,
-                                  st_dev_season=season_width_wks*7,forcing_above_baseline,day_num=T)
-  npi_ind=simul_dates>npidates[1] & simul_dates<npidates[2]
-  forcingvector_npi[npi_ind]=forcingvector_npi[npi_ind]*(1-npireduc_strength)
-  # n_years=length(forcing_vector_npi)/365; timesteps <- seq(1,length(forcing_vector_npi),by=1)
-  list(length(forcingvector_npi)/365,seq(1,length(forcingvector_npi),by=1),start_end,forcingvector_npi) 
-}
-
 
 ### plot seasonal forcing ----------------------
 fcn_plot_seas_forc <- function(simul_startend,forcingvector_npi,seas_lims_wks,npidates,date_resol){
@@ -298,21 +286,25 @@ fcn_set_initconds<-function(rsv_agegroup_sizes,init_set,init_cond_src,input_from
   round(initvals_sirs_model)
 }
 
-## model with MATERNAL IMMUNITY (I am only using this!) ---------------------- 
+## model with MATERNAL IMMUNITY ---------------------- 
 sirs_seasonal_forc_mat_immun <- function(t,X,parms){
-  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]; Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; 
-  suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
+  # input parameters
+  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]
+  Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
   prot_inf_ind=parms[[7]][[1]]; prot_adults_childb=parms[[7]][[2]]; susc_adults_childb=parms[[7]][[3]]
-  dimsys=nrow(Km); proport_adult_susc=sum(X[susc_adults_childb])/(sum(X[susc_adults_childb])+sum(X[prot_adults_childb]))
+  # system size
+  dimsys=nrow(Km)
+  # proportion of adults susceptible
+  proport_adult_susc=sum(X[susc_adults_childb])/(sum(X[susc_adults_childb])+sum(X[prot_adults_childb]))
   birthrates[prot_inf_ind,]=(1-proport_adult_susc)*birthrates[1,]
   birthrates[1,]=proport_adult_susc*birthrates[1,]
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(infvars_inds, function(x){X[x]}))
-  inf_vars_stacked_fullsize=t(matrix(1,1,n_inf)%*%inf_vars_stacked)
+  inf_vars_stacked_fullsize=t(matrix(1,1,n_inf) %*% inf_vars_stacked)
   lambda_vect=diag(approx_seas_forc(t)*array(deltasusc)) %*% contmatr_row %*% inf_vars_stacked_fullsize 
   infection_vect=diag(X[unlist(suscvars_inds)])%*%lambda_vect
   F_vect=matrix(0,dimsys,1)
-  F_vect[c(unlist(suscvars_inds),unlist(infvars_inds))]=rbind(-infection_vect,infection_vect+approx_introd(t))
+  F_vect[c(unlist(suscvars_inds),unlist(infvars_inds))]=rbind(-infection_vect,infection_vect + approx_introd(t))
   # append infection vector for incidence
   dXdt=birthrates + F_vect + Km %*% X[1:dimsys] - deathrates*X[1:dimsys]; list(rbind(dXdt,infection_vect)) 
 }
@@ -333,8 +325,8 @@ fun_process_simul_output <- function(ode_solution,varnamelist,incidvar,incid_onl
   df_ode_solution_tidy=df_ode_solution[,colSums(df_ode_solution,na.rm=T)>0] %>% pivot_longer(!t)
   df_ode_solution_tidy[c('compartment','infection','agegroup')]=
     sapply(1:3, function(x) {sapply(strsplit(as.character(df_ode_solution_tidy$name),'_'),'[[',x)})
-  df_ode_solution_tidy = df_ode_solution_tidy %>% mutate(compartment=factor(compartment,levels=c(varnamelist,incidvar)),
-                                                         agegroup=as.numeric(agegroup))
+  df_ode_solution_tidy = df_ode_solution_tidy %>% 
+    mutate(compartment=factor(compartment,levels=c(varnamelist,incidvar)),agegroup=as.numeric(agegroup))
   finalvals=df_ode_solution_tidy %>% filter(t==max(t) & compartment!=incidvar) %>% group_by(agegroup) %>% 
     summarise(agegroup_sum_popul=sum(value))
   if (any(is.na(finalvals$agegroup_sum_popul))) {
@@ -364,10 +356,26 @@ fcn_process_odesol_incid <- function(odesol,n_agegr,n_infect,n_comp,date_start_e
 
 ### sub-function to create seasonal forcing term ----------------------
 fun_seas_forc <- function(time_input,peak_day,st_dev_season,forcing_above_baseline,day_num){
-  # peak_day=60; st_dev_season=27; forcing_above_baseline=0.1; 
+  # peak_day=7*48=336; st_dev_season=7*5=35; forcing_above_baseline=1
   if (!day_num) { time_input = time_input %% 365}
-  dist_from_peak=apply(data.frame( abs(time_input - peak_day),365-peak_day+time_input ),1,min)
-  forcing_vector= 1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_season)^2); forcing_vector 
+  dist_from_peak = apply(data.frame( abs(time_input - peak_day),365-peak_day+time_input ),1,min)
+  forcing_vector=1 + forcing_above_baseline*exp(-0.5*(dist_from_peak/st_dev_season)^2)
+  forcing_vector 
+}
+
+# shutdown term ----------------------
+fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,init_mt_day,
+                                  peak_week,forcing_above_baseline,npireduc_strength){
+  start_end=as.Date(c(paste0(year(npidates[1]-years_pre_post_npi[1]*365),"-",init_mt_day),
+                      paste0(year(npidates[2]+years_pre_post_npi[2]*365),"-",init_mt_day)))
+  # print(start_end)
+  simul_dates=seq(start_end[1],start_end[2],by=1)
+  forcingvector_npi=fun_seas_forc(yday(simul_dates),peak_day=peak_week*7,
+                                  st_dev_season=season_width_wks*7,forcing_above_baseline,day_num=T)
+  npi_ind=simul_dates>npidates[1] & simul_dates<npidates[2]
+  forcingvector_npi[npi_ind]=forcingvector_npi[npi_ind]*(1-npireduc_strength)
+  # n_years=length(forcing_vector_npi)/365; timesteps <- seq(1,length(forcing_vector_npi),by=1)
+  list(length(forcingvector_npi)/365,seq(1,length(forcingvector_npi),by=1),start_end,forcingvector_npi) 
 }
 
 ### initial susceptible populs -----------------

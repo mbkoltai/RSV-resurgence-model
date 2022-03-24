@@ -78,8 +78,8 @@ ggplot(age_exp_dep_uniqvals %>%
 # # `start_date_dyn_save` will define the timepoint from which to save simulation outputs
 # # `simul_length_yr` is the length of simulations (in years), `n_post_npi_yr` is the number of years after NPIs
 # # `n_core`: number of cores used, `memory_max`: allocated memory (GB)
-# start_date_dyn_save: date to save results from
-# simul_length_yr<-25; n_post_npi_yr<-4; n_core<-64; memory_max<-8; start_date_dyn_save <- "2016-09-01"
+# # start_date_dyn_save: date to save results from
+# simul_length_yr <- 25; n_post_npi_yr<-4; n_core<-64; memory_max<-8; start_date_dyn_save <- "2016-09-01"
 # contact_red<-0.5
 # agegroup_res<-"broad_age" # this if summary stats should be saved in 0-1, 1-2, 2-5, 5+ groups only
 # # these are parameters selected by criteria of 1) attack rates 2) seasonal concentration of cases
