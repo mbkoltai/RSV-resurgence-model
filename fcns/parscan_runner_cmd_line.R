@@ -64,7 +64,7 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
   #         init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="") 
   # read in a solution with stabilised age structure
-  initvals_sirs_model<-readRDS("extras/stationary_sol.RDS")
+  initvals_sirs_model<-readRDS("repo_data/stationary_sol.RDS")
   
   print(format(Sys.time(),"%Y/%b/%d | %X"))
   print(paste0("PARSET: ",partable$par_id[k_par], "(",k_par,")")) # print("LOAD INITVALS")
