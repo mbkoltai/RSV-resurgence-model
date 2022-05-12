@@ -1,7 +1,7 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-x1<-c("tidyverse","deSolve","gtools","rstudioapi","devtools","wpp2019","Rcpp","lubridate",
+x1<-c("tidyverse","deSolve","gtools","devtools","wpp2019","Rcpp","lubridate","here", # "rstudioapi",
       "tsibble","pracma","qs","zoo","RcppRoll") # ,"ungeviz"
 x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[!x2]) }
 # if (!any(grepl("ungeviz",row.names(installed.packages())))) {devtools::install_github("wilkelab/ungeviz")}
