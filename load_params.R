@@ -2,19 +2,19 @@
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
 x1<-c("tidyverse","deSolve","gtools","rstudioapi","devtools","wpp2019","Rcpp","lubridate",
-      "tsibble","pracma","qs","ungeviz","zoo","RcppRoll")
-x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[! x2]) }
-if (!any(grepl("ungeviz",row.names(installed.packages())))) {devtools::install_github("wilkelab/ungeviz")}
-# Load all packages    
-lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
+      "tsibble","pracma","qs","zoo","RcppRoll") # ,"ungeviz"
+x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[!x2]) }
+# if (!any(grepl("ungeviz",row.names(installed.packages())))) {devtools::install_github("wilkelab/ungeviz")}
+# Load all packages (unless already loaded) # as.Date <- zoo::as.Date
+lapply(x1,library,character.only=TRUE)
 select <- dplyr::select; # row_number <- dplyr::row_number; summarise <- dplyr::summarise
 source('fcns/RSV_model_functions.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# set plotting theme (remove Calibri if it throws an error)
-standard_theme=theme(# panel.grid=element_line(linetype="solid",colour="black",size=0.1),
-  plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),
-  axis.text.y=element_text(size=9),axis.title=element_text(size=14), # , text=element_text(family="Calibri")
-  panel.grid.minor=element_blank())
+# set plotting theme
+standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),
+  axis.text.y=element_text(size=9),axis.title=element_text(size=14), panel.grid.minor=element_blank())
+# text=element_text(family="Calibri") # some versions will throw errors if font set to Calibri
+# panel.grid=element_line(linetype="solid",colour="black",size=0.1),
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
 ### ### ### ### ### ### ### ###
@@ -70,10 +70,16 @@ C_m_merged_nonrecipr=fun_create_red_C_m(C_m_polymod,rsv_age_groups,
         orig_age_groups_duration=standard_age_groups$duration,orig_age_groups_sizes=standard_age_groups$values)
 # make it reciprocal for the larger group
 C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stationary_popul)
-# bc of reinfections we need to input contact matrix repeatedly, 
-# normalisation by population is to construct the force of infection terms
-contmatr_rowvector=t(do.call(cbind, 
-    lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)})))/rsv_age_groups$stationary_popul[col(C_m)]
+# bc of reinfections we need to input contact matrix repeatedly: 
+# the force of infection is the same for the 1st, 2nd, 3rd infections, but in the full equation they are multiplied by a different
+# susceptibility parameter (delta1>delta2>delta3). 
+# Therefore we repeat the contact matrix's rows three times, corresponding to 1st, 2nd, 3rd infxs of each age group
+# Also the columns of the matrix are normalised by the age group sizes, as they will multiply the infection terms by age groups
+contmatr_rowvector=t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)}))) / 
+                    matrix(rep(rsv_age_groups$stationary_popul,n_age*n_inf),nrow=n_age*n_inf,byrow=T)
+# rsv_age_groups$stationary_popul[col(C_m)]
+# matrix(1,nrow=33,ncol = 11)/matrix(rep(1:11,33),nrow=33,byrow=T)
+every_nth = function(n) { return(function(x) {x[c(TRUE, rep(FALSE, n-1))]}) }
 # build kinetic matrix
 # WANING (immunity) terms: R_i_j -> S_min(i+1,n_inf)_j
 omega=1/350 # 1/runif(1,60,200)

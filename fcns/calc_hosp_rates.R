@@ -57,10 +57,14 @@ hosp_rates <- hosp_rates %>% rename(agegroup_name=V1,hosp_rate_per_100K=V2) %>%
 # if (sum(hosp_rates$hosp_number)>50e3){ corr_r <- 50e3/sum(hosp_rates$hosp_number)
 #   hosp_rates[,2:3] <- hosp_rates[,2:3]*corr_r }
 
-hosp_probabilities <- read_csv("repo_data/hosp_probabilities_hodgson_adjusted.csv") 
+hosp_probabilities <- read_csv("repo_data/hosp_probabilities_hodgson_adjusted.csv")  %>% 
+  relocate(size,.after=agegroup_name) %>% relocate(hosp_num_from_per_inf_prob,.after=last_col()) %>% 
+  mutate(agegroup=as.numeric(factor(agegroup_name,levels=unique(agegroup_name))))
+
 # %>% mutate(size=rsv_age_groups$value,
 #   hosp_num=size*(estim_attack_rates$median_all_inf/100)*prob_hosp_per_infection,agegroup_name=gsub("_","-",agegroup_name)) %>%
 #  rename(hosp_num_from_per_inf_prob=hosp_num)
 
 # left_join(hosp_probabilities,hosp_rates,by="agegroup_name") %>% 
 #   select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_number_from_pop_estim)) %>% pivot_longer(!agegroup_name)
+#

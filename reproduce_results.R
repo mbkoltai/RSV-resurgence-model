@@ -3,7 +3,7 @@
 ####
 # clear workspace
 rm(list=ls())
-# To set the path we need here package
+# To set the path we need the "here" package
 if (!any(row.names(installed.packages()) %in% "here")) {install.packages("here")}; library(here)
 # load constant parameters and functions for simulations, specify folder where inputs are stored
 source(here::here("load_params.R"))
@@ -40,7 +40,7 @@ partable_full_linear_kage_kexp <- partable %>%
                                     select(!age_dep_fit)
 # SAVE filtered parameter table
 # write_csv(partable_full_linear_kage_kexp,"repo_data/partable_full_linear_kage_kexp.csv")
-# check the size of objects (>x Mb) you have in the workspace by: fcn_objs_mem_use(min_size=1)
+# check the size of objects (>x Mb) in the workspace by: fcn_objs_mem_use(min_size=1)
 # start date of simulations
 start_date_dyn_save <- "2016-09-01"
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -368,6 +368,7 @@ suscept_sel_parsets <- left_join(
 colorpal <- colorRampPalette(colors=c("blue","grey","red"))(length(unique(suscept_sel_parsets$PC1_grouped)))
 ##################################################
 # facet by 'kappa' parameter: SI FIGURE 3
+# library(plyr)
 label_parseall <- function(variable, value) {
   plyr::llply(value, function(x) parse(text=paste(variable,x,sep = "==")))}
 # plot
@@ -1258,8 +1259,7 @@ if (n_par>3) {p <- p + scale_color_manual(values=colorpal) +
   if (!dir.exists(here::here(foldername,"dynamics"))) {
     dir.create(here::here(foldername,"dynamics"))}
   # filename
-  plot_fn <- here::here(foldername,
-                        paste0("dynamics/weekly_hosp_by_",
+  plot_fn <- here::here(foldername, paste0("dynamics/weekly_hosp_by_",
                                ifelse(grepl("exp",k_par),"age_exp",k_par),
                             "_norm_",comp_year,"_peak_until",max(sel_years),
                             ifelse(k_age>1,"_1_5y",""),".png")) 

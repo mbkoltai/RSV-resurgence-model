@@ -145,8 +145,8 @@ fun_rsv_agegroups<-function(standard_age_groups,popul_struct,rsv_age_groups_low,
   agelim_diffs=rsv_age_groups$age_high-rsv_age_groups$age_low; agelim_diffs_increm=rep(NA,length(agelim_diffs))
   agelim_diffs_increm[agelim_diffs %% 1==0]=1; agelim_diffs_increm[agelim_diffs %% 1>0]=0.1 
   rsv_age_groups[,"duration"]=(rsv_age_groups$age_high-rsv_age_groups$age_low) + agelim_diffs_increm
-  scaling_fact=rsv_age_groups$duration/sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$duration[
-    rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
+  scaling_fact=rsv_age_groups$duration/sapply(1:nrow(rsv_age_groups),function(x) {
+    sum(standard_age_groups$duration[rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])})
   popul_custom_agegroups=sapply(1:nrow(rsv_age_groups),function(x) {sum(standard_age_groups$values[
     rsv_age_groups$wpp_agegroup_low[x]:rsv_age_groups$wpp_agegroup_high[x]])}); rsv_age_groups[,"value"]=NA
   rsv_age_groups$value=popul_custom_agegroups*scaling_fact; rsv_age_groups[,"fraction"]=
@@ -289,7 +289,7 @@ fcn_set_initconds<-function(rsv_agegroup_sizes,init_set,init_cond_src,input_from
 ## model with MATERNAL IMMUNITY ---------------------- 
 sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   # input parameters
-  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]]
+  birthrates=parms[[1]][[1]]; deathrates=parms[[1]][[2]] # ; stationary_popul=parms[[1]][[3]]
   Km=parms[[2]]; contmatr_row=parms[[3]]; infvars_inds=parms[[4]]; suscvars_inds=parms[[5]]; deltasusc=parms[[6]]; 
   prot_inf_ind=parms[[7]][[1]]; prot_adults_childb=parms[[7]][[2]]; susc_adults_childb=parms[[7]][[3]]
   # system size
@@ -301,7 +301,7 @@ sirs_seasonal_forc_mat_immun <- function(t,X,parms){
   # stack I vars
   inf_vars_stacked=do.call(cbind,lapply(infvars_inds, function(x){X[x]}))
   inf_vars_stacked_fullsize=t(matrix(1,1,n_inf) %*% inf_vars_stacked)
-  lambda_vect=diag(approx_seas_forc(t)*array(deltasusc)) %*% contmatr_row %*% inf_vars_stacked_fullsize 
+  lambda_vect=diag(approx_seas_forc(t)*array(deltasusc)) %*% contmatr_row %*% inf_vars_stacked_fullsize # /stationary_popul
   infection_vect=diag(X[unlist(suscvars_inds)])%*%lambda_vect
   F_vect=matrix(0,dimsys,1)
   F_vect[c(unlist(suscvars_inds),unlist(infvars_inds))]=rbind(-infection_vect,infection_vect + approx_introd(t))
@@ -340,7 +340,8 @@ fun_process_simul_output <- function(ode_solution,varnamelist,incidvar,incid_onl
                      value_fract=ifelse(compartment==incidvar,c(0,diff(value_fract)),value_fract))
   if (incid_only) {df_ode_solution_tidy = df_ode_solution_tidy %>% filter(compartment==incidvar)}
   finpop=fun_agegroup_init_final_pop(df_ode_solution,n_age*n_inf*length(varnamelist))
-  
+  df_ode_solution_tidy <- df_ode_solution_tidy %>% relocate(c(value,value_fract),.after=last_col()) %>%
+                            relocate(date,.after=t)
   list(finpop,df_ode_solution,df_ode_solution_tidy) 
 }
 
@@ -351,7 +352,7 @@ fcn_process_odesol_incid <- function(odesol,n_agegr,n_infect,n_comp,date_start_e
     pivot_longer(!t) %>% group_by(name) %>% 
     mutate(value=value-lag(value,n=1,order_by=t),date=t+date_start_end[1],
                 agegroup=as.numeric(sapply(strsplit(name,"_"),"[[",2)),
-                infection=as.numeric(sapply(strsplit(name,"_"),"[[",1)))
+                infection=as.numeric(sapply(strsplit(name,"_"),"[[",1))) %>% relocate(date,.after = t)
 }
 
 ### sub-function to create seasonal forcing term ----------------------
