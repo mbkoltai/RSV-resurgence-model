@@ -8,7 +8,8 @@ x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.p
 # Load all packages (unless already loaded) # as.Date <- zoo::as.Date
 lapply(x1,library,character.only=TRUE)
 select <- dplyr::select; # row_number <- dplyr::row_number; summarise <- dplyr::summarise
-source('fcns/RSV_model_functions.R')
+# source('fcns/RSV_model_functions.R')
+source("fcns/essential_fcns.R")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # set plotting theme
 standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),

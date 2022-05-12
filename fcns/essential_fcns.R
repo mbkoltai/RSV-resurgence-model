@@ -37,6 +37,14 @@ g = function(...) {
 }
 
 
+### get objects larger than x Mb (memory) --------------
+fcn_objs_mem_use <- function(min_size){
+  mem_use_df=round(data.frame(unlist(sapply(ls(envir=.GlobalEnv), function(n) object.size(get(n)), simplify = FALSE)))/1e6,1)
+  colnames(mem_use_df)[1]<-"size (Mb)"; mem_use_df[,"objs"]=rownames(mem_use_df)
+  mem_use_df<-mem_use_df[order(mem_use_df$size,decreasing=T),]; rownames(mem_use_df)<-c()
+  mem_use_df[mem_use_df$size>min_size,c(2,1)]
+}
+
 # linear index from 2-dim index (infection-age) ----------------------------------------------------------
 fun_sub2ind=function(i_inf,j_age,varname,varname_list,n_age,n_inf){
   varnum=which(varname_list %in% varname); 

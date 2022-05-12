@@ -1,7 +1,5 @@
-# This script is to reproduce the results & figures of the manuscript at https://www.medrxiv.org/content/10.1101/2021.12.13.21267740v1
+# This script is for reproducing the results and figures of the manuscript at [...]
 # Mihaly Koltai, Nov/2021
-#
-# ----> to reproduce the results of the final version go to 'reproduce_results_revisions.R' in the same folder
 ####
 # clear workspace
 rm(list=ls())
