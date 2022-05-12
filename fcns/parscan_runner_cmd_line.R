@@ -111,6 +111,34 @@ if (!mat_imm_flag){
   # calc attack rates
   # print(paste0("season start: ",partable$seas_start_wk[k_par]))
   
+  # summary stats before broader age group aggregation
+  sum_inf_epiyear_age <- left_join(df_cases_infs %>%
+                                     mutate(year=year(date),
+                                            epi_year=ifelse(isoweek(date)>=week_epiyear_start, year(date), year(date)-1),
+                                            in_out_season=ifelse(isoweek(date) >= seas_start_wk | isoweek(date) <= seas_stop_wk,
+                                                                 "in","out")) %>% 
+                                     group_by(epi_year,agegroup) %>%
+                                     # summing 1st, 2nd, 3rd infections
+              summarise(inf_tot=round(sum(value,na.rm=T)),
+                                       inf_in_seas=round(sum(value[in_out_season=="in"])),
+              # for the 1st age group we only count 1st infections for the attack rate, to be comparable to Kenya study
+              inf_in_seas_AR=round(sum(value[in_out_season=="in" & !(agegroup==1 & infection>1)])),
+              peak_inf=round(max(value,na.rm=T)),
+              max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>%
+              group_by(agegroup) %>% filter(epi_year>min(epi_year)),
+              final_pop,by="agegroup") %>%  # 
+    mutate(par_id=partable$par_id[k_par],
+           exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],
+           seasforc_width_wks=seasforc_width_wks,
+           seasforce_peak=partable$seasforce_peak[k_par],
+           R0=partable$R0[k_par],
+           omega=partable$omega[k_par],
+           attack_rate_perc=round(100*inf_in_seas_AR/final,1), # calculate in-season attack rate!
+           seas_share=round(inf_in_seas/inf_tot,3)) %>% 
+    relocate(c(inf_tot,inf_in_seas,peak_inf,max_incid_week,attack_rate_perc,seas_share),.after=omega) %>%
+    relocate(par_id,.before=epi_year)
+  
+  # aggregate into broader age groups
   if (grepl("broad|BROAD",agegroup_res)) {
     df_cases_infs <- df_cases_infs %>% 
       mutate(agegroup_broad=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% 
@@ -125,31 +153,7 @@ if (!mat_imm_flag){
       summarise(final=sum(final)) %>% rename(agegroup=agegroup_broad) 
   }
   
-  sum_inf_epiyear_age <- left_join(df_cases_infs %>%
-    mutate(year=year(date),
-           epi_year=ifelse(isoweek(date)>=week_epiyear_start, year(date), year(date)-1),
-           in_out_season=ifelse(isoweek(date) >= seas_start_wk | isoweek(date) <= seas_stop_wk,
-                                "in","out")) %>% 
-     group_by(epi_year,agegroup) %>%
-  # summing 1st, 2nd, 3rd infections
-  summarise(inf_tot=round(sum(value,na.rm=T)),
-            inf_in_seas=round(sum(value[in_out_season=="in"])),
-            # for the 1st age group we only count 1st infections for the attack rate, to be comparable to Kenya study
-            inf_in_seas_AR=round(sum(value[in_out_season=="in" & !(agegroup==1 & infection>1)])),
-            peak_inf=round(max(value,na.rm=T)),
-            max_incid_week=mean(week(date[value==max(value,na.rm=T)]),na.rm=T)) %>%
-  group_by(agegroup) %>% filter(epi_year>min(epi_year)),
-  final_pop,by="agegroup") %>%  # 
-  mutate(par_id=partable$par_id[k_par],
-         exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],
-           seasforc_width_wks=seasforc_width_wks,
-           seasforce_peak=partable$seasforce_peak[k_par],
-           R0=partable$R0[k_par],
-           omega=partable$omega[k_par],
-           attack_rate_perc=round(100*inf_in_seas_AR/final,1), # calculate in-season attack rate!
-           seas_share=round(inf_in_seas/inf_tot,3)) %>% 
-    relocate(c(inf_tot,inf_in_seas,peak_inf,max_incid_week,attack_rate_perc,seas_share),.after=omega) %>%
-    relocate(par_id,.before=epi_year)
+  
   # SAVE
   write_csv(sum_inf_epiyear_age,summ_filename,append=ifelse(k_par>1,TRUE,FALSE))
   if (save_flag) {write_csv(df_cases_infs %>% select(!date),dyn_filename,append=ifelse(k_par>1,TRUE,FALSE))}
