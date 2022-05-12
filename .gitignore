@@ -30,3 +30,9 @@ repo_data/90pct_red/
 refresh_gitignore.sh
 single_simul_calibrate.R 
 .Rproj.user
+# RSV-resurgence-model.Rproj
+julia_comparison.R
+# repo_data/SARI_watch_under5y_hosp.csv
+revisions.R
+
+
