@@ -114,11 +114,11 @@ if (!mat_imm_flag){
   
   # summary stats before broader age group aggregation
   sum_inf_epiyear_age <- left_join(df_cases_infs %>%
-                          mutate(year=year(date),
-                                 epi_year=ifelse(isoweek(date)>=week_epiyear_start, year(date), year(date)-1),
-                                 in_out_season=ifelse(isoweek(date) >= seas_start_wk | isoweek(date) <= seas_stop_wk,"in","out")) %>% 
+            mutate(year=year(date),
+                  epi_year=ifelse(isoweek(date)>=week_epiyear_start, year(date), year(date)-1),
+                  in_out_season=ifelse(isoweek(date) >= seas_start_wk | isoweek(date) <= seas_stop_wk,"in","out")) %>% 
                           group_by(epi_year,agegroup) %>%
-                                     # summing 1st, 2nd, 3rd infections
+              # summing 1st, 2nd, 3rd infections
               summarise(inf_tot=sum(value,na.rm=T), # round()
                         inf_in_seas=sum(value[in_out_season=="in"]), # round()
               # for the 1st age group we only count 1st infections for the attack rate, to be comparable to Kenya study
@@ -131,6 +131,7 @@ if (!mat_imm_flag){
            exp_dep=partable$exp_dep[k_par],age_dep=partable$age_dep[k_par],
            seasforc_width_wks=seasforc_width_wks,
            seasforce_peak=partable$seasforce_peak[k_par],
+           peak_week=peak_week,
            R0=partable$R0[k_par],
            omega=partable$omega[k_par],
            attack_rate_perc=100*inf_in_seas_AR/final, # calculate in-season attack rate! # no rounding round(,1)

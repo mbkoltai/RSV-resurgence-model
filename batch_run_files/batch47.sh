@@ -1,3 +1,3 @@
 #!/usr/bin/bash 
 module load R/3.6.3
-Rscript --vanilla fcns/parscan_runner_cmd_line.R 9083 9280 25 4 0.5 repo_data/partable_full_linear_kage_kexp.csv NOSAVE 2016-09-01 broad_age > simul_output/parscan/nohup_47.out 
+Rscript --vanilla fcns/parscan_runner_cmd_line.R 14522 14837 25 4 0.95 repo_data/partable_full_lhs.csv SAVE 2016-09-01 broad_age > simul_output/parscan/nohup_47.out 

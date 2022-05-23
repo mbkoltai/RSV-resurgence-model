@@ -1,9 +1,11 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-x1<-c("tidyverse","deSolve","gtools","wpp2019","Rcpp","lubridate","here","tsibble","pracma","qs","zoo","RcppRoll")
+x1<-c("here","tidyverse","deSolve","gtools","wpp2019","lubridate","Rcpp","RcppRoll","pracma","lhs")
+# are these needed? ,"tsibble","qs","zoo"
 # "rstudioapi","devtools",
-x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { install.packages(x1[!x2],repos="http://cran.us.r-project.org") }
+x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { 
+  install.packages(x1[!x2],repos="http://cran.us.r-project.org") }
 # if (!any(grepl("ungeviz",row.names(installed.packages())))) {devtools::install_github("wilkelab/ungeviz")}
 # Load all packages (unless already loaded) # as.Date <- zoo::as.Date
 lapply(x1,library,character.only=TRUE)
@@ -55,7 +57,8 @@ if (!any(grepl("death",colnames(rsv_age_groups)))){
 # query variables: fun_sub2ind(1:3,11,"R",varname_list,n_age,n_inf)
 # force of infection terms
 # linear indices of the I & S variables
-l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_inf_susc[[1]]; susc_vars_inds=l_inf_susc[[2]]
+l_inf_susc=fun_inf_susc_index_lists(n_age,n_inf,varname_list); inf_vars_inds=l_inf_susc[[1]]; 
+susc_vars_inds=l_inf_susc[[2]]
 # CONTACT MATRIX
 # contact matrix from covidm ("home","work","school","other")
 # cm_path="~/Desktop/research/models/epid_models/covid_model/lmic_model/covidm/"
