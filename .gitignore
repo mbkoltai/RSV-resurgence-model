@@ -33,5 +33,5 @@ single_simul_calibrate.R
 # RSV-resurgence-model.Rproj
 julia_comparison.R
 # repo_data/SARI_watch_under5y_hosp.csv
-revisions.R
+revision_likelihood_calc.R
 # reproduce_results_revisions.R
