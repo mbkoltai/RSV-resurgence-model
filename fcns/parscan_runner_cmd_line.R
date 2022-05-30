@@ -143,13 +143,13 @@ if (!mat_imm_flag){
   if (grepl("broad|BROAD",agegroup_res)) {
     df_cases_infs <- df_cases_infs %>% 
       mutate(agegroup_broad=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% 
-      filter(agegroup!=4) %>% # remove age groups 5-65y
+      filter(agegroup_broad!=4) %>% # remove age groups [5-65y[
       group_by(t,agegroup_broad,par_id,date) %>% 
       summarise(value=sum(value)) %>% rename(agegroup=agegroup_broad)
     
     final_pop <- final_pop %>% 
       mutate(agegroup_broad=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% 
-      filter(agegroup!=4) %>% # remove age groups 5-65y
+      filter(agegroup_broad!=4) %>% # remove age groups 5-65y
       group_by(agegroup_broad) %>% 
       summarise(final=sum(final)) %>% rename(agegroup=agegroup_broad) 
   }

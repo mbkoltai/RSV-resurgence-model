@@ -14,8 +14,10 @@ lapply(x1,library,character.only=TRUE) # as.Date <- zoo::as.Date
 source('fcns/essential_fcns.R')
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # set plotting theme (remove Calibri if it throws an error)
-standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),
-  axis.text.y=element_text(size=9),axis.title=element_text(size=14), panel.grid.minor=element_blank()) 
+standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),
+                     axis.text.x=element_text(size=9,angle=90,vjust=1/2),
+                     axis.text.y=element_text(size=9),axis.title=element_text(size=14), 
+                     panel.grid.minor=element_blank()) 
 # panel.grid=element_line(linetype="solid",colour="black",size=0.1) # , text=element_text(family="Calibri")
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SET PARAMETERS --------------------------------------------------------
