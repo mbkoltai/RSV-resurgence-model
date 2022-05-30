@@ -17,19 +17,21 @@ estim_attack_rates <- read_csv(here("repo_data/kenya_attack_rates.csv")) %>%
 # % cases within season (filtering parameter sets)
 npi_dates<-as.Date(c("2020-03-26","2021-05-17"))
 # set up the table of parameter vectors by Latin Hypercube Sampling (LHS)
-partable <- data.frame(randomLHS(n=2e4,k=7))
+partable <- data.frame(randomLHS(n=32e3,k=7))
 colnames(partable) <- c("exp_dep","age_dep","seasforc_width_wks","R0","seasforce_peak","omega","peak_week")
-# exp_dep=seq(1/4,2,1/8), age_dep=seq(1/8,1,1/16)
 # convert to relevant ranges, columns: 
 # 1) expdep 2) agedep 3) peak_width 4) R0 5) peak_height 6) waning 7) peak week
-partable[,1] <- qunif(partable[,1],min=1/3,max=1.25) # 1) expdep
+partable[,1] <- qunif(partable[,1],min=3/10,max=1.25) # 1) expdep
 partable[,2] <- qunif(partable[,2],min=1/15,max=1/3) # 2) agedep
 partable[,3] <- qgamma(partable[,3],shape=10,rate=2) # 3) peak_width
 partable[,4] <- qgamma(partable[,4],shape=14,rate=8) # 4) R0
 partable[,5] <- qunif(partable[,5],min=0.2,max=1.5) # 5) peak height
 partable[,6] <- qnorm(partable[,6],mean=350,sd=50); partable[,6] <- 1/partable[,6] # 6) waning
 partable[,7] <- qunif(partable[,7],min=43,max=48) # 7) peak week
-if (any(partable<0)) {partable=abs(partable); message("negative values")}
+if (any(partable<0)) { partable=abs(partable); message("negative values") }
+
+# initial sampling showed that accepted parsets satisfy the condition: exp_dep < 1.65 - 4.5*age_dep
+partable <- partable %>% filter(exp_dep+4.5*age_dep<1.85)
 
 # grid search:
 # list(exp_dep=seq(1/4,2,1/8),
