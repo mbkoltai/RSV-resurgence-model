@@ -110,9 +110,9 @@ ggplot(age_exp_dep_uniqvals %>%
 # # we split the parameter table into `n_core` batches and run them in parallel, the sh file will launch the jobs
 # # write the files launching jobs
 # command_print_runs <- paste0(c("Rscript fcns/write_run_file.R",n_core,n_row,
-#                                 simul_length_yr,n_post_npi_yr,contact_red,
-#                                 partable_filename,"SAVE sep_qsub_files",start_date_dyn_save,
-#                                 agegroup_res,memory_max),collapse=" ")
+#                                  simul_length_yr,n_post_npi_yr,contact_red,
+#                                  partable_filename,"SAVE sep_qsub_files",start_date_dyn_save,
+#                                  agegroup_res,memory_max),collapse=" ")
 # # run this command by:
 # system(command_print_runs)
 # # run calculation (on a cluster, requires multiple cores) by:
