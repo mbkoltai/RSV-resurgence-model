@@ -478,30 +478,39 @@ ggsave(here("simul_output/2e4_parsets/all_LLH_accepted_rejected_density.png"),wi
 # what happens for parsets where fit is good?
 # top 1%: array(quantile(all_likelihoods$value[grepl("complete",all_likelihoods$name)],probs=0.01,na.rm=T))
 bind_rows(results_summ_rejected,results_summ_all_reg_dyn) %>% 
-  filter(par_id %in% (all_likelihoods %>% filter((name %in% "complete likelihood") & value<1e3))$par_id & 
+  filter(par_id %in% (all_likelihoods %>% filter((name %in% "complete likelihood") & value<2e3))$par_id & 
         epi_year<2019) %>% select(c(par_id,agegroup,attack_rate_perc,seas_share)) %>% 
   mutate(accepted=ifelse(par_id %in% unique(all_likelihoods$par_id[all_likelihoods$accepted]),T,F)) %>% 
   pivot_longer(!c(par_id,agegroup,accepted)) %>% 
-ggplot() + geom_jitter(aes(x=accepted,y=value,color=accepted),alpha=1/2,size=2) + scale_y_log10() +
+ggplot() + 
+  geom_jitter(aes(x=accepted,y=value,color=accepted),alpha=1/3) + scale_y_log10() +
   geom_hline(data=estim_attack_rates %>% mutate(agegroup=row_number()) %>% select(c(agegroup,min_est,max_est)) %>% 
                pivot_longer(!agegroup) %>% mutate(name="attack_rate_perc"),aes(yintercept=value),linetype="dashed") +
   geom_hline(aes(yintercept=ifelse(name %in% "seas_share",0.85,NA)),linetype="dashed") +
-  facet_grid(name~agegroup,scales="free") + theme_bw() + standard_theme + xlab("") + theme(axis.text.x=element_blank())
+  facet_wrap(name~agegroup,scales="free",nrow=2) + theme_bw() + standard_theme + xlab("") + theme(axis.text.x=element_blank())
 # it's because attack rates are out of the range for agegroups > 8
-ggsave(here("simul_output/2e4_parsets/goodfits_filtered.png"),width=35,height=16,units="cm")
+# ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1e3_filtered.png"),width=35,height=16,units="cm")
+ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below2e3_filtered.png"),width=35,height=16,units="cm")
 
 # dynamics
 goodfit_pars <- (all_likelihoods %>% filter((name %in% "complete likelihood") & value<1e3))$par_id
+sari_hosp_data_joint = simul_hosp_rate_weekly %>% ungroup() %>% 
+  select(c(year_week,casesunder5total,cases65plustotal,broad_age,year)) %>% 
+  distinct() %>% pivot_longer(!c(year_week,broad_age,year)) %>%
+  filter(!(broad_age %in% "<5y" & name %in% "cases65plustotal")) %>%
+  filter(!(broad_age %in% ">65y" & name %in% "casesunder5total"))
 # plot
 simul_hosp_rate_weekly %>% select(c(par_id,accepted,broad_age,simul_hosp_scaled,year_week,year)) %>%
   filter(par_id %in% goodfit_pars) %>%
 ggplot(aes(x=year_week)) + 
-  geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id)) + 
-  geom_point(data=simul_hosp_rate_weekly %>% ungroup() %>% select(c(date,year_week,casesunder5total,broad_age,year)) %>% 
-               filter(broad_age %in% "<5y") %>% distinct(),aes(y=casesunder5total)) +
-  geom_point(data=simul_hosp_rate_weekly %>% ungroup() %>% select(c(date,year_week,cases65plustotal,broad_age,year)) %>% 
-               filter(broad_age %in% ">65y") %>% distinct(),aes(y=cases65plustotal)) + 
+  geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id),alpha=1/3) + 
+  geom_point(data=sari_hosp_data_joint,aes(y=value)) +
+  geom_line(data=sari_hosp_data_joint,aes(y=value,group=1),linetype="dashed",size=1/2) +
   facet_grid(broad_age~year,scales = "free") + xlab("") + theme_bw() + standard_theme
+# save
+# ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below2e3_filtered.png"),width=35,height=16,units="cm")
+# ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1.5e3_filtered.png"),width=35,height=16,units="cm")
+ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1e3_filtered.png"),width=35,height=16,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # THESE STEPS CAN BE SKIPPED AS RESULTS ARE ALREADY IN repo_data/ ----> 
