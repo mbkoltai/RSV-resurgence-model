@@ -1,4 +1,5 @@
 # gitignore
+.Rhistory
 background/
 data/
 manuscript/
@@ -35,3 +36,4 @@ julia_comparison.R
 # repo_data/SARI_watch_under5y_hosp.csv
 revision_likelihood_calc.R
 # reproduce_results_revisions.R
+

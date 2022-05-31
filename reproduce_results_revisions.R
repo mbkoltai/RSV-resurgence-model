@@ -54,12 +54,11 @@ partable <- partable %>%
 rm(l_delta_susc)
 #
 # filtering param sets: selected parsets are along the line `age=-exp/3+5/6` (and the point (age,exp)=(1/8,1.75))
-narrow_par_search <- FALSE
-if (narrow_par_search) {
-partable_full_linear_kage_kexp <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% 
-                                    filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>% 
-                                    select(!age_dep_fit)
-}
+# narrow_par_search <- FALSE
+# if (narrow_par_search) {
+# partable_full_linear_kage_kexp <- partable %>% mutate(age_dep_fit=5/6-exp_dep/3) %>% 
+#                                     filter(abs(age_dep-age_dep_fit)/age_dep<1/3) %>% 
+#                                     select(!age_dep_fit) }
 # SAVE filtered parameter table
 # write_csv(partable,"repo_data/partable_full_lhs.csv")
 # check the size of objects (>x Mb) in the workspace by: fcn_objs_mem_use(min_size=1)
@@ -68,7 +67,13 @@ start_date_dyn_save <- "2016-09-01"
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # load hospitalisation data: `hosp_probabilities` contains hospitalisation/infection probabilities to 
 # convert cases to hospitalisations
-source(here("fcns", "calc_hosp_rates.R"))
+# source(here("fcns", "calc_hosp_rates.R"))
+hosp_probabilities <- left_join(read_csv("data/rsv_per_inf_hosp_agegroups.csv") %>% rename(prob_hosp_per_infection=mean),
+          rsv_age_groups %>% mutate(agegroup=row_number()) %>% select(c(agegroup,value)) ) %>% 
+  group_by(agegroup) %>% summarise(prob_hosp_per_infection=sum(prob_hosp_per_infection*value/sum(value)),
+                                   lower_95CI=sum(lower_95CI*value/sum(value)), upper_95CI=sum(upper_95CI*value/sum(value)))
+  
+  
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # Susceptibility as a function of age and exposure
 age_exp_dep_uniqvals <- list(exp_dep=seq(1/4,2,1/8),age_dep=seq(1/8,1,1/16),age=1:11,exp=1:3) %>% 
@@ -134,7 +139,10 @@ ggplot(age_exp_dep_uniqvals %>%
 # results from the parameter sampling after filtering already stored in repo_data/
 # starting date of simulations
 # start_date_dyn_save <- "2016-09-01"
-results_summ_all <- read_csv("simul_output/2e4_parsets/results_summ_all.csv")
+results_summ_all <- bind_rows(lapply(list.files("simul_output/2e4_parsets",pattern="summ_parsets.*csv",full.names=T), 
+                           function(x) read_csv(x))) 
+
+#  read_csv("simul_output/2e4_parsets/results_summ_all.csv")
 # read_csv(here::here(foldername,"results_summ_all.csv")) 
 # param sets filtered out bc of attack rates or seasonal concentr
 AR_crit=9; seas_conc_crit=9
@@ -158,7 +166,7 @@ check_crit=9/11; sel_yrs<-2019; n_sel_yr=length(sel_yrs)
 all_sum_inf_epiyear_age_filtered <- results_summ_all %>% 
             filter(par_id %in% (fullscan_score_AR_seasconc %>% 
                             filter(n_attack_rate_check>=AR_crit & n_seas_share_check>=seas_conc_crit))$par_id)
-# this leads to xxx parameter sets:
+# this leads to ~4.5e3 out of 2e4 parameter sets:
 length(unique(all_sum_inf_epiyear_age_filtered$par_id))
 # select parameter sets matching the first two criteria
 partable_filtered_AR_seasconc <- partable %>% 
@@ -171,7 +179,7 @@ partable_filtered_AR_seasconc <- partable %>%
 results_summ_all %>% 
   filter(epi_year<2020 & par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id)) %>%
   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name)) %>%
-  group_by(par_id,agegroup_name) %>% mutate(inf_in_seas=inf_in_seas/(inf_in_seas[epi_year==2019]*1+(1/26))) %>%
+  group_by(par_id,agegroup_name) %>% mutate(inf_in_seas=inf_in_seas/(inf_in_seas[epi_year==2019])) %>% # *1+(1/26)
   filter(epi_year<2019) %>%
 ggplot() + geom_jitter(aes(x=factor(epi_year),y=inf_in_seas,group=par_id),alpha=1/8,size=1/2) +
   # geom_segment(data=epiyear_means,aes(x=epi_year-0.4,xend=epi_year+0.4,y=inf_in_seas,yend=inf_in_seas),size=1,color="red") +
@@ -179,7 +187,7 @@ ggplot() + geom_jitter(aes(x=factor(epi_year),y=inf_in_seas,group=par_id),alpha=
   xlab("epi-year") + ylab("number of infections compared to 2019 (1=2019 level)") + 
   theme(legend.position="top") + theme_bw() + standard_theme
 # save
-# ggsave(here(foldername,"2020_RSV_check_log.png"),width=32,height=20,units="cm")
+ggsave(here("simul_output/2e4_parsets/","2020_RSV_check_log.png"),width=32,height=20,units="cm")
 
 # Biennial patterns? Number of param sets where cumul incidence is within 15% of 2019 level (or not)
 irreg_toler=0.15; scaling_2019=1+1/26
@@ -221,17 +229,18 @@ ggplot(aes(inf_in_seas)) + stat_ecdf(geom="step") + # ,group=agegroup,color=ageg
 ggsave(here("simul_output/interyear_difference_cumul_incid_reg_dyn.png"),width=35,height=25,units="cm")
 
 # they haven't settled or stable biennial? read in one of the dynamic batches to check
-dyn_parsets_main1_317 <- read_csv("simul_output/2e4_parsets/dyn_parsets_main1_317.csv") %>%
+dyn_parsets_main1_324 <- read_csv("simul_output/2e4_parsets/dyn_parsets_main1_324.csv") %>%
   filter(par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id)) %>% 
   mutate(date=as.Date("2016-09-01")+t-min(t)) %>% filter(date<as.Date("2020-04-01"))
 # plot
-ggplot(dyn_parsets_main1_317 %>% 
+ggplot(dyn_parsets_main1_324 %>% 
          filter(date<as.Date("2020-04-01") & par_id %in% reg_irreg_parsets$par_id & agegroup==1)) +
-  geom_line(aes(x=date,y=value),alpha=1/2) + facet_wrap(~par_id,scales="free") + xlab("") + ylab("infections") +
+  geom_line(aes(x=date,y=value),alpha=1/2) + facet_wrap(~par_id,scales="free_y") + xlab("") + ylab("infections") +
   theme_bw() + standard_theme
+# curves look stabilised, but let's calculate
 
 # % difference in dynamic curves, calculated as: sum(abs(diff(2016,2018)))/sum(mean(2016,2018)) and same for 2017/2019
-left_join(dyn_parsets_main1_317 %>% filter(date<as.Date("2020-04-01")),reg_irreg_parsets) %>%
+left_join(dyn_parsets_main1_324 %>% filter(date<as.Date("2020-04-01")),reg_irreg_parsets) %>%
   mutate(week=isoweek(date)) %>% filter(week>=35|week<=9) %>% 
   mutate(epi_year=ifelse((week>=35 & yday(date)>245)|yday(date)>245,year(date),year(date)-1)) %>% 
   filter(epi_year>=2016) %>%
@@ -246,9 +255,9 @@ left_join(dyn_parsets_main1_317 %>% filter(date<as.Date("2020-04-01")),reg_irreg
   group_by(par_id,regular) %>% 
   summarise(rel_diff_16_18=mean(rel_diff_16_18)*100,rel_diff_17_19=mean(rel_diff_17_19)*100) %>%
   group_by(regular) %>% summarise(perc_diff_16_18=mean(rel_diff_16_18),perc_diff_17_19=mean(rel_diff_17_19))
-# all under 4%, on average under 2% difference
+# all under 1%, on average under 0.8% difference, so simulations have stabilised
 # Plot curves comparing 2016 to 2018 and 2017 to 2019
-left_join(dyn_parsets_main1_317 %>% filter(date<as.Date("2020-04-01")),reg_irreg_parsets) %>%
+left_join(dyn_parsets_main1_324 %>% filter(date<as.Date("2020-04-01")),reg_irreg_parsets) %>%
   mutate(week=isoweek(date)) %>% filter(week>=35|week<=9) %>%
   mutate(epi_year=ifelse((week>=35 & yday(date)>245)|yday(date)>245,year(date),year(date)-1)) %>% filter(epi_year>=2016) %>%
   group_by(agegroup,epi_year,par_id,regular) %>% arrange(epi_year,date) %>% 
@@ -260,20 +269,20 @@ ggplot(aes(x=epi_day,y=value,color=factor(epi_year),group=epi_year,linetype=fact
   geom_line(size=1.1) + facet_wrap(~par_id,scales="free_y") + xlab("day of season") + theme_bw() + standard_theme
 # save
 # ggsave(here("simul_output/interyear_difference_irregular_parsets.png"),width=30,height=25,units="cm")
-ggsave(here("simul_output/interyear_difference_regular_parsets.png"),width=30,height=25,units="cm")
+ggsave(here("simul_output/2e4_parsets/interyear_difference_regular_parsets.png"),width=30,height=25,units="cm")
 
 # Plot again the comparison to 2019 for regular parameter sets only
 results_summ_all %>% 
   filter(epi_year<2020 & par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id)) %>%
   filter(par_id %in% reg_irreg_parsets$par_id[reg_irreg_parsets$regular]) %>%
   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name)) %>%
-  group_by(par_id,agegroup_name) %>% mutate(inf_in_seas=inf_in_seas/(inf_in_seas[epi_year==2019]*scaling_2019)) %>%
+  group_by(par_id,agegroup_name) %>% mutate(inf_in_seas=inf_in_seas/(scaling_2019*inf_in_seas[epi_year==2019])) %>%
   filter(epi_year<2019) %>%
   ggplot() + geom_jitter(aes(x=factor(epi_year),y=inf_in_seas,group=par_id),alpha=1/8) +
   facet_wrap(~agegroup_name) + xlab("epi-year") + ylab("number of infections (1=2019 level)") + 
   theme(legend.position="top") + theme_bw() + standard_theme
 # save
-ggsave(here("simul_output/cumul_incid_compared2019_by_agegrs.png"),width=30,height=25,units="cm")
+ggsave(here("simul_output/2e4_parsets/cumul_incid_compared2019_by_agegrs.png"),width=30,height=25,units="cm")
 
 # keep only parameters with regular annual patterns
 partable_regular_dyn <- partable_filtered_AR_seasconc %>% 
@@ -287,7 +296,7 @@ ggplot() + # stat_ecdf(aes(seas_share,group=epi_year,color=factor(epi_year)),geo
   geom_density(aes(x=seas_share,group=epi_year,color=factor(epi_year))) + labs(color="epi-year") +
   xlab("seasonal (w40≤x≤w13) share of cumulative incidence") + theme_bw() + standard_theme
 # save
-ggsave(here("simul_output/seas_conc_density_plot.png"),width=30,height=25,units="cm")
+ggsave(here("simul_output/2e4_parsets/seas_conc_density_plot.png"),width=30,height=25,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -296,19 +305,20 @@ ggsave(here("simul_output/seas_conc_density_plot.png"),width=30,height=25,units=
 
 # accepted parsets
 all_dynamics_accepted <- bind_rows(lapply(
-  list.files("simul_output/2e4_parsets/",pattern="dyn_parsets",full.names=T), 
-       function(x) read_csv(x) %>% filter(par_id %in% unique(results_summ_all_reg_dyn$par_id)) ))
+  list.files("simul_output/2e4_parsets",pattern="dyn_parsets.*csv",full.names=T), 
+       function(x) read_csv(x) %>% filter(par_id %in% unique(results_summ_all_reg_dyn$par_id)) %>%
+                                  filter(par_id %in% sample(unique(par_id),size=sample(c(31,32),size=1)))) )
 write_csv(all_dynamics_accepted,"simul_output/2e4_parsets/all_dynamics_accepted.csv")
 # remove timepoints after SARI-Watch data 
 all_dynamics_accepted <- all_dynamics_accepted %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
   filter(date<=as.Date("2020-05-11"))
-
 # we need to also take rejected parsets to make comparison (likelihood vs filtering)
 all_dynamics_rejected <- bind_rows(lapply(
   list.files("simul_output/2e4_parsets/",pattern="dyn_parsets",full.names=T),
   function(x) read_csv(x) %>% filter(!par_id %in% unique(results_summ_all_reg_dyn$par_id)) %>%
-    filter(par_id %in% sample(par_id,sample(c(16,17),1))) ))
-write_csv(all_dynamics_rejected,"simul_output/2e4_parsets/all_dynamics_rejected_1e3.csv")
+    filter(par_id %in% sample(par_id,sample(c(31,32),1))) ))
+# save
+write_csv(all_dynamics_rejected,"simul_output/2e4_parsets/all_dynamics_rejected_2e3.csv")
 all_dynamics_rejected <- all_dynamics_rejected %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
   filter(date<=as.Date("2020-05-11"))
 
@@ -361,17 +371,18 @@ under_report_factor_over65y <- mean((SARIwatch_RSVhosp_over65_2018_2020_weekly_c
 agegroup_mapping=findInterval(1:11,c(3,5,8,11))+1; names(agegroup_mapping)=paste0("agegroup",1:11)
 # calculate hospitalisations
 simul_hosp_rate_weekly <- left_join(
-  bind_rows(all_dynamics_accepted %>% mutate(accepted=TRUE),all_dynamics_rejected %>% mutate(accepted=FALSE)) %>% 
-    filter( (agegroup<=3 | agegroup==5) & date>as.Date("2018-09-15")) %>%
-    group_by(t,date,agegroup,par_id) %>% summarise(value=sum(value),accepted=unique(accepted)),
+  bind_rows(all_dynamics_accepted %>% mutate(accepted=TRUE),
+            all_dynamics_rejected %>% mutate(accepted=FALSE)) %>% 
+    filter( (agegroup<=3 | agegroup==5) & date>as.Date("2018-09-15")),
   # data on hospitalisation probs
-  hosp_probabilities %>% mutate(broad_age=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% group_by(broad_age) %>%
+  hosp_probabilities %>% mutate(size=rsv_age_groups$value,
+                                broad_age=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% group_by(broad_age) %>%
     # this is not entirely correct, hosp has to be calculated for smaller age groups and then summed
-    summarise(prob_hosp_per_infection=sum(prob_hosp_per_infection*size/sum(size)),agegroup=broad_age) %>%
+    summarise(prob_hosp_per_infection=sum(prob_hosp_per_infection*size/sum(size)),agegroup=unique(broad_age)) %>%
     select(agegroup,prob_hosp_per_infection),by=c("agegroup")) %>% # end of left_join
   mutate(hosp=value*prob_hosp_per_infection) %>% select(!c(prob_hosp_per_infection)) %>%
   mutate(broad_age=ifelse(agegroup<=3,"<5y",">65y")) %>%
-  group_by(date,broad_age,par_id) %>% summarise(value=sum(value),hosp=sum(hosp),accepted=unique(accepted)) %>% 
+  # group_by(date,broad_age,par_id) %>% summarise(value=sum(value),hosp=sum(hosp),accepted=unique(accepted)) %>% 
   mutate(year_week=paste0(isoyear(date),"-", isoweek(date)),
                       year_week=factor(year_week,levels=unique(year_week))) %>%
   group_by(year_week,par_id,broad_age) %>% 
@@ -379,6 +390,9 @@ simul_hosp_rate_weekly <- left_join(
   mutate(simul_hosp_rate_100k=ifelse(grepl("65y",broad_age),
                                      1e5*simul_hosp_sum_full/rsv_age_groups$stationary_popul[11],
                                      1e5*simul_hosp_sum_full/sum(rsv_age_groups$stationary_popul[1:7]) ) )
+# save
+write_csv(simul_hosp_rate_weekly,"simul_output/2e4_parsets/simul_hosp_rate_weekly_no_LLH.csv")
+
 # concatenate with data, calculate poisson likelihood
 simul_hosp_rate_weekly <- left_join(
   left_join(SARIwatch_RSVhosp_under5_2018_2020_weekly_counts,
@@ -396,14 +410,14 @@ simul_hosp_rate_weekly <- left_join(
 # `simul_hosp_scaled` means that simulated hospitalisations were scaled by the under-reporting factor
 
 # calculate likelihoods by parameter set (accepted/rejected)
-all_likelihoods_hosp <- simul_hosp_rate_weekly %>% group_by(par_id,accepted,broad_age) %>% 
+hosp_dyn_likelihoods <- simul_hosp_rate_weekly %>% group_by(par_id,accepted,broad_age) %>% 
   summarise(sum_neg_llh=unique(sum_neg_llh)) %>%
   group_by(par_id,accepted) %>% mutate(sum_neg_llh_all=sum(sum_neg_llh)) %>% 
   pivot_longer(!c(par_id,accepted,broad_age)) %>%
   mutate(broad_age=ifelse(grepl("all",name),"all",broad_age )) %>% select(!name) %>% distinct()
 
 # plot likelihoods: <5y, 65+y, both combined
-ggplot(all_likelihoods_hosp,aes(x=accepted,y=value,color=accepted)) + 
+ggplot(hosp_dyn_likelihoods,aes(x=accepted,y=value,color=accepted)) + 
   geom_boxplot(fill=NA,size=1/2,width=1/2,outlier.colour=NA) + 
   geom_point(position=position_jitterdodge(seed=1,dodge.width=0.9),alpha=1/2,size=1.5,shape=21) +
   facet_wrap(~broad_age,scales = "free_y") +
@@ -413,37 +427,81 @@ ggplot(all_likelihoods_hosp,aes(x=accepted,y=value,color=accepted)) +
 
 # calculate likelihoods for attack rates
 results_summ_rejected <- read_csv("simul_output/2e4_parsets/results_summ_all.csv") %>% 
-  filter(par_id %in% unique(all_likelihoods_hosp$par_id[!all_likelihoods_hosp$accepted]) )
+  filter(par_id %in% unique(hosp_dyn_likelihoods$par_id[!hosp_dyn_likelihoods$accepted]) )
 
-likelihoods_attackrates <- bind_rows(results_summ_all_reg_dyn %>% mutate(accepted=TRUE),
-                                     results_summ_rejected %>% mutate(accepted=FALSE)) %>%
+likelihoods_attackrates <- bind_rows(
+  results_summ_all_reg_dyn %>% filter(par_id %in% unique(hosp_dyn_likelihoods$par_id)) %>% mutate(accepted=TRUE),
+  results_summ_rejected %>% mutate(accepted=FALSE)) %>%
   filter(epi_year<2019) %>% select(c(epi_year,par_id,agegroup,inf_in_seas_AR,attack_rate_perc,accepted)) %>%
   mutate(AR_log_binom_LLH=dbinom(x=estim_attack_rates$RSV_sympt_posit[agegroup],
          size=estim_attack_rates$n_test[agegroup],prob=attack_rate_perc/100,log=T)) %>%
-  group_by(par_id,accepted) %>% summarise(AR_neglog_binom_LLH=-sum(AR_log_binom_LLH,na.rm=T))
+  group_by(par_id,accepted) %>% summarise(AR_negLLH_binom=-sum(AR_log_binom_LLH)) 
 
 # plot likelihoods calculated from attack rates
-ggplot(likelihoods_attackrates,aes(x=accepted,y=AR_neglog_binom_LLH,color=accepted)) + 
+ggplot(likelihoods_attackrates,aes(x=accepted,y=AR_negLLH_binom,color=accepted)) + 
   geom_boxplot(fill=NA,size=1/2,width=1/2,outlier.colour=NA) + 
   geom_point(position=position_jitterdodge(seed=1,dodge.width=0.9),alpha=1/2,size=1.5,shape=21) +
   # facet_wrap(~broad_age,scales="free_y") +
   scale_color_manual(values=c("black","red")) + labs(color="accepted parameterisations") + scale_y_log10() +
-  xlab("") + ylab("negative log-likelihood") + theme_bw() + standard_theme # +
+  xlab("") + ylab("negative log-likelihood") + theme_bw() + standard_theme
 
-# attack rates >500%?!!?
-dyn_parsets_main1_317 <- read_csv("simul_output/2e4_parsets/dyn_parsets_main1_317.csv") %>%
-    mutate(date=as.Date("2016-09-01")+t-min(t)) %>% filter(date<as.Date("2020-04-01"))
+# sum of all likelihoods
+all_likelihoods = left_join(hosp_dyn_likelihoods %>% filter(broad_age %in% "all"),likelihoods_attackrates) %>% 
+  mutate(`complete likelihood`=value+AR_negLLH_binom) %>% 
+  rename(`LLH from attack rates`=AR_negLLH_binom,`LLH from hospitalisation counts`=value) %>% 
+  select(!broad_age) %>% pivot_longer(!c(par_id,accepted))
+# plot as jitter plot
+ggplot(all_likelihoods,aes(x=accepted,y=value,color=accepted)) + 
+  geom_point(position=position_jitterdodge(seed=1),alpha=1/3) + # ,dodge.width=1/4 ,shape=21
+  # geom_violin(fill=NA,show.legend=F) + 
+  geom_boxplot(fill=NA,width=1/2,size=1/2,outlier.colour=NA,color="black") + # 
+  facet_wrap(~name,scales = "free_y") + scale_y_log10() + 
+  scale_color_manual(values=c("blue","red")) + labs(color="accepted") + 
+  xlab("") + ylab("negative log-likelihood") + theme_bw() + standard_theme + 
+  theme(strip.text=element_text(size=15),axis.text.y=element_text(size=14))
+# save
+ggsave(here("simul_output/2e4_parsets/all_LLH_accepted_rejected_boxplot.png"),width=35,height=22,units="cm")
 
-dyn_parsets_main1_317 %>% filter(par_id %in% 21 & date<as.Date("2019-08-01")) %>%
-  mutate(year_week=paste0(year(date),"-",week(date))) %>% group_by(year_week,agegroup) %>% 
-  summarise(value=sum(value),date=median(date)) %>%
-ggplot() + geom_bar(aes(x=date,y=value/1e3),stat="identity") + ylab("thousand cases") + 
-  facet_wrap(~agegroup,scales = "free_y") + theme_bw() + standard_theme
+# density plot
+median_llh=all_likelihoods %>% group_by(accepted,name) %>% summarise(median_llh=median(value,na.rm=T))
+ggplot(all_likelihoods,aes(x=value,color=accepted)) + 
+  geom_density(aes(y=..scaled..)) + # aes(y=..scaled..) # aes(y=..count..)
+  geom_vline(data=median_llh,aes(xintercept=median_llh,color=accepted),linetype="dashed",size=1/2,show.legend=F) +
+  geom_text(data=median_llh,aes(x=median_llh*0.95,y=1/4,color=accepted,label=round(median_llh)),show.legend=F) +
+  facet_wrap(~name,scales="free",nrow=3) + scale_x_log10(expand=expansion(0.01,0)) +
+  scale_color_manual(values=c("black","red")) + labs(color="accepted") + 
+  xlab("negative log-likelihood") + ylab("density") + theme_bw() + standard_theme + # + ylab("densi")
+  theme(strip.text=element_text(size=15),axis.text.y=element_text(size=12))
+# save
+ggsave(here("simul_output/2e4_parsets/all_LLH_accepted_rejected_density.png"),width=35,height=22,units="cm")
 
-# calculate from dynamics
-dyn_parsets_main1_317 %>% filter(par_id %in% 21) %>% filter(isoweek(date)>=40 | isoweek(date)<=13) %>%
-  mutate(epi_year=ifelse(week(date)>=40,year(date),year(date)-1)) %>% group_by(epi_year,agegroup) %>%
-  summarise(sum(value))
+# what happens for parsets where fit is good?
+# top 1%: array(quantile(all_likelihoods$value[grepl("complete",all_likelihoods$name)],probs=0.01,na.rm=T))
+bind_rows(results_summ_rejected,results_summ_all_reg_dyn) %>% 
+  filter(par_id %in% (all_likelihoods %>% filter((name %in% "complete likelihood") & value<1e3))$par_id & 
+        epi_year<2019) %>% select(c(par_id,agegroup,attack_rate_perc,seas_share)) %>% 
+  mutate(accepted=ifelse(par_id %in% unique(all_likelihoods$par_id[all_likelihoods$accepted]),T,F)) %>% 
+  pivot_longer(!c(par_id,agegroup,accepted)) %>% 
+ggplot() + geom_jitter(aes(x=accepted,y=value,color=accepted),alpha=1/2,size=2) + scale_y_log10() +
+  geom_hline(data=estim_attack_rates %>% mutate(agegroup=row_number()) %>% select(c(agegroup,min_est,max_est)) %>% 
+               pivot_longer(!agegroup) %>% mutate(name="attack_rate_perc"),aes(yintercept=value),linetype="dashed") +
+  geom_hline(aes(yintercept=ifelse(name %in% "seas_share",0.85,NA)),linetype="dashed") +
+  facet_grid(name~agegroup,scales="free") + theme_bw() + standard_theme + xlab("") + theme(axis.text.x=element_blank())
+# it's because attack rates are out of the range for agegroups > 8
+ggsave(here("simul_output/2e4_parsets/goodfits_filtered.png"),width=35,height=16,units="cm")
+
+# dynamics
+goodfit_pars <- (all_likelihoods %>% filter((name %in% "complete likelihood") & value<1e3))$par_id
+# plot
+simul_hosp_rate_weekly %>% select(c(par_id,accepted,broad_age,simul_hosp_scaled,year_week,year)) %>%
+  filter(par_id %in% goodfit_pars) %>%
+ggplot(aes(x=year_week)) + 
+  geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id)) + 
+  geom_point(data=simul_hosp_rate_weekly %>% ungroup() %>% select(c(date,year_week,casesunder5total,broad_age,year)) %>% 
+               filter(broad_age %in% "<5y") %>% distinct(),aes(y=casesunder5total)) +
+  geom_point(data=simul_hosp_rate_weekly %>% ungroup() %>% select(c(date,year_week,cases65plustotal,broad_age,year)) %>% 
+               filter(broad_age %in% ">65y") %>% distinct(),aes(y=cases65plustotal)) + 
+  facet_grid(broad_age~year,scales = "free") + xlab("") + theme_bw() + standard_theme
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # THESE STEPS CAN BE SKIPPED AS RESULTS ARE ALREADY IN repo_data/ ----> 
