@@ -526,14 +526,15 @@ sari_hosp_data_joint = simul_hosp_rate_weekly %>% ungroup() %>%
   filter(!(broad_age %in% "<5y" & name %in% "cases65plustotal")) %>%
   filter(!(broad_age %in% ">65y" & name %in% "casesunder5total"))
 # plot
+show_every_nth = function(n) { return(function(x) {x[c(TRUE, rep(FALSE, n - 1))]}) }
 simul_hosp_rate_weekly %>% select(c(par_id,accepted,broad_age,simul_hosp_scaled,year_week,year)) %>%
   filter(par_id %in% goodfit_pars) %>%
 ggplot(aes(x=year_week)) + 
-  geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id),alpha=2/3) + 
+  geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id),alpha=1/2) + 
   geom_point(data=sari_hosp_data_joint,aes(y=value)) +
   geom_line(data=sari_hosp_data_joint,aes(y=value,group=1),linetype="dashed",size=1/2) +
-  facet_grid(broad_age~year,scales = "free") + xlab("") + ylab("hospitalisations (count)") + 
-  theme_bw() + standard_theme
+  facet_grid(broad_age~year,scales="free") + xlab("") + ylab("hospitalisations (count)") + 
+  scale_x_discrete(breaks=show_every_nth(n=2)) + theme_bw() + standard_theme
 # save
 # ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below2e3_filtered.png"),width=35,height=16,units="cm")
 # ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1.5e3_filtered.png"),width=35,height=16,units="cm")
@@ -626,80 +627,96 @@ ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1e3_filtered.png"),wi
 # compare hospitalisations from SIMULATIONS to those predicted from 
 # (median attack rate in LITERATURE)*(hosp prob estims from Hodgson)
 # append age group name column to `results_summ_all` (summary stats results)
-results_summ_all <- results_summ_all %>% 
-  mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name))
-# convert infections into hospitalisations
-simul_hosp <- left_join(results_summ_all %>% 
-                  filter(par_id %in% parsets_regular_dyn$par_id & 
-                               epi_year==2019),hosp_probabilities,by="agegroup_name") %>% 
-                  mutate(hosp_num_SIMUL_inf_tot=prob_hosp_per_infection*inf_tot,
-                         hosp_num_SIMUL_inf_seas=prob_hosp_per_infection*inf_in_seas) %>% ungroup() %>% 
-                  select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_num_SIMUL_inf_tot,par_id)) %>% 
-                  mutate(agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% 
-                  pivot_longer(!c(agegroup_name,par_id)) %>%
-                  mutate(par_id=ifelse(grepl("per_inf",name) & par_id!=min(par_id),NA,par_id))
-# SI FIGURE 5: number of hospitalisations from simulations vs LIT estimate 
-# from (literature estimate)*(hospit probab per infection)
-simul_lit_hosp_comp <- simul_hosp %>% 
-        mutate(line_size=ifelse(grepl("per_inf",name),1/5,2),
-          name=ifelse(grepl("SIMUL",name),"simulated hospitalisations","literature estimate"))
-# plot
-ggplot() + 
-  geom_jitter(data=simul_lit_hosp_comp %>% filter(grepl("simul",name)),
-                       aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),color=name),alpha=1/2,size=1/2) + 
-  geom_hpline(data=simul_lit_hosp_comp %>% filter(!grepl("simul",name)),
-      aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),color=name),
-      size=1.2,width=0.95,position=position_dodge(width=1)) + scale_color_manual(values=c("black","blue")) +
-  geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) + 
-  xlab("age group (years)") + ylab("hospitalisations (thousands) in epi-year") + labs(fill="",color="") + 
-  scale_x_discrete(expand=expansion(0,0)) +
-  scale_y_log10(breaks=round(10^seq(-2,2,by=1/4),2),expand=expansion(0.02,0)) + 
-  theme_bw() + standard_theme + 
-  theme(legend.position="top",legend.text=element_text(size=15),legend.title=element_text(size=15),
-                         axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
-                         axis.title.x=element_text(size=15),axis.title.y=element_text(size=15))
+# results_summ_all <- results_summ_all %>% 
+#   mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name))
+# # convert infections into hospitalisations
+# simul_hosp <- left_join(results_summ_all %>% 
+#                   filter(par_id %in% parsets_regular_dyn$par_id & 
+#                                epi_year==2019),hosp_probabilities,by="agegroup_name") %>% 
+#                   mutate(hosp_num_SIMUL_inf_tot=prob_hosp_per_infection*inf_tot,
+#                          hosp_num_SIMUL_inf_seas=prob_hosp_per_infection*inf_in_seas) %>% ungroup() %>% 
+#                   select(c(agegroup_name,hosp_num_from_per_inf_prob,hosp_num_SIMUL_inf_tot,par_id)) %>% 
+#                   mutate(agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% 
+#                   pivot_longer(!c(agegroup_name,par_id)) %>%
+#                   mutate(par_id=ifelse(grepl("per_inf",name) & par_id!=min(par_id),NA,par_id))
+# # SI FIGURE 5: number of hospitalisations from simulations vs LIT estimate 
+# # from (literature estimate)*(hospit probab per infection)
+# simul_lit_hosp_comp <- simul_hosp %>% 
+#         mutate(line_size=ifelse(grepl("per_inf",name),1/5,2),
+#           name=ifelse(grepl("SIMUL",name),"simulated hospitalisations","literature estimate"))
+# # plot
+# ggplot() + 
+#   geom_jitter(data=simul_lit_hosp_comp %>% filter(grepl("simul",name)),
+#                        aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),color=name),alpha=1/2,size=1/2) + 
+#   geom_hpline(data=simul_lit_hosp_comp %>% filter(!grepl("simul",name)),
+#       aes(x=agegroup_name,y=ifelse(value>0,value/1e3,NA),color=name),
+#       size=1.2,width=0.95,position=position_dodge(width=1)) + scale_color_manual(values=c("black","blue")) +
+#   geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) + 
+#   xlab("age group (years)") + ylab("hospitalisations (thousands) in epi-year") + labs(fill="",color="") + 
+#   scale_x_discrete(expand=expansion(0,0)) +
+#   scale_y_log10(breaks=round(10^seq(-2,2,by=1/4),2),expand=expansion(0.02,0)) + 
+#   theme_bw() + standard_theme + 
+#   theme(legend.position="top",legend.text=element_text(size=15),legend.title=element_text(size=15),
+#                          axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
+#                          axis.title.x=element_text(size=15),axis.title.y=element_text(size=15))
 # save
 # ggsave(here::here(foldername,"hospit_per_age_group_simul_lit_compare.png"),width=30,height=25,units="cm")
 
 # SI FIGURE 4: simulated attack rates vs LIT estimates?
 attack_rates_simul_LIT <- left_join(
-        results_summ_all %>% 
-                        filter(par_id %in% parsets_regular_dyn$par_id & epi_year==2019) %>%
-                        mutate(inf_tot=inf_tot/rsv_age_groups$stationary_popul[agegroup]) %>% 
-                        select(agegroup_name,par_id,inf_tot), 
+        results_summ_all_reg_dyn %>% select(agegroup,par_id,attack_rate_perc) %>%
+          mutate(agegroup_name=rsv_age_groups$agegroup_name[agegroup]), 
         data.frame(agegroup_name=rsv_age_groups$agegroup_name,
-                  cumul_inf_LIT_ESTIM_median=estim_attack_rates$median_est/100,
-                  cumul_inf_LIT_ESTIM_min=estim_attack_rates$min_est/100,
-                  cumul_inf_LIT_ESTIM_max=estim_attack_rates$max_est/100),by="agegroup_name") %>% 
+                  cumul_inf_LIT_ESTIM_median=estim_attack_rates$sympt_attack_rate*100,
+                  cumul_inf_LIT_ESTIM_min=estim_attack_rates$min_est,
+                  cumul_inf_LIT_ESTIM_max=estim_attack_rates$max_est),by="agegroup_name") %>% 
       mutate(agegroup_name=factor(agegroup_name,levels=unique(agegroup_name))) %>% 
       pivot_longer(!c(agegroup_name,par_id)) %>% 
       mutate(par_id=ifelse(grepl("LIT_ESTIM",name) & par_id!=min(par_id),NA,par_id),
-         categ=ifelse(grepl("inf_tot|inf_in_seas",name),"SIMUL","LIT_estim"),
-         name=ifelse(grepl("inf_tot|inf_in_seas",name),paste0(name,"_SIMUL"),"LIT_estim")) %>% 
+         categ=ifelse(grepl("attack_rate_perc",name),"SIMUL","LIT_estim"),
+         name=ifelse(grepl("attack_rate_perc",name),paste0(name,"_SIMUL"),"LIT_estim")) %>% 
       filter(!is.na(par_id)) %>%
       mutate(name=case_when(name %in% "inf_tot_SIMUL" ~ "cumulative incidence (SIMULATION)",
                         name %in% "LIT_estim" ~ "cumulative incidence (LITERATURE ESTIMATE)"))
 # SI FIGURE 4
-ggplot(attack_rates_simul_LIT %>% 
-         filter(grepl("SIMUL",name)), 
-  aes(x=agegroup_name,y=ifelse(value>0,value,NA)*1e2,color=name)) + 
-  geom_hpline(size=1/5,width=0.47,color="red") + 
-  geom_hpline(data=attack_rates_simul_LIT %>% 
-                filter(grepl("LIT",name)) %>% group_by(agegroup_name) %>% 
-                arrange(value) %>% 
-                mutate(min_med_max=row_number()),
-        aes(linetype=ifelse(min_med_max==2,"solid","dashed")),size=1,width=1,color="black") +
-  geom_hpline(data=attack_rates_simul_LIT %>% 
-                group_by(agegroup_name) %>% 
-                summarise(value=median(value)),
-              size=1.5,width=1,position=position_dodge(width=1),color="orange") +
-  geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) + 
-  xlab("Age Group") + ylab("attack rate (%)") +
-  labs(color="") + theme_bw() + standard_theme + 
-  theme(legend.position="none",axis.text.x=element_text(size=13),
-                axis.text.y=element_text(size=13),legend.text=element_text(size=16))
+# ggplot(attack_rates_simul_LIT %>% 
+#          filter(grepl("SIMUL",name)), 
+#   aes(x=agegroup_name,y=ifelse(value>0,value,NA)*1e2,color=name)) + 
+#   geom_hpline(size=1/5,width=0.47,color="red") + 
+#   geom_hpline(data=attack_rates_simul_LIT %>% 
+#                 filter(grepl("LIT",name)) %>% group_by(agegroup_name) %>% 
+#                 arrange(value) %>% 
+#                 mutate(min_med_max=row_number()),
+#         aes(linetype=ifelse(min_med_max==2,"solid","dashed")),size=1,width=1,color="black") +
+#   geom_hpline(data=attack_rates_simul_LIT %>% 
+#                 group_by(agegroup_name) %>% 
+#                 summarise(value=median(value)),
+#               size=1.5,width=1,position=position_dodge(width=1),color="orange") +
+#   geom_vline(xintercept=(0:11)+1/2,linetype="dashed",size=1/2) + 
+#   xlab("Age Group") + ylab("attack rate (%)") +
+#   labs(color="") + theme_bw() + standard_theme + 
+#   theme(legend.position="none",axis.text.x=element_text(size=13),
+#                 axis.text.y=element_text(size=13),legend.text=element_text(size=16))
+
+attack_rate_limits <- estim_attack_rates %>% mutate(agegroup=row_number(),sympt_attack_rate=100*sympt_attack_rate) %>% 
+  select(c(agegroup,min_est,max_est,sympt_attack_rate)) %>% pivot_longer(!agegroup) %>% 
+  mutate(type=name,name="attack_rate_perc")
+
+bind_rows(results_summ_all_reg_dyn %>% filter(par_id %in% sample(unique(par_id),size=5e2)) %>% mutate(accepted=T),
+          results_summ_rejected %>% filter(par_id %in% sample(unique(par_id),size=5e2)) %>% mutate(accepted=F)) %>% 
+  filter(epi_year<2020) %>% select(c(par_id,agegroup,attack_rate_perc,accepted)) %>%
+ggplot() + 
+  geom_jitter(aes(x=factor(agegroup),y=attack_rate_perc,color=accepted,group=accepted),alpha=1/4,
+              position=position_jitterdodge(dodge.width=0.9,jitter.width=0.35)) + 
+  geom_vline(xintercept=(1:10)+1/2,size=1/2) +
+  geom_segment(data=attack_rate_limits,aes(x=agegroup-1/2,xend=agegroup+1/2,y=value,yend=value,group=name,
+                   linetype=ifelse(type %in% "sympt_attack_rate","solid","dashed")),show.legend=F,size=1/2) +
+  ylab("") + scale_x_discrete(expand=expansion(0,0)) + scale_y_log10() + 
+  scale_color_manual(values=c("blue","red")) + theme_bw() + standard_theme + xlab("") + 
+  theme(legend.position="top",axis.text.x=element_text(size=13),axis.text.y=element_text(size=13))
 # SAVE
-# ggsave(here::here(foldername,"attack_rate_comparison_with_lit.png"),width=25,height=20,units="cm")
+ggsave(here("simul_output/2e4_parsets/crit_8_11/attack_rate_comparison_with_lit.png"),width=25,height=20,units="cm")
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # reduce the two parameters exp_dep and age_dep to their value along their 1st principal component
