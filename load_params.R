@@ -1,8 +1,7 @@
 # functions
 rm(list=ls()); # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
 # library(contactdata); library(fitdistrplus);  library(bbmle); library(Rcpp); library(GillespieSSA)
-x1<-c("here","tidyverse","deSolve","gtools","wpp2019","lubridate","Rcpp","RcppRoll","pracma")
-# are these needed? ,"tsibble","qs","zoo","lhs"
+x1 <- c("here","tidyverse","deSolve","gtools","wpp2019","lubridate","Rcpp","RcppRoll","pracma","lhs","ISOweek")
 # "rstudioapi","devtools",
 x2 <- x1 %in% row.names(installed.packages()); if (any(x2 == FALSE)) { 
   install.packages(x1[!x2],repos="http://cran.us.r-project.org") }
