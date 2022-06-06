@@ -36,12 +36,12 @@ if (any(partable<0)) { partable=abs(partable); message("negative values") }
 partable <- partable %>% filter(exp_dep+4.5*age_dep<1.85)
 # calculating the susceptibility parameter (delta_i_j)
 l_delta_susc <- 1:nrow(partable) %>%
-  lapply( function(n_p) { 
+  lapply( function(n_p) {
     sapply(1:n_age, function(x) { (1 * exp(-partable$exp_dep[n_p] * (1:3))) / (exp(partable$age_dep[n_p]*x)) }) } )
 # create partable with scaling parameters (this parameter scales 'expdep' and 'agedep' to have the desired R0 value)
 partable <- partable %>% 
-  mutate(par_id=row_number(), 
-         const_delta=R0/unlist(lapply(l_delta_susc, function(x) R0_calc_SIRS(C_m,x,rho,n_inf)))) %>% 
+  mutate(par_id=row_number(),
+         const_delta=R0/unlist(lapply(l_delta_susc, function(x) R0_calc_SIRS(C_m,x,rho,n_inf)))) %>%
   relocate(par_id,.before=exp_dep)
 # clear list
 rm(l_delta_susc)
@@ -51,7 +51,6 @@ rm(l_delta_susc)
 } else {
   partable <- read_csv("repo_data/partable_full_lhs.csv")
 }
-
 
 # check the size of objects (>x Mb) in the workspace by: fcn_objs_mem_use(min_size=1)
 # start date of saved simulations
@@ -70,7 +69,7 @@ age_exp_dep_uniqvals <- list(exp_dep=seq(3/10,1.25,0.19),age_dep=seq(1/15,1/3,1/
 
 age_exp_dep_uniqvals <- age_exp_dep_uniqvals %>% 
                 mutate(const_delta=1/unlist(lapply(lapply(1:nrow(age_exp_dep_uniqvals), 
-                 function(n_p) {sapply(1:n_age,function(x) { 
+                 function(n_p) { sapply(1:n_age,function(x) {
                    (1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})}),
                  function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),
                  susc_scaled=suscept_unscaled*const_delta)
@@ -86,7 +85,8 @@ ggplot(age_exp_dep_uniqvals %>%
       scale_y_log10() + theme_bw() + standard_theme + labs(color="exposure") + xlab("age group") + 
       ylab(expression(delta[exp]^(age)))
 # ggsave
-# ggsave(here::here(foldername,"age_exp_dep.png"),width=22,height=18,units="cm")
+# ggsave(here(foldername,"age_exp_dep.png"),width=22,height=18,units="cm")
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RUN SIMULATIONS with parallelisation (requires multiple cores)
@@ -668,6 +668,16 @@ ggplot(plot_partable_histogram, aes(x=value,color=accepted)) +
 # save
 ggsave("simul_output/2e4_parsets/crit_8_11/param_distrib_accept_density.png",width=28,height=18,units="cm")
 
+# plot correlations btwn params
+library(GGally)
+ggpairs(plot_partable_histogram %>% pivot_wider(names_from=name) %>%
+      mutate(`R0 (baseline)`=`R0 peak`/(`maximal forcing (% above baseline)`/100)+1) %>% 
+        select(!c(par_id,`R0 peak`,`peak forcing (week)`,`season width (weeks)`)),
+      columns=2:6,aes(color=accepted,alpha=1/4)) + 
+  scale_color_manual(values=c("blue","red")) + scale_fill_manual(values=c("blue","red")) +  
+  theme_bw() + standard_theme + theme(strip.text=element_text(size=9))
+# save
+ggsave("simul_output/2e4_parsets/crit_8_11/param_correlations.png",width=28,height=18,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -676,7 +686,8 @@ ggsave("simul_output/2e4_parsets/crit_8_11/param_distrib_accept_density.png",wid
 # distribution of accepted parameter sets in terms of age_dep-exp_dep
 ggplot(partable_regular_dyn %>% filter(par_id %in% sample(partable_regular_dyn$par_id,size=2e3))) + 
   geom_point(aes(x=age_dep,y=exp_dep),color="blue",alpha=1/2) +
-  scale_x_continuous(limits=c(0,0.4)) + scale_y_continuous(limits=c(0,5/4)) + theme_bw() + standard_theme
+  scale_x_continuous(limits=c(0,0.4)) + scale_y_continuous(limits=c(0,5/4)) + 
+  theme_bw() + standard_theme
 
 pred_pca <- data.frame(predict(object=prcomp(partable_regular_dyn %>% select(c(exp_dep,age_dep))),
                 newdata=partable_regular_dyn %>% select(c(exp_dep,age_dep))),
@@ -684,33 +695,55 @@ pred_pca <- data.frame(predict(object=prcomp(partable_regular_dyn %>% select(c(e
       K_age=partable_regular_dyn$age_dep,
       par_id=partable_regular_dyn$par_id)
 
+binned_pc1 = pred_pca %>% mutate(PC1_bin=findInterval(PC1,vec=seq(-0.65,0.35,by=0.1))) %>% group_by(PC1_bin) %>% # 
+  summarise(PC1=mean(PC1),K_exp=mean(K_exp),K_age=mean(K_age)) %>% pivot_longer(!c(PC1,PC1_bin))
+# ntile(PC1,20)
+
 # SI Figure 2: linear relationship between K_age and K_exp for selected param sets
-ggplot(pred_pca %>% pivot_longer(!c(PC1,PC2,par_id)), aes(x=PC1,y=value)) + 
-  geom_point(aes(color=name)) + 
-  geom_smooth(aes(group=name,color=name),fill=NA,method='lm',color="black") + 
-  scale_x_continuous(breaks=(-(2*3):(2*2))/4,limits=c(-1,1)) +
+ggplot(pred_pca %>% pivot_longer(!c(PC1,PC2,par_id)), aes(x=PC1,y=value)) + geom_point(aes(color=name),alpha=1/2) + 
+  # geom_smooth(aes(group=name,color=name),fill=NA,method='lm',color="black") + 
+  geom_line(data=binned_pc1) + facet_wrap(~name,scales = "free_y") +
+  scale_x_continuous(breaks=((-3):2)/4,limits=c(-3/4,1/2)) +
   xlab(expression(kappa)) + ylab(expression(paste(kappa[exp],", ",kappa[age]))) + labs(color="",fill="") +
-  theme_bw() + standard_theme + 
-  theme(axis.title.x=element_text(size=18),axis.title.y=element_text(size=18),
+  theme_bw() + standard_theme + theme(axis.title.x=element_text(size=18),axis.title.y=element_text(size=18),
         legend.title=element_text(size=16),legend.text=element_text(size=16))
+# SAVE
 ggsave(here("simul_output/2e4_parsets/crit_8_11/exp_age_PCA.png"),width=25,height=20,units="cm")
+
+# PC1 capture ~all variation in k_exp, but there's residual variation in k_Age, how different are these parsets?
+sel_pars_PC1_high = pred_pca %>% filter(PC1>0.25 & (K_age<0.1 | K_age>0.3)) %>% 
+                      mutate(age_dep_low_high=ifelse(K_age<0.1,"low","high")) %>% group_by(age_dep_low_high) %>%
+                      filter(par_id %in% sample(par_id,size=11))
+# difference in dynamics? yes, dynamics quite different at high PC1 value but different k_age values
+left_join(sel_pars_PC1_high %>% select(c(par_id,age_dep_low_high,K_age)), all_dynamics_accepted) %>% 
+  filter(!is.na(agegroup) & date>as.Date("2018-09-01") & date<as.Date("2020-04-01")) %>%
+ggplot(aes(x=date,y=value,group=par_id,color=factor(age_dep_low_high))) + scale_x_date(expand=expansion(0.01,0)) +
+  geom_line(alpha=1/2) + facet_wrap(~agegroup) + theme_bw() + standard_theme
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # order by 1st principal component of k_age and k_exp
 
-suscept_sel_parsets <- left_join(
-                        pred_pca %>% rename(exp_dep=K_exp,age_dep=K_age),
-                        age_exp_dep_uniqvals,by=c("exp_dep","age_dep")) %>%
-  rename(`exposure-dependence`=exp_dep,`age-dependence`=age_dep) %>% 
-  mutate(age=factor(rsv_age_groups$agegroup_name[age],
-            levels=unique(rsv_age_groups$agegroup_name)),
-         PC1_grouped=findInterval(PC1,seq(-1,1,by=1/5)) ) %>%
+# suscept_unscaled=exp(-(exp_dep*exp+age_dep*age)) # 
+# const_delta=1/unlist(lapply(lapply(1:nrow(age_exp_dep_uniqvals),
+#     function(n_p) { sapply(1:n_age,function(x) {
+#           (1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})}),
+#     function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),
+# susc_scaled=suscept_unscaled*const_delta
+
+suscept_sel_parsets <- left_join(bind_rows(lapply(sample(1:nrow(pred_pca),size=2e3), 
+      function(x) age_exp_dep_uniqvals %>% select(age,exp) %>% distinct() %>%
+      mutate(suscept_unscaled=exp(-(pred_pca$K_exp[x]*exp+pred_pca$K_age[x]*age)),
+      `exposure-dependence`=pred_pca$K_exp[x],`age-dependence`=pred_pca$K_age[x],PC1=pred_pca$PC1[x],
+      par_id=pred_pca$par_id[x]) )), partable_regular_dyn %>% select(par_id,const_delta) ) %>% 
+      mutate(susc_scaled=suscept_unscaled*const_delta) %>%
+  mutate(age=factor(rsv_age_groups$agegroup_name[age],levels=unique(rsv_age_groups$agegroup_name)),
+         PC1_grouped=findInterval(PC1,seq(min(summary(pred_pca$PC1)),max(summary(pred_pca$PC1)),by=1/10)) ) %>%
   group_by(PC1_grouped) %>% 
   mutate(PC1_grouped=round(mean(PC1),1)) %>% 
   group_by(PC1_grouped,age,exp) %>% 
-  summarise(mean_val=mean(susc_scaled),
-            med_val=median(susc_scaled),
-            ci50_low=quantile(susc_scaled,c(0.25,0.75))[1],ci50_up=quantile(susc_scaled,c(0.25,0.75))[2],
-            ci95_low=quantile(susc_scaled,c(0.025,0.975))[1],ci95_up=quantile(susc_scaled,c(0.025,0.975))[2]) %>% 
+  summarise(mean_val=mean(susc_scaled),med_val=median(susc_scaled),
+        ci50_low=quantile(susc_scaled,c(0.25,0.75))[1],ci50_up=quantile(susc_scaled,c(0.25,0.75))[2],
+        ci95_low=quantile(susc_scaled,c(0.025,0.975))[1],ci95_up=quantile(susc_scaled,c(0.025,0.975))[2]) %>%
   rename(exposure=exp)
 # color palette
 colorpal <- colorRampPalette(colors=c("blue","grey","red"))(length(unique(suscept_sel_parsets$PC1_grouped)))

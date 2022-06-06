@@ -21,6 +21,8 @@ data/data_NSW_RSV.rds
 data/nature_plot_covid_npi_resp_virus.jpeg 
 old/
 repo_data/90pct_red/
+repo_data/manuscript_v1/
+# repo_data/SARI_watch_under5y_hosp.csv
 # simul_output/parscan/parallel/*.csv
 # simul_output/parscan/parallel/*/*.csv
 # simul_output/scans_before_parallel/
@@ -33,7 +35,6 @@ single_simul_calibrate.R
 .Rproj.user
 # RSV-resurgence-model.Rproj
 julia_comparison.R
-# repo_data/SARI_watch_under5y_hosp.csv
 revision_likelihood_calc.R
 # reproduce_results_revisions.R
 
