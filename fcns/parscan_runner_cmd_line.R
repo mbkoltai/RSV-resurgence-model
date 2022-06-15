@@ -20,7 +20,7 @@ partable <- read_csv(partable_file_name)[k_start_end[1]:k_start_end[2],]
 save_flag <- ifelse(grepl("nosave|no_save|nosavedyn|NOSAVE",commandArgs(trailingOnly=TRUE)[7]),FALSE,TRUE)
 print(paste0("SAVE DYNAMICS: ",save_flag))
 # start date for saving dynamics
-start_date_dyn_save<-commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
+start_date_dyn_save <- commandArgs(trailingOnly=TRUE)[8]; print(paste0("SAVE output from: ",start_date_dyn_save))
 agegroup_res<-commandArgs(trailingOnly=TRUE)[9]
 # SEASON LIMITS: we fix these for given RSV seasonality
 # seas_start_wk <- 42; seas_stop_wk<-9

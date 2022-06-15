@@ -9,83 +9,22 @@ if (!any(row.names(installed.packages()) %in% "here")) {install.packages("here")
 # load constant parameters and functions for simulations, specify folder where inputs are stored
 source(here("load_params.R"))
 foldername <- "repo_data/"
-# load estimated attack rates
-attack_rate_tol_factor = 2
-estim_attack_rates <- read_csv(here("repo_data/kenya_attack_rates.csv")) %>% 
-  mutate(min_est=1e2*sympt_attack_rate/attack_rate_tol_factor,
-         max_est=1e2*attack_rate_tol_factor*sympt_attack_rate)
-# % cases within season (filtering parameter sets)
+# NPI dates
 npi_dates<-as.Date(c("2020-03-26","2021-05-17"))
 # set up the table of parameter vectors by Latin Hypercube Sampling (LHS)
 new_partable=F
 if (new_partable){
-partable <- data.frame(randomLHS(n=32e3,k=7))
-colnames(partable) <- c("exp_dep","age_dep","seasforc_width_wks","R0","seasforce_peak","omega","peak_week")
-# convert to relevant ranges, columns: 
-# 1) expdep 2) agedep 3) peak_width 4) R0 5) peak_height 6) waning 7) peak week
-partable[,1] <- qunif(partable[,1],min=3/10,max=1.25) # 1) expdep
-partable[,2] <- qunif(partable[,2],min=1/15,max=1/3) # 2) agedep
-partable[,3] <- qgamma(partable[,3],shape=10,rate=2) # 3) peak_width
-partable[,4] <- qgamma(partable[,4],shape=14,rate=8) # 4) R0
-partable[,5] <- qunif(partable[,5],min=0.2,max=1.5) # 5) peak height
-partable[,6] <- qnorm(partable[,6],mean=350,sd=50); partable[,6] <- 1/partable[,6] # 6) waning
-partable[,7] <- qunif(partable[,7],min=43,max=48) # 7) peak week
-if (any(partable<0)) { partable=abs(partable); message("negative values") }
-
-# initial sampling showed that accepted parsets satisfy the condition: exp_dep < 1.65 - 4.5*age_dep
-partable <- partable %>% filter(exp_dep+4.5*age_dep<1.85)
-# calculating the susceptibility parameter (delta_i_j)
-l_delta_susc <- 1:nrow(partable) %>%
-  lapply( function(n_p) {
-    sapply(1:n_age, function(x) { (1 * exp(-partable$exp_dep[n_p] * (1:3))) / (exp(partable$age_dep[n_p]*x)) }) } )
-# create partable with scaling parameters (this parameter scales 'expdep' and 'agedep' to have the desired R0 value)
-partable <- partable %>% 
-  mutate(par_id=row_number(),
-         const_delta=R0/unlist(lapply(l_delta_susc, function(x) R0_calc_SIRS(C_m,x,rho,n_inf)))) %>%
-  relocate(par_id,.before=exp_dep)
-# clear list
-rm(l_delta_susc)
-# SAVE filtered parameter table
-# write_csv(partable,"repo_data/partable_full_lhs.csv")
-
+source("fcns/create_lhs_partable.R")
 } else {
   partable <- read_csv("repo_data/partable_full_lhs.csv")
 }
 
 # check the size of objects (>x Mb) in the workspace by: fcn_objs_mem_use(min_size=1)
+
 # start date of saved simulations
 start_date_dyn_save <- "2016-09-01"
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# load hospitalisation data: `hosp_probabilities` contains hospitalisation per infection probabilities 
-# to convert cases to hospitalisations
-# source(here("fcns", "calc_hosp_rates.R"))
-hosp_probabilities <- read_csv("repo_data/hosp_probabilities.csv")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Plot susceptibility as a function of age and exposure (SI FIG 3)
-
-age_exp_dep_uniqvals <- list(exp_dep=seq(3/10,1.25,0.19),age_dep=seq(1/15,1/3,1/15),age=1:11,exp=1:3) %>% 
-  expand.grid %>% bind_rows %>% mutate(suscept_unscaled=exp(-(exp_dep*exp+age_dep*age)))
-
-age_exp_dep_uniqvals <- age_exp_dep_uniqvals %>% 
-                mutate(const_delta=1/unlist(lapply(lapply(1:nrow(age_exp_dep_uniqvals), 
-                 function(n_p) { sapply(1:n_age,function(x) {
-                   (1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})}),
-                 function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),
-                 susc_scaled=suscept_unscaled*const_delta)
-# PLOT
-ggplot(age_exp_dep_uniqvals %>% 
-         filter(exp_dep %in% seq(3/10,1.25,0.19)[c(1,3,5)] & age_dep %in% seq(1/15,1/3,1/15)[c(1,3,5)]) %>%
-         mutate(age_dep=round(age_dep,2)) %>%
-         rename(`exposure-dependence`=exp_dep,`age-dependence`=age_dep) %>% 
-         mutate(age=factor(rsv_age_groups$agegroup_name[age],levels=unique(rsv_age_groups$agegroup_name))) )  + 
-      geom_line(aes(x=age,color=factor(exp),group=exp,y=susc_scaled),size=1.06) + 
-      facet_grid(`exposure-dependence`~`age-dependence`,
-             labeller=labeller(`exposure-dependence`=label_both,`age-dependence`=label_both)) + 
-      scale_y_log10() + theme_bw() + standard_theme + labs(color="exposure") + xlab("age group") + 
-      ylab(expression(delta[exp]^(age)))
-# ggsave
-# ggsave(here(foldername,"age_exp_dep.png"),width=22,height=18,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -124,16 +63,16 @@ ggplot(age_exp_dep_uniqvals %>%
 # See SI Methods
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # RESULTS
 # results from the parameter sampling after filtering already stored in repo_data/
 # starting date of simulations
+# read_csv(here(foldername,"results_summ_all.csv")) 
 results_summ_all <- read_csv("simul_output/2e4_parsets/results_summ_all.csv")
 # bind_rows(lapply(list.files("simul_output/2e4_parsets",pattern="summ_parsets.*csv",full.names=T), 
 #                           function(x) read_csv(x))) 
 
-#  read_csv("simul_output/2e4_parsets/results_summ_all.csv")
-# read_csv(here::here(foldername,"results_summ_all.csv")) 
 # param sets filtered out bc of attack rates or seasonal concentr
 AR_crit=8; seas_conc_crit=AR_crit; seas_share_cutoff=85/100
 # score: how many age groups satisfy
@@ -258,6 +197,7 @@ interyr_diff_cumul_incid <- left_join(dyn_parsets_main1_324 %>% filter(date<as.D
       summarise(rel_diff_16_18=mean(rel_diff_16_18)*100,rel_diff_17_19=mean(rel_diff_17_19)*100) %>%
       group_by(regular) %>% summarise(perc_diff_16_18=mean(rel_diff_16_18),perc_diff_17_19=mean(rel_diff_17_19))
 # all under 1%, on average under 0.8% difference, so simulations have stabilised
+
 # Plot curves comparing 2016 to 2018 and 2017 to 2019
 left_join(dyn_parsets_main1_324 %>% filter(date<as.Date("2020-04-01")),reg_irreg_parsets) %>%
   mutate(week=isoweek(date)) %>% filter(week>=35|week<=9) %>%
@@ -277,8 +217,10 @@ ggsave(here("simul_output/2e4_parsets/interyear_difference_regular_parsets.png")
 results_summ_all %>% 
   filter(epi_year<2020 & par_id %in% parsets_AR_seas_share) %>%
   filter(par_id %in% reg_irreg_parsets$par_id[reg_irreg_parsets$regular]) %>%
-  mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name)) %>%
-  group_by(par_id,agegroup_name) %>% mutate(inf_in_seas=inf_in_seas/(scaling_2019*inf_in_seas[epi_year==2019])) %>%
+  mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],
+                              levels=rsv_age_groups$agegroup_name)) %>%
+  group_by(par_id,agegroup_name) %>% 
+  mutate(inf_in_seas=inf_in_seas/(scaling_2019*inf_in_seas[epi_year==2019])) %>%
   filter(epi_year<2019) %>%
 ggplot() + geom_jitter(aes(x=factor(epi_year),y=inf_in_seas,group=par_id),alpha=1/8) +
   facet_wrap(~agegroup_name) + xlab("epi-year") + ylab("number of infections (1=2019 level)") + 
@@ -287,12 +229,18 @@ ggplot() + geom_jitter(aes(x=factor(epi_year),y=inf_in_seas,group=par_id),alpha=
 ggsave(here("simul_output/2e4_parsets/cumul_incid_compared2019_by_agegrs.png"),width=30,height=25,units="cm")
 
 # keep only parameters with regular annual patterns
+regular_dyn_parset_load <- T
+if (!regular_dyn_parset_load){
 partable_regular_dyn <- partable_filtered_AR_seasconc %>% 
   filter(par_id %in% reg_irreg_parsets$par_id[reg_irreg_parsets$regular])
 write_csv(partable_regular_dyn,"simul_output/2e4_parsets/crit_8_11/partable_regular_dyn.csv")
 # keep outputs with correct attack rate
 results_summ_all_reg_dyn <- results_summ_all %>% filter(par_id %in% partable_regular_dyn$par_id)
-write_csv(results_summ_all_reg_dyn,"simul_output/2e4_parsets/crit_8_11/results_summ_all_reg_dyn.csv")
+write_csv(results_summ_all_reg_dyn,"simul_output/2e4_parsets/crit_8_11/results_summ_all_reg_dyn_FULL.csv")
+} else {
+  results_summ_all_reg_dyn <- read_csv(here(foldername,"results_summ_all_reg_dyn_FULL.csv"))
+  partable_regular_dyn <- read_csv(here(foldername,"partable_regular_dyn.csv"))
+}
 
 # seasonal concentration density plot
 results_summ_all_reg_dyn %>% filter(epi_year<2019) %>%
@@ -306,126 +254,72 @@ ggsave(here("simul_output/2e4_parsets/seas_conc_CDF.png"),width=30,height=25,uni
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# After filtering by attack rate and seasonal concentration we need full dynamics for *selected* parsets
-# --> likelihood calculations
+# After filtering by attack rate and seasonal concentration we need full dynamics of *selected* parsets
+# for likelihood calculations
 
 # accepted parsets
 create_dynamics_df <- F
 if (create_dynamics_df) {
-all_dynamics_accepted <- bind_rows(lapply(
-  list.files("simul_output/2e4_parsets/all_dyn",pattern="dyn_parsets.*csv",full.names=T), 
-       function(x) read_csv(x) %>% 
-            filter(par_id %in% partable_regular_dyn$par_id) # %>%
-            # filter(par_id %in% sample(unique(par_id),size=sample(max(length(unique(par_id)),94:96),size=1))) 
-  ) ) 
-all_dynamics_accepted <- all_dynamics_accepted %>% 
-                          filter(par_id %in% sample(x=unique(all_dynamics_accepted$par_id),size=2e3,replace=F) )
-write_csv(all_dynamics_accepted,"simul_output/2e4_parsets/all_dynamics_accepted_2e3.csv")
-# we need to also take rejected parsets to make comparison (likelihood vs filtering)
-all_dynamics_rejected <- bind_rows(lapply(
-  list.files("simul_output/2e4_parsets/all_dyn",pattern="dyn_parsets",full.names=T),
-  function(x) read_csv(x) %>% filter(!par_id %in% unique(results_summ_all_reg_dyn$par_id)) %>%
-    filter(par_id %in% sample(unique(par_id),sample(c(83,84),1),replace=F) ) ))
-# save
-write_csv(all_dynamics_rejected,"simul_output/2e4_parsets/all_dynamics_rejected_2e3.csv") } else {
-  all_dynamics_accepted <- read_csv("simul_output/2e4_parsets/all_dynamics_accepted_2e3.csv")  
-  all_dynamics_rejected <- read_csv("simul_output/2e4_parsets/all_dynamics_rejected_2e3.csv")
+  source("fcns/create_dynamics_df.R")
+} else {
+  all_dynamics_accepted <- read_csv(here(foldername,"all_dynamics_accepted_2e3.csv")) %>% 
+                              mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
+                              filter(date>=as.Date("2018-09-25") & date<as.Date("2024-10-01"))
+  all_dynamics_rejected <- read_csv(here(foldername,"all_dynamics_rejected_2e3.csv")) %>% 
+                              mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
+                              filter(date>=as.Date("2018-09-25") & date<as.Date("2024-10-01"))
+  # remove timepoints after SARI-Watch data
+  # all_dynamics_accepted <- all_dynamics_accepted %>% filter(date<=as.Date("2020-05-11"))
+  # all_dynamics_rejected <- all_dynamics_rejected %>% filter(date<=as.Date("2020-05-11"))
 }
-# remove timepoints after SARI-Watch data 
-all_dynamics_accepted <- all_dynamics_accepted %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
-  filter(date<=as.Date("2020-05-11"))
-all_dynamics_rejected <- all_dynamics_rejected %>% mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>% 
-  filter(date<=as.Date("2020-05-11"))
+
 
 # load RSV hospitalisation counts
-SARIwatch_RSVhosp_under5_2018_2020_weekly_counts <- 
-  read_csv("data/SARIwatch_RSVhosp_under5_2018_2020_weekly_counts.csv",col_types="ffddd") %>% 
-  mutate(wk_n=gsub("\\.","-W",wk_n),wk_n=factor(wk_n,levels=unique(wk_n)),
-         date=ISOweek2date(paste0(gsub("\\.","-W",wk_n),"-1")))
-# eventually save this to `repo_data`
-# compare SARI-Watch with literature estimates 
-# annual RATE of hospitalisations per 100K population: 500/1e5 (18-19), 494/1e5
-SARIwatch_RSVhosp_under5_2018_2020_weekly_counts %>% group_by(year) %>% 
-  summarise(annual_cumul_rate=sum(rate_under5yrs))
+source("fcns/load_SARI_data.R")
 
-# under-reporting for under-5 hospitalisations
-# annual RATE of hospitalisations from Reeves 2017: <1y: 35.1/1000, 1-4y: 5.31/1000 = 1083.8/1e5
-# annual RATE from Taylor 2016: <0.5y: 4184/1e5, 6-23mts: 1272/1e5, 2-4y: 114/1e5 = 822.7/1e5
-reported_hosp_rate_per_100k <- c(reeves_2017=(35.1*sum(rsv_age_groups$value[1:2]) + 
-                                    5.31*sum(rsv_age_groups$value[3:7]))*100/sum(rsv_age_groups$value[1:7]),
-                                 taylor_2016=(4184*sum(rsv_age_groups$value[1]) + 1272*sum(rsv_age_groups$value[2:4]) + 
-                                    114*sum(rsv_age_groups$value[5:7]))/sum(rsv_age_groups$value[1:7]) )
-under_report_factor_under5 = mean( (SARIwatch_RSVhosp_under5_2018_2020_weekly_counts %>% group_by(year) %>% 
-          summarise(annual_cumul_rate=sum(rate_under5yrs)))$annual_cumul_rate)/mean(reported_hosp_rate_per_100k)
-
-# hospitalisation counts for 65+
-# for 65+y
-SARIwatch_RSVhosp_over65_2018_2020_weekly_counts <- 
-  read_csv("data/SARIwatch_RSVhosp_over65y_2018_2020_weekly_counts.csv") %>%
-  mutate(wk_n=gsub("-","-W",wk_n),wk_n=factor(wk_n,levels=unique(wk_n)),date=ISOweek2date(paste0(wk_n,"-1")))
-
-# rate per 100K from SARI-Watch
-SARIwatch_RSVhosp_over65_2018_2020_weekly_counts %>% group_by(year) %>% summarise(annual_rate=sum(rate_65yplus))
-# Estimates from literature 
-# (Fleming 2015, https://bmcinfectdis.biomedcentral.com/articles/10.1186/s12879-015-1218-z/tables/3)
-# 65-74: 86/100e3 (62-101); 75+: 234/100e3 (180-291)
-over65_hosp_rate_100k_lit_estim = (
-  sum(ons_2020_midyear_estimates_uk$value[ons_2020_midyear_estimates_uk$age %in% 65:74])*86 + 
-    sum(ons_2020_midyear_estimates_uk$value[76:nrow(ons_2020_midyear_estimates_uk)])*234)/
-  sum(ons_2020_midyear_estimates_uk$value[66:nrow(ons_2020_midyear_estimates_uk)])
-# under-reporting rate
-under_report_factor_over65y <- mean((SARIwatch_RSVhosp_over65_2018_2020_weekly_counts %>% 
-                  group_by(year) %>% summarise(annual_rate=sum(rate_65yplus)))$annual_rate) / 
-                  over65_hosp_rate_100k_lit_estim
+# dataframes created: 
+# SARIwatch_RSVhosp_under5_2018_2020_weekly_counts, SARIwatch_RSVhosp_over65_2018_2020_weekly_counts
+# under-reporting: under_report_factor_under5, under_report_factor_over65y
 
 # calculate weekly hospitalisations of accepted
-agegroup_mapping=findInterval(1:11,c(3,5,8,11))+1; names(agegroup_mapping)=paste0("agegroup",1:11)
+# agegroup_mapping=findInterval(1:11,c(3,5,8,11))+1; names(agegroup_mapping)=paste0("agegroup",1:11)
 # calculate hospitalisations
 create_weekly_hosp_df = F
 if (create_weekly_hosp_df){
-simul_hosp_rate_weekly <- left_join(
-  bind_rows(all_dynamics_accepted %>% mutate(accepted=TRUE),
-            all_dynamics_rejected %>% mutate(accepted=FALSE)) %>% 
-    filter( (agegroup<=3 | agegroup==5) & date>as.Date("2018-09-15")),
-  # data on hospitalisation probs
-  hosp_probabilities %>% mutate(size=rsv_age_groups$value,
-                                broad_age=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% group_by(broad_age) %>%
-    # this is not entirely correct, hosp has to be calculated for smaller age groups and then summed
-    summarise(prob_hosp_per_infection=sum(prob_hosp_per_infection*size/sum(size)),agegroup=unique(broad_age)) %>%
-    select(agegroup,prob_hosp_per_infection),by=c("agegroup")) %>% # end of left_join
-  mutate(hosp=value*prob_hosp_per_infection) %>% select(!c(prob_hosp_per_infection)) %>%
-  mutate(broad_age=ifelse(agegroup<=3,"<5y",">65y")) %>%
-  mutate(year_week=paste0(isoyear(date),"-", isoweek(date)),
-                      year_week=factor(year_week,levels=unique(year_week))) %>%
-  group_by(year_week,par_id,broad_age) %>% 
-  summarise(simul_cases=sum(value),simul_hosp_sum_full=sum(hosp),date=min(date),accepted=unique(accepted) ) %>%
-  mutate(simul_hosp_rate_100k=ifelse(grepl("65y",broad_age),
-                                     1e5*simul_hosp_sum_full/rsv_age_groups$stationary_popul[11],
-                                     1e5*simul_hosp_sum_full/sum(rsv_age_groups$stationary_popul[1:7]) ) )
+
+# create dataframe of weekly hospitalisations, by broad age groups (0-1, 1-2, 2-5, 65+) and by <5 and 65+:
+# simul_hosp_rate_weekly_all_broad_agegroups | simul_hosp_rate_weekly_under5_over65
+# this takes ~2 mins for 4e3 param sets
+source("fcns/create_weekly_hosp_df.R")
+
 # calculate the (Poisson) likelihood per data point
-simul_hosp_rate_weekly <- left_join(
-  left_join(SARIwatch_RSVhosp_under5_2018_2020_weekly_counts,
-            SARIwatch_RSVhosp_over65_2018_2020_weekly_counts,by=c("wk_n","date","year")), 
-  simul_hosp_rate_weekly, by="date") %>%
-  mutate(simul_hosp_scaled=ifelse(grepl("65y",broad_age),
+  simul_hosp_rate_weekly_SARIdates_LLH <- 
+    left_join(
+          left_join(SARIwatch_RSVhosp_under5_2018_2020_weekly_counts,
+                    SARIwatch_RSVhosp_over65_2018_2020_weekly_counts,by=c("wk_n","date","year")), 
+          simul_hosp_rate_weekly_under5_over65, by="date") %>%
+    mutate(simul_hosp_scaled=ifelse(grepl("65y",broad_age),
                                   simul_hosp_sum_full*under_report_factor_over65y*(
                                     pop_AGE65PLUS/rsv_age_groups$stationary_popul[11]),
                                   simul_hosp_sum_full*under_report_factor_under5*(
                                     pop_AGEUNDER5/sum(rsv_age_groups$stationary_popul[1:7])) ),
-         log_lklh_poiss=dpois(x=ifelse(grepl("65y",broad_age),cases65plustotal,casesunder5total),
-                              lambda=simul_hosp_scaled,log=T)) %>% relocate(date,.after=wk_n) %>%
-  group_by(par_id,broad_age,accepted) %>% mutate(sum_neg_llh=-sum(log_lklh_poiss,na.rm=T))
+          log_lklh_poiss=dpois(x=ifelse(grepl("65y",broad_age),cases65plustotal,casesunder5total),
+                              lambda=simul_hosp_scaled,log=T)) %>% 
+    relocate(date,.after=wk_n) %>%
+    group_by(par_id,broad_age) %>% 
+    mutate(sum_neg_llh=-sum(log_lklh_poiss,na.rm=T),
+           accepted=ifelse(par_id %in% partable_regular_dyn$par_id,"accepted","rejected"))
 # save
-write_csv(simul_hosp_rate_weekly,"simul_output/2e4_parsets/simul_hosp_rate_weekly_LLH.csv")
+write_csv(simul_hosp_rate_weekly_SARIdates_LLH,"simul_output/2e4_parsets/simul_hosp_rate_weekly_SARIdates_LLH.csv")
 } else {
-  simul_hosp_rate_weekly <- read_csv("simul_output/2e4_parsets/simul_hosp_rate_weekly_LLH.csv") %>%
+  simul_hosp_rate_weekly_SARIdates_LLH <- read_csv("simul_output/2e4_parsets/simul_hosp_rate_weekly_SARIdates_LLH.csv") %>%
     mutate(year_week=factor(year_week,unique(year_week)))
 }
 
 # `simul_hosp_scaled` means that simulated hospitalisations were scaled by the under-reporting factor
 
 # calculate likelihoods by parameter set (accepted/rejected)
-hosp_dyn_likelihoods <- simul_hosp_rate_weekly %>% group_by(par_id,accepted,broad_age) %>% 
+hosp_dyn_likelihoods <- simul_hosp_rate_weekly_SARIdates_LLH %>% group_by(par_id,accepted,broad_age) %>% 
   summarise(sum_neg_llh=unique(sum_neg_llh)) %>%
   group_by(par_id,accepted) %>% mutate(sum_neg_llh_all=sum(sum_neg_llh)) %>% 
   pivot_longer(!c(par_id,accepted,broad_age)) %>%
@@ -446,10 +340,10 @@ ggsave(here("simul_output/2e4_parsets/hosp_dyn_LLH_accepted_rejected_boxplot.png
 create_rejected_summary_stats=F
 if (create_rejected_summary_stats){
   # read_csv("simul_output/2e4_parsets/results_summ_all.csv")
-  results_summ_rejected <- results_summ_all %>% filter(par_id %in% unique(all_dynamics_rejected$par_id) )
+  results_summ_rejected <- results_summ_all %>% filter(!(par_id %in% unique(partable_regular_dyn$par_id)) )
   write_csv(results_summ_rejected,"simul_output/2e4_parsets/crit_8_11/results_summ_rejected.csv")
 } else {
-    results_summ_rejected <- read_csv("simul_output/2e4_parsets/results_summ_rejected.csv")
+    results_summ_rejected <- read_csv("simul_output/2e4_parsets/crit_8_11/results_summ_rejected_2e3sampled.csv")
 }
 
 create_LLH=T
@@ -465,12 +359,14 @@ likelihoods_attackrates <- bind_rows(
 
 # sum of all likelihoods
 all_likelihoods = left_join(
-  hosp_dyn_likelihoods %>% filter(!broad_age %in% "all") %>% 
+  hosp_dyn_likelihoods %>% filter(!broad_age %in% "all") %>% mutate(accepted=accepted %in% "accepted") %>% 
     pivot_wider(names_from="broad_age",values_from="value",names_prefix="LLH from hospit. "),
   likelihoods_attackrates) %>% 
   mutate(`complete likelihood`=`LLH from hospit. <5y`+`LLH from hospit. >65y`+AR_negLLH_binom) %>% 
   rename(`LLH from attack rates`=AR_negLLH_binom) %>% pivot_longer(!c(par_id,accepted))
-write_csv(all_likelihoods,"simul_output/2e4_parsets/crit_8_11/all_likelihoods.csv") } else {
+# SAVE
+write_csv(all_likelihoods,"simul_output/2e4_parsets/crit_8_11/all_likelihoods.csv") 
+} else {
   all_likelihoods <- read_csv("simul_output/2e4_parsets/crit_8_11/all_likelihoods.csv")
 }
 
@@ -544,14 +440,14 @@ ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1500_filtered.png"),w
 
 # dynamics
 goodfit_pars <- (all_likelihoods %>% filter((name %in% "complete likelihood") & value<1.5e3))$par_id
-sari_hosp_data_joint = simul_hosp_rate_weekly %>% ungroup() %>% 
+sari_hosp_data_joint = simul_hosp_rate_weekly_SARIdates_LLH %>% ungroup() %>% 
   select(c(year_week,casesunder5total,cases65plustotal,broad_age,year)) %>% 
   distinct() %>% pivot_longer(!c(year_week,broad_age,year)) %>%
   filter(!(broad_age %in% "<5y" & name %in% "cases65plustotal")) %>%
   filter(!(broad_age %in% ">65y" & name %in% "casesunder5total"))
 # plot
 show_every_nth = function(n) { return(function(x) {x[c(TRUE, rep(FALSE, n - 1))]}) }
-simul_hosp_rate_weekly %>% select(c(par_id,accepted,broad_age,simul_hosp_scaled,year_week,year)) %>%
+simul_hosp_rate_weekly_SARIdates_LLH %>% select(c(par_id,accepted,broad_age,simul_hosp_scaled,year_week,year)) %>%
   filter(par_id %in% goodfit_pars) %>%
 ggplot(aes(x=year_week)) + 
   geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id),alpha=1/2) + 
@@ -691,8 +587,7 @@ ggplot(partable_regular_dyn %>% filter(par_id %in% sample(partable_regular_dyn$p
 
 pred_pca <- data.frame(predict(object=prcomp(partable_regular_dyn %>% select(c(exp_dep,age_dep))),
                 newdata=partable_regular_dyn %>% select(c(exp_dep,age_dep))),
-      K_exp=partable_regular_dyn$exp_dep,
-      K_age=partable_regular_dyn$age_dep,
+      K_exp=partable_regular_dyn$exp_dep,K_age=partable_regular_dyn$age_dep,
       par_id=partable_regular_dyn$par_id)
 
 binned_pc1 = pred_pca %>% mutate(PC1_bin=findInterval(PC1,vec=seq(-0.65,0.35,by=0.1))) %>% group_by(PC1_bin) %>% # 
@@ -723,12 +618,31 @@ ggplot(aes(x=date,y=value,group=par_id,color=factor(age_dep_low_high))) + scale_
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # order by 1st principal component of k_age and k_exp
 
-# suscept_unscaled=exp(-(exp_dep*exp+age_dep*age)) # 
-# const_delta=1/unlist(lapply(lapply(1:nrow(age_exp_dep_uniqvals),
-#     function(n_p) { sapply(1:n_age,function(x) {
-#           (1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})}),
-#     function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),
-# susc_scaled=suscept_unscaled*const_delta
+# Plot susceptibility as a function of age and exposure (SI FIG 3)
+
+age_exp_dep_uniqvals <- list(exp_dep=seq(3/10,1.25,0.19),age_dep=seq(1/15,1/3,1/15),age=1:11,exp=1:3) %>% 
+  expand.grid %>% bind_rows %>% mutate(suscept_unscaled=exp(-(exp_dep*exp+age_dep*age)))
+
+age_exp_dep_uniqvals <- age_exp_dep_uniqvals %>% 
+  mutate(const_delta=1/unlist(lapply(lapply(1:nrow(age_exp_dep_uniqvals), 
+          function(n_p) { sapply(1:n_age,function(x) {
+                  (1*exp(-age_exp_dep_uniqvals$exp_dep[n_p]*(1:3)))/(exp(age_exp_dep_uniqvals$age_dep[n_p]*x))})}),
+          function(x) R0_calc_SIRS(C_m,x,rho,n_inf))),susc_scaled=suscept_unscaled*const_delta)
+
+# PLOT
+ggplot(age_exp_dep_uniqvals %>% 
+         filter(exp_dep %in% seq(3/10,1.25,0.19)[c(1,3,5)] & age_dep %in% seq(1/15,1/3,1/15)[c(1,3,5)]) %>%
+         mutate(age_dep=round(age_dep,2)) %>%
+         rename(`exposure-dependence`=exp_dep,`age-dependence`=age_dep) %>% 
+         mutate(age=factor(rsv_age_groups$agegroup_name[age],levels=unique(rsv_age_groups$agegroup_name))) )  + 
+  geom_line(aes(x=age,color=factor(exp),group=exp,y=susc_scaled),size=1.06) + 
+  facet_grid(`exposure-dependence`~`age-dependence`,
+             labeller=labeller(`exposure-dependence`=label_both,`age-dependence`=label_both)) + 
+  scale_y_log10() + theme_bw() + standard_theme + labs(color="exposure") + xlab("age group") + 
+  ylab(expression(delta[exp]^(age)))
+# ggsave
+# ggsave(here(foldername,"age_exp_dep.png"),width=22,height=18,units="cm")
+
 
 suscept_sel_parsets <- left_join(bind_rows(lapply(sample(1:nrow(pred_pca),size=2e3), 
       function(x) age_exp_dep_uniqvals %>% select(age,exp) %>% distinct() %>%
@@ -752,20 +666,22 @@ colorpal <- colorRampPalette(colors=c("blue","grey","red"))(length(unique(suscep
 # library(plyr)
 label_parseall <- function(variable, value) {
   plyr::llply(value, function(x) parse(text=paste(variable,x,sep = "==")))}
+# for the manuscript we need larger fonts
+manuscript_large_font_theme <- theme(
+  strip.text=element_text(size=18),legend.title=element_text(size=16),
+  legend.text=element_text(size=15),legend.position="top",axis.text.x=element_text(size=14),
+  axis.text.y=element_text(size=12),axis.title.x=element_text(size=16),
+  axis.title.y=element_text(size=18))
 # plot
-ggplot(suscept_sel_parsets %>% 
+ggplot(suscept_sel_parsets %>%
          rename(kappa=PC1_grouped) %>% ungroup() %>% 
          mutate(kappa_num=as.numeric(factor(as.character(kappa)))) %>% 
           filter(kappa_num %in% c(1,3,5,7,9,10)),
   aes(x=age,color=factor(exposure),group=exposure,fill=factor(exposure))) +
   geom_line(aes(y=med_val),size=1.06) + geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up),color=NA,alpha=0.2) +
-  facet_wrap(~kappa,labeller=label_parseall)+labs(color="exposure",fill="exposure") +
+  facet_wrap(~kappa,labeller=label_parseall) + labs(color="exposure",fill="exposure") +
   scale_y_log10(breaks=unlist(lapply(seq(-4,0,1/2), function(x) round(10^x,abs(x))))) + 
-  theme_bw() + standard_theme + 
-  theme(strip.text=element_text(size=18),legend.title=element_text(size=16),
-      legend.text=element_text(size=15),legend.position="top",axis.text.x=element_text(size=14),
-      axis.text.y=element_text(size=12),axis.title.x=element_text(size=16),
-      axis.title.y=element_text(size=18)) + xlab("age group") + ylab(expression(delta[exp]^(age)))
+  theme_bw() + standard_theme + manuscript_large_font_theme + xlab("age group") + ylab(expression(delta[exp]^(age)))
 # save
 # ggsave(here(foldername,"suscept_by_dep_level.png"),width=25,height=20,units="cm")
 
@@ -773,45 +689,57 @@ ggplot(suscept_sel_parsets %>%
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT: FIGURE 2 in main text (first panel): entire range of outputs by each parameter
 
-partable_full_linear_kage_kexp <- read_csv(here(foldername,"partable_full_linear_kage_kexp.csv"))
+# partable <- read_csv(here(foldername,"partable.csv"))
 # PCA on full param table
 pred_pca_FULL <- data.frame(
-  predict(object=prcomp(partable_full_linear_kage_kexp %>% 
-              select(c(exp_dep,age_dep))),newdata=partable_full_linear_kage_kexp %>% 
-              select(c(exp_dep,age_dep))),
-            exp_dep=partable_full_linear_kage_kexp$exp_dep,
-            age_dep=partable_full_linear_kage_kexp$age_dep,
-            par_id=partable_full_linear_kage_kexp$par_id) %>% 
+  predict(object=prcomp(partable %>% select(c(exp_dep,age_dep))), 
+          newdata=partable %>% select(c(exp_dep,age_dep))),
+          exp_dep=partable$exp_dep, age_dep=partable$age_dep, par_id=partable$par_id) %>% 
   rename(kappa=PC1) %>%
   group_by(age_dep,exp_dep) %>% 
   summarise(kappa=unique(kappa))
 mean_ages_broad_age_group <- data.frame(agegroup_broad=1:3,mean_age=c(0.5,1.5,3.5))
 # concatenate with PC1 of age-exp parameter, bin values
-results_summ_all_fullscan <- left_join(
-  read_csv(here::here(foldername,"results_summ_all_fullscan_relevant.csv")) %>%
+results_fullscan_hosp <- left_join(
+  # read_csv(here(foldername,"results_fullscan_hosp_relevant.csv")) %>%
+  bind_rows(results_summ_all_reg_dyn,results_summ_rejected) %>%
     mutate(hosp_tot=inf_tot*hosp_probabilities$prob_hosp_per_infection[agegroup],
            peak_hosp=peak_inf*hosp_probabilities$prob_hosp_per_infection[agegroup]) %>% 
     mutate(agegroup_broad=c("<1y","1-2y","2-5y","5+y")[findInterval(agegroup,c(2,4,7)+1)+1]) %>%
-    group_by(agegroup_broad,par_id,epi_year,exp_dep,age_dep,
+    group_by(par_id,agegroup_broad,epi_year,exp_dep,age_dep,
              seasforc_width_wks,seasforce_peak,R0,omega) %>% 
-    summarise(hosp_tot=sum(hosp_tot),
-              peak_hosp=sum(peak_hosp),
-              inf_tot=sum(inf_tot)) %>% 
+    summarise(hosp_tot=sum(hosp_tot),peak_hosp=sum(peak_hosp),inf_tot=sum(inf_tot)) %>% 
     group_by(agegroup_broad,par_id) %>%
     mutate(hosp_tot_norm=hosp_tot/hosp_tot[epi_year==2019],
            peak_hosp_norm=peak_hosp/peak_hosp[epi_year==2019]),
   pred_pca_FULL,by=c("age_dep","exp_dep")) %>%
   mutate(kappa_grouped=findInterval(kappa,seq(-1,1,by=1/5)) ) %>% group_by(kappa_grouped) %>% 
-  mutate(kappa_grouped=round(mean(kappa),1)) %>% relocate(c(kappa,kappa_grouped),.after=age_dep) %>%
-  group_by(par_id,epi_year) %>% 
-  mutate(mean_age=
-          sum(mean_ages_broad_age_group$mean_age[
-            as.numeric(factor(unique(agegroup_broad)))]*inf_tot/sum(inf_tot))) %>%
-  group_by(par_id) %>% 
-  mutate(mean_age_shift_month=(mean_age-mean_age[epi_year==2019])*12)
+  mutate(kappa_grouped=round(mean(kappa),1)) %>% relocate(c(kappa,kappa_grouped),.after=age_dep)
+
+# mean age should be calculated from narrower age bands
+if (!any(grepl("mean_age",colnames(results_fullscan_hosp)))){
+xx = left_join(left_join(bind_rows(results_summ_all_reg_dyn,results_summ_rejected) %>%
+    mutate(hosp_tot=inf_tot*hosp_probabilities$prob_hosp_per_infection[agegroup],
+           peak_hosp=peak_inf*hosp_probabilities$prob_hosp_per_infection[agegroup]) %>%
+    filter(agegroup<=7) %>% # %>% mutate(mean_age=rsv_age_groups$mean_age_weighted[agegroup]),
+  group_by(par_id,epi_year) %>%
+  summarise(mean_age_cumul_hosp_under5y=sum(rsv_age_groups$mean_age_weighted[agegroup]*hosp_tot/sum(hosp_tot))*12,
+            mean_age_peak_hosp_under5y=sum(rsv_age_groups$mean_age_weighted[agegroup]*peak_hosp/sum(peak_hosp))*12),
+  partable %>% select(!const_delta)), pred_pca_FULL) %>%
+  relocate(c(mean_age_cumul_hosp_under5y,mean_age_peak_hosp_under5y),.after=last_col()) %>%
+  group_by(par_id) %>%
+  mutate(mean_age_cumul_hosp_shift=mean_age_cumul_hosp_under5y - mean_age_cumul_hosp_under5y[epi_year==2017],
+         mean_age_cumul_hosp_shift_2018=mean_age_cumul_hosp_under5y - mean_age_cumul_hosp_under5y[epi_year==2018],
+         mean_age_cumul_hosp_shift=ifelse(epi_year %% 2 == 0,mean_age_cumul_hosp_shift_2018,mean_age_cumul_hosp_shift)) %>%
+  select(!mean_age_cumul_hosp_shift_2018)
+# concatenate
+results_fullscan_hosp = left_join(results_fullscan_hosp,xx)
+}
+
+# value/value[epi_year==ifelse(epi_year %% 2==0,2018,2017)]
 
 # find median parameter set
-median_parset <- results_summ_all_fullscan %>% ungroup() %>% 
+median_parset <- results_fullscan_hosp %>% ungroup() %>% 
   select(c(kappa_grouped,seasforc_width_wks,seasforce_peak,R0,omega)) %>% 
   group_by(kappa_grouped,seasforc_width_wks,seasforce_peak,R0,omega) %>% 
   summarise_all(unique) %>% ungroup() %>%
@@ -822,69 +750,15 @@ median_parset <- results_summ_all_fullscan %>% ungroup() %>%
 # take median parameter set, calculate the range in ONE parameter, 
 # for ALL param sets and for the accepted parsets
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-for (k in 1:ncol(median_parset)){ if (k==1) {
-  output_ranges_full_scan<-data.frame(); mean_age_shift_ranges<-data.frame()}
-  # all parameterisations
-  sel_all <- right_join(
-    results_summ_all_fullscan, median_parset[,-k],by=colnames(median_parset)[-k]) %>% 
-    group_by(agegroup_broad,epi_year) %>% 
-    filter(epi_year==2021)
-  #
-  x_full_scan <- bind_rows(sel_all %>% 
-                            summarise(norm_median=median(hosp_tot_norm),norm_min=min(hosp_tot_norm),
-                            norm_max=max(hosp_tot_norm)) %>% 
-                            mutate(scan_param=colnames(median_parset)[k],range="full",vartype="cumulative"),
-                            sel_all %>% 
-                            summarise(norm_median=median(peak_hosp_norm),norm_min=min(peak_hosp_norm),
-                            norm_max=max(peak_hosp_norm)) %>% 
-                            mutate(scan_param=colnames(median_parset)[k],range="full",vartype="peak"))
-  # accepted parameterisations
-  sel_sel_parsets <- right_join(
-    results_summ_all_fullscan %>% 
-      filter(par_id %in% parsets_regular_dyn$par_id),
-    median_parset[,-k],by=colnames(median_parset)[-k]) %>% 
-  group_by(agegroup_broad,epi_year) %>% 
-    filter(epi_year==2021)
-  # 
-  x_parset_sel <- bind_rows(sel_sel_parsets %>% 
-                              summarise(norm_median=median(hosp_tot_norm),
-                                  norm_min=min(hosp_tot_norm),
-                                  norm_max=max(hosp_tot_norm)) %>% 
-                              mutate(scan_param=colnames(median_parset)[k],range="sel",vartype="cumulative"),
-                            sel_sel_parsets %>% 
-                              summarise(norm_median=median(peak_hosp_norm),
-                                    norm_min=min(peak_hosp_norm),norm_max=max(peak_hosp_norm)) %>% 
-                              mutate(scan_param=colnames(median_parset)[k],range="sel",vartype="peak"))
-  # collect all results (cumul, peak)
-  output_ranges_full_scan <- bind_rows(output_ranges_full_scan,x_full_scan,x_parset_sel)
-  # mean age shift 
-  x_mean_age <- bind_rows(sel_all %>% 
-                              summarise(norm_median=median(mean_age_shift_month),
-                              norm_min=min(mean_age_shift_month),
-                              norm_max=max(mean_age_shift_month)) %>%
-                              mutate(scan_param=colnames(median_parset)[k],range="full"),
-                        sel_sel_parsets %>% summarise(norm_median=median(mean_age_shift_month),
-                            norm_min=min(mean_age_shift_month),
-                            norm_max=max(mean_age_shift_month)) %>%
-                    mutate(scan_param=colnames(median_parset)[k],range="sel")) %>% 
-    group_by(scan_param,range) %>% 
-    select(!agegroup_broad) %>% 
-    summarise_all(unique)
-  # 
-  mean_age_shift_ranges <- bind_rows(x_mean_age,mean_age_shift_ranges)
-  
-  if (k==ncol(median_parset)) {
-    output_ranges_full_scan <- output_ranges_full_scan %>% 
-                                  relocate(c(scan_param,range,vartype),.after=epi_year) }
-}
-### END OF LOOP (building dataframe for Fig 2)
+source("fcns/create_df_fullrange_plots.R")
+# creates the dataframes: output_ranges_full_scan | mean_age_shift_ranges
 
 # PLOT
 # load tidybayes library
-if (!any(grepl("tidybayes",row.names(installed.packages())))) {
-  install.packages("tidybayes")}; library(tidybayes)
-# 
-df_plot_fullrange <- output_ranges_full_scan %>%
+# if (!any(grepl("tidybayes",row.names(installed.packages())))) {
+#   install.packages("tidybayes")}; library(tidybayes)
+
+df_plot_fullrange <- output_ranges_full_scan %>% filter(!agegroup_broad %in% "5+y") %>%
                         mutate(
                           scan_param=case_when(
                               grepl("kappa_grouped",scan_param) ~ "exposure vs age",
@@ -893,34 +767,35 @@ df_plot_fullrange <- output_ranges_full_scan %>%
                               grepl("R0",scan_param) ~ "baseline R0",
                               grepl("omega",scan_param) ~ "waning rate"),
          epi_year=case_when(epi_year %in% "2021" ~ "2021-2022")) %>% filter(epi_year %in% "2021-2022")
+
 # plot change in CUMUL and PEAK HOSP
 dodge_val=1
-ggplot() + 
-  geom_interval(data=df_plot_fullrange %>% filter(range %in% "full"),
-          aes(x=norm_median,y=agegroup_broad,group=scan_param,xmin=norm_min,xmax=norm_max,
-                    color=factor(scan_param)),position=position_dodge(width=dodge_val),alpha=1/3,size=5) +
-  geom_interval(data=df_plot_fullrange %>% filter(range %in% "sel"),
-          aes(x=norm_median,y=agegroup_broad,group=scan_param,xmin=norm_min,xmax=norm_max,
-                    color=factor(scan_param)),position=position_dodge(width=dodge_val),size=10) +
-  geom_vpline(data=df_plot_fullrange %>% filter(range %in% "sel"),
-          aes(x=norm_median,y=agegroup_broad,group=scan_param),
-              position=position_dodge(width=dodge_val),color="black",size=1.5,height=0.185) + # 
+ggplot() +
+  # geom_boxplot(data=df_plot_fullrange %>% filter(range %in% "full"),
+  #              aes(y=agegroup_broad,xmiddle=norm_median,xlower=norm_ci95_low,xupper=norm_ci95_up,xmin=NA,xmax=NA,
+  #                  group=interaction(scan_param,agegroup_broad)),color="grey",# color=factor(scan_param)),
+  #              position=position_dodge(width=dodge_val),stat="identity",width=1/4) +
+  geom_boxplot(data=df_plot_fullrange %>% filter(range %in% "sel"),
+                aes(y=agegroup_broad,xmiddle=norm_median,xlower=norm_ci95_low,xupper=norm_ci95_up,xmin=norm_min,xmax=norm_max,
+                    group=interaction(scan_param,agegroup_broad),color=factor(scan_param)),fill=NA,
+               position=position_dodge(width=dodge_val),stat="identity",width=3/4) +
   facet_grid(~vartype,scales="free_x") + 
-  geom_hline(yintercept=(0:4)+1/2,size=1/2) + 
-  geom_vline(xintercept=1,size=1/2,linetype="dashed") + 
+  geom_hline(yintercept=(1:2)+1/2,size=1/2) + geom_vline(xintercept=1,size=1/2,linetype="dashed") + 
   guides(color=guide_legend(nrow=2,byrow=TRUE)) +
-  scale_x_log10(breaks=c(0.3,0.5,0.75,1,1.5,2,3,5,10)) + scale_y_discrete(expand=expansion(0,0)) + 
+  scale_x_log10(breaks=c(0.3,0.5,0.75,1,1.5,2,3,5,10)) + scale_y_discrete(expand=expansion(0.1,1/3)) + 
   xlab("relative hospitalisation risk compared to pre-pandemic years") + ylab("") + labs(color="") +
-  theme_bw() + standard_theme + theme(strip.text=element_text(size=18),
-        axis.text.x=element_text(size=16),axis.text.y=element_text(size=16),
-        legend.text=element_text(size=16),legend.position="top",axis.title.x=element_text(size=16))
-  
-# save
-# subfldr_name<-here::here(foldername,"median_interquant_by_param_value/summary_range/")
-# if (!dir.exists(subfldr_name)) {dir.create(subfldr_name)}
-# ggsave(paste0(subfldr_name,"cumul_peak_hosp_summary_plot.png"),width=28,height=24,units="cm")
+  theme_bw() + standard_theme + manuscript_large_font_theme
+# geom_interval(data=df_plot_fullrange %>% filter(range %in% "full"),
+#         aes(x=norm_median,y=agegroup_broad,group=scan_param,xmin=norm_min,xmax=norm_max,
+#                   color=factor(scan_param)),position=position_dodge(width=dodge_val),alpha=1/3,size=5) +
 
-# check entire range across all params:
+# save
+subfldr_name <- here(foldername,"median_interquant_by_param_value/from_summ/summary_range/")
+if (!dir.exists(subfldr_name)) {dir.create(subfldr_name)}
+# ggsave(paste0(subfldr_name,"cumul_peak_hosp_summary_plot_with_reject_parsets.png"),width=28,height=24,units="cm")
+ggsave(paste0(subfldr_name,"cumul_peak_hosp_summary_plot.png"),width=28,height=24,units="cm")
+
+# check entire range across all params (percentage change from pre-pandemic)
 df_plot_fullrange %>% 
   group_by(agegroup_broad,epi_year,range,vartype) %>% 
    summarise(norm_median=round(100*median(norm_median)-100),norm_min=round(100*min(norm_min)-100),
@@ -935,249 +810,168 @@ df_plot_mean_age <- mean_age_shift_ranges %>%
                               grepl("R0",scan_param) ~ "baseline R0",
                               grepl("omega",scan_param) ~ "waning rate"),
          epi_year=case_when(epi_year %in% "2021" ~ "2021-2022")) %>% filter(epi_year %in% "2021-2022")
-# plot
-ggplot() +
-  geom_interval(data=df_plot_mean_age %>% filter(range %in% "full"),
-        aes(x=norm_median,y=1,group=scan_param,xmin=norm_min,xmax=norm_max,
-                    color=factor(scan_param)),position=position_dodge(width=dodge_val),alpha=1/3,size=4) +
-  geom_interval(data=df_plot_mean_age %>% filter(range %in% "sel"),
-        aes(x=norm_median,y=1,group=scan_param,xmin=norm_min,xmax=norm_max,
-                    color=factor(scan_param)),position=position_dodge(width=dodge_val),size=8) +
-  geom_vpline(data=df_plot_mean_age %>% filter(range %in% "sel"),
-        aes(x=norm_median,y=1,group=scan_param),
-              position=position_dodge(width=dodge_val),color="black",size=1.5,height=0.185) + # 
-  geom_hline(yintercept=(0:4)+1/2,size=1/2) + geom_vline(xintercept=0,size=1/2,linetype="dashed") + 
+
+# plot shift in mean age
+p_mean_age_shift <- ggplot() +
+  geom_boxplot(data=df_plot_mean_age %>% filter(range %in% "sel"),
+               aes(y=1,xmiddle=norm_median,xlower=norm_ci95_low,xupper=norm_ci95_up,xmin=norm_min,xmax=norm_max,
+                   group=scan_param,color=factor(scan_param)),
+                   position=position_dodge(width=dodge_val),stat="identity",width=3/4,size=1) +
   guides(color=guide_legend(nrow=2,byrow=TRUE)) + 
-  scale_x_continuous(breaks=(-1:5)) + scale_y_discrete(expand=expansion(0,0)) + 
+  scale_x_continuous(breaks=(-1:7)) + scale_y_discrete(expand=expansion(0,0.05)) + 
   xlab("shift in average age (months)") + ylab("") + labs(color="") +
-  theme_bw() + standard_theme + theme(strip.text=element_text(size=18),axis.text.x=element_text(size=16),
-        axis.text.y=element_text(size=16),legend.text=element_text(size=16),legend.position="null",
-        axis.title.x=element_text(size=16))
+  theme_bw() + standard_theme + manuscript_large_font_theme
+# also show rejected params?
+all_pars_show=F
+if (all_pars_show) {
+  p_mean_age_shift + geom_boxplot(data=df_plot_mean_age %>% filter(range %in% "full") %>% 
+                                    mutate(norm_min=NaN,norm_max=NaN),
+            aes(y=1,xmiddle=norm_median,xlower=norm_ci95_low,xupper=norm_ci95_up,
+                xmin=norm_min,xmax=norm_max,group=scan_param),
+                color="grey",position=position_dodge(width=dodge_val),stat="identity",width=3/4,fill=NA)
 # save
-# ggsave(here(subfldr_name,"aver_age_hosp_summary_plot_all_par.png"),width=28,height=6,units="cm")
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Analyse accepted simulations by epidemiologic parameters
-
-# cumulative infections per epi_year --> add hospitalisations
-results_summ_all_hosp <- left_join(
-  left_join(
-      left_join(results_summ_all %>% 
-                  filter(par_id %in% partable_regular_dyn$par_id), 
-                  hosp_probabilities %>% 
-                  select(c(agegroup_name,prob_hosp_per_infection)),by="agegroup_name"),
-      pred_pca %>% select(par_id,PC1),by="par_id"),
-  partable_regular_dyn %>% 
-    select(par_id,omega) %>% 
-    mutate(omega=1/omega) %>% 
-    rename(waning=omega), by="par_id") %>% 
-  mutate(hosp_tot=prob_hosp_per_infection*inf_tot,
-         hosp_seas=prob_hosp_per_infection*inf_in_seas) %>% 
-  select(!prob_hosp_per_infection) %>% 
-  relocate(agegroup_name,.after=agegroup) %>% 
-  mutate(agegroup_broad=c("<1y","1-2y","2-5y","5+y")[findInterval(agegroup,c(2,4,7)+1)+1]) %>% 
-  relocate(agegroup_broad,.after=agegroup_name) %>% 
-  relocate(c(inf_tot,inf_in_seas),.before=hosp_tot) %>% 
-  relocate(par_id,.after=epi_year) %>% 
-  relocate(c(exp_dep,age_dep,PC1,seasforce_peak,R0,waning,seasforc_width_wks),.after=par_id)
-# write_csv(results_summ_all_hosp,here::here(foldername,"results_summ_all_hosp.csv"))
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# outcomes by individual parsets # plot sums: pre-NPI, NPI+1 (2021/22), NPI+2 (2022/23)
-# LOAD
-# parsets_broad_age_groups <- read_csv(here::here(foldername,"parsets_broad_age_groups.csv"))
-parsets_broad_age_groups <- results_summ_all_hosp %>% 
-  group_by(par_id,epi_year,agegroup_broad) %>% 
-  summarise(PC1=unique(PC1),
-            seasforce_peak=unique(seasforce_peak),
-            waning=round(unique(waning)),
-            seasforc_width_wks=unique(seasforc_width_wks),
-            R0=unique(R0),
-            inf_tot=sum(inf_tot),
-            inf_in_seas=sum(inf_in_seas),
-            hosp_tot=sum(hosp_tot),
-            hosp_seas=sum(hosp_seas),
-            seas_share=mean(seas_share),
-            attack_rate_perc=mean(attack_rate_perc),
-            max_incid_week=mean(max_incid_week)) %>% 
-  pivot_longer(!c(par_id,epi_year,agegroup_broad,PC1,seasforce_peak,waning,seasforc_width_wks,R0)) %>%
-  group_by(par_id,agegroup_broad,name) %>% 
-  summarise(epi_year,PC1,seasforce_peak,waning,seasforc_width_wks,R0,value,
-    value_norm=ifelse(epi_year==2019,1,ifelse(name %in% c("max_incid_week","seas_share","attack_rate_perc"),
-    value-value[epi_year==2019],value/value[epi_year==2019]))) %>% 
-  relocate(name,.after=R0) %>%
-  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% 
-  group_by(age_exp_par_bins) %>% 
-  mutate(age_exp_par_bins=round(mean(PC1),1)) %>% 
-  relocate(age_exp_par_bins,.after=PC1)
-# write_csv(parsets_broad_age_groups,here::here(foldername,"parsets_broad_age_groups.csv"))
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# summary plot (median, interquartile range)
-summ_broad_age_groups <- parsets_broad_age_groups %>% 
-  mutate(value_norm=ifelse(name %in% c("seas_share"),
-         value_norm*100,value_norm)) %>% 
-  group_by(agegroup_broad,epi_year,name) %>% 
-  summarise(mean=mean(value_norm),median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
-  filter(epi_year>2019)
-# write_csv(summ_broad_age_groups,here::here(foldername,"summ_broad_age_groups.csv"))
-# summ_broad_age_groups <- read_csv(here::here(foldername,"summ_broad_age_groups.csv"))
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# segment age_exp_dep into x values, calculate summary statistics for each param value
-summ_broad_age_groups_byvalue <- parsets_broad_age_groups %>% 
-  select(!c(PC1,value)) %>% 
-  mutate(waning=round(waning)) %>%
-  relocate(age_exp_par_bins,.after=R0) %>% 
-  rename(varname=name) %>% 
-  pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,value_norm)) %>% 
-  rename(parname=name,parvalue=value) %>% 
-  relocate(c(varname,value_norm),.after=parvalue) %>%
-  mutate(value_norm=ifelse(varname %in% c("seas_share"),
-        value_norm*100,value_norm)) %>%
-  group_by(agegroup_broad,epi_year,parname,parvalue,varname) %>% 
-  summarise(mean=mean(value_norm),median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
-            ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],
-            ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
-  filter(epi_year>2019)
-# write_csv(summ_broad_age_groups_byvalue,here::here(foldername,"summ_broad_age_groups_byvalue.csv"))
-# summ_broad_age_groups_byvalue <- read_csv(here::here(foldername,"summ_broad_age_groups_byvalue.csv"))
-##############################################################
-# PLOTS of summary statistics across ALL parameter values
-# the plots below include: Figure 3A-C and SI Figure 5
-sel_vars <- c("attack rate","in-season hospitalisations","cumulative hospitalisations",
-              "in-season infections","cumulative infections","% cases in-season")
-for (k_plot in c(3,5)) {
-  for (k_age_excl in 1:2) {
-    dodge_val=0.9
-    ylab_tag <- ifelse(grepl("season peak|% cases|attack",sel_vars[k_plot]),
-                       " (change from 2019 level)"," (relative to pre-NPI)")
-    # subset data to plot
-    df_plot <- summ_broad_age_groups %>% 
-      mutate(name=case_when(
-                  grepl("attack",name) ~ "attack rate",
-                  grepl("hosp_seas",name) ~ "in-season hospitalisations", 
-                  grepl("hosp_tot",name) ~ "cumulative hospitalisations", 
-                  grepl("inf_in_seas",name) ~ "in-season infections",
-                  grepl("inf_tot",name) ~ "cumulative infections",
-                  grepl("max_incid_week",name) ~ "season peak (calendar week)",
-                  grepl("seas_share",name) ~ "% cases in-season")) %>%
-      filter(epi_year>2020 & (name %in% sel_vars[k_plot]))
-    if (k_age_excl>1) {
-      df_plot <- df_plot %>% 
-        filter(!agegroup_broad %in% "5+y"); size_adj<-1.33 } else {
-          size_adj<-1
-          }
-    p <- ggplot(df_plot, 
-      aes(x=factor(epi_year),color=factor(agegroup_broad),group=agegroup_broad)) + 
-      geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),
-                     position=position_dodge(width=dodge_val),
-                     alpha=0.3,size=12*size_adj,show.legend=FALSE) +
-      geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),
-                     position=position_dodge(width=dodge_val),
-                     alpha=0.6,size=12*size_adj)+
-      geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),
-                  width=size_adj/6,size=0.8,color="black") +
-      geom_vline(xintercept=(0:4)+1/2,size=1/2) + 
-      scale_x_discrete(expand=expansion(0,0)) + 
-      xlab("") + ylab(paste0(sel_vars[k_plot],ylab_tag)) + labs(color="age groups") + 
-      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),
-          legend.text=element_text(size=15),
-          axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
-          legend.title=element_text(size=15),panel.grid.major.x=element_blank())
-    # 
-    if (grepl("season peak|% cases|attack",sel_vars[k_plot])) {
-      if (grepl("season peak",sel_vars[k_plot])) {
-        break_vals <- (-5:15)*10} else {break_vals <- (-10:10)*10}
-      p <- p + geom_hline(yintercept=0,linetype="dashed",size=1/2) + scale_y_continuous(breaks=break_vals) 
-                    } else {
-        p <- p + scale_y_log10(breaks=c(0.1,1/4,1/2,3/4,1,5/4,3/2,7/4,2,2.5,3,5)) + 
-          geom_hline(yintercept=1,linetype="dashed",size=1/2)
-        }
-    p
-    # save
-    sel_var_filename <- gsub("%","share",gsub("_calendar_week","",
-                              gsub("\\(|\\)","",gsub("-|\\s","_",sel_vars[k_plot]))))
-    subfldr_name<-"median_interquant_all_collapsed/"
-    if (!dir.exists(here::here(foldername,subfldr_name))) {
-      dir.create(here::here(foldername,subfldr_name)) }
-    if (!dir.exists(here::here(foldername,subfldr_name,"above_5y/"))){
-      dir.create(here::here(foldername,subfldr_name,"above_5y/")) }
-    ggsave(here::here(foldername,subfldr_name,
-                      paste0(ifelse(k_age_excl==1,"above_5y/",""),"summ_stats_relative_2019_",
-                      paste0(sel_var_filename,collapse="_"),".png") ),
-            width=25,height=20,units="cm")
-    print(sel_vars[k_plot])
-  }
+  ggsave(here(subfldr_name,"aver_age_hosp_summary_plot_all_par.png"),width=28,height=6,units="cm")
+} else { p_mean_age_shift
+  ggsave(here(subfldr_name,"aver_age_hosp_summary_plot_accepted_par.png"),width=28,height=12,units="cm") 
 }
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# Sensitivity analysis: PRCC
+# library(epiR)
+
+# create dataframe of PRCC values
+source("fcns/create_df_prcc.R")
+
+# plot cumul age and peak
+bind_rows(list_prcc_output) %>% filter((!name %in% "kappa") & !grepl("mean_age",output) & (!agegroup_broad %in% "5+y")) %>% 
+  rename(`age`=agegroup_broad) %>% mutate(name=factor(name,levels=unique(name))) %>%
+ggplot() + facet_wrap(~output,scales = "free_x") + 
+  geom_col(aes(y=est,x=name,group=age,fill=age),color="black",size=1/3,position=position_dodge(width=0.85),width=4/5) + 
+  coord_flip() + xlab("") + ylab("PRCC") + geom_vline(xintercept=1/2+1:5,size=1/3) + geom_hline(yintercept=0) +
+  theme_bw() + standard_theme + manuscript_large_font_theme + theme(panel.grid.major.y = element_blank())
+# save
+ggsave(here(subfldr_name,"PRCC_cumul_peak_hosp_under5.png"),width=28,height=20,units="cm")
+
+# plot mean age shift
+bind_rows(list_prcc_output) %>% filter((!name %in% "kappa") & grepl("mean_age",output)) %>% rename(`age`=agegroup_broad) %>% 
+  mutate(output=paste0(gsub("mean_age_shift_","average age of hospitalisation (",output),")"),
+         output=ifelse(grepl("2020",output),gsub("2020","2020/21",output),gsub("2021","2021/22",output)),
+         output=ifelse(grepl("22",output),
+                        gsub("\\)","",gsub("average age of hospitalisation \\(","",output)), output),
+         output=factor(output,levels=(unique(output))),
+         name=factor(name,levels=unique(name)) ) %>%
+ggplot() + 
+  geom_col(aes(y=est,x=name,group=output,fill=output),color="black",size=1/3,position=position_dodge(width=0.85),width=4/5) +
+  coord_flip() + xlab("") + ylab("PRCC") + labs(fill="") +
+  geom_vline(xintercept=1/2+1:5,size=1/3) + geom_hline(yintercept=0) +
+  theme_bw() + standard_theme + manuscript_large_font_theme + theme(panel.grid.major.y=element_blank())
+# save
+ggsave(here(subfldr_name,"PRCC_mean_age_hosp_under5.png"),width=28,height=20,units="cm")
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# outcomes by the value of parameters
+# LOAD
+# summ_broad_age_groups_byvalue <- read_csv(here(foldername,"summ_broad_age_groups_byvalue.csv"))
+summ_broad_age_groups_byvalue <- results_fullscan_hosp %>% 
+  filter(!agegroup_broad %in% "5+y" & par_id %in% partable_regular_dyn$par_id & epi_year>2019) %>%
+  select(agegroup_broad,par_id,epi_year,exp_dep,age_dep,kappa,seasforc_width_wks,seasforce_peak,R0,omega,
+         hosp_tot_norm,peak_hosp_norm,mean_age_cumul_hosp_shift) %>%
+  mutate(age_exp_ratio=age_dep/exp_dep) %>%
+  pivot_longer(!c(agegroup_broad,par_id,epi_year,hosp_tot_norm,peak_hosp_norm,mean_age_cumul_hosp_shift)) %>%
+  rename(parname=name,parvalue=value) %>% relocate(c(parname,parvalue),.before=hosp_tot_norm) %>%
+  mutate(epi_year_20_21_merged=ifelse(epi_year %in% c(2020,2021),"2020-21",epi_year)) %>% 
+  # off-season outbreaks fall into epi-year 2020 -> take sum of 2020+2021 for cumulative and 20-21 epiyear maximum for peak
+  group_by(agegroup_broad,par_id,epi_year_20_21_merged,parname) %>%
+  summarise(parvalue=unique(parvalue),hosp_tot_norm=sum(hosp_tot_norm),
+            peak_hosp_norm=max(peak_hosp_norm),
+            mean_age_cumul_hosp_shift=max(mean_age_cumul_hosp_shift)) %>%
+  group_by(parname) %>%
+  mutate(par_bin=ntile(parvalue,10)) %>% relocate(par_bin,.after=parvalue) %>%
+  pivot_longer(!c(agegroup_broad,par_id,epi_year_20_21_merged,parname,parvalue,par_bin)) %>% rename(varname=name) %>%
+  # calculate summary stats (median, ci50, ci95)
+  group_by(agegroup_broad,epi_year_20_21_merged,parname,par_bin,varname) %>%
+  summarise(parvalue=median(parvalue),mean_parvalue=mean(parvalue),
+            median=median(value,na.rm=T),mean=mean(value,na.rm=T),
+            ci50_l=quantile(value,probs=0.25,na.rm=T),ci50_u=quantile(value,probs=0.75,na.rm=T),
+            ci95_l=quantile(value,probs=0.025,na.rm=T),ci95_u=quantile(value,probs=0.975,na.rm=T)) %>%
+  group_by(parname,par_bin) %>% mutate(parvalue=median(parvalue),mean_parvalue=mean(parvalue)) %>%
+  filter(!(varname %in% "mean_age_cumul_hosp_shift" & !agegroup_broad %in% "<1y")) %>%
+  mutate(agegroup_broad=ifelse(varname %in% "mean_age_cumul_hosp_shift","<5y",agegroup_broad)) %>%
+  rename(epi_year=epi_year_20_21_merged)
+
+# save
+write_csv(summ_broad_age_groups_byvalue,here(foldername,"summ_broad_age_groups_byvalue.csv"))
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # PLOT summary stats disaggregated by parameter VALUES
-# the figures produced by this loop include: Figure 3A-B (main text) and SI Fig 6-11
+# the figures produced by this loop include: 
 
-sel_vars <- c("attack rate","cumulative hospitalisations", 
-              "cumulative infections","% cases in-season")[c(2,3)]
-sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
-start_year<-2021
-for (k_plot_var in 1:length(sel_vars)) {
-  for (k_plot_par in 1:length(sel_pars)) {
+# peak values are not generated from this dataframe because of the agegroup resolution being different,
+# instead they are calculated from the dynamics below
+
+sel_vars <- unique(summ_broad_age_groups_byvalue$varname)
+sel_pars <- unique(summ_broad_age_groups_byvalue$parname) 
+
+for (k_plot_var in 2) { # 1:length(sel_vars)
+  for (k_plot_par in 1:length(sel_pars)) { # 
     sel_par <- sel_pars[k_plot_par]; dodge_val=1
-    ylab_tag <- ifelse(grepl("season peak|cases in-season|attack",sel_vars[k_plot_var]),
-                       " (change from 2019 level)"," (relative to pre-NPI)")
+    ylab_tag <- ifelse(grepl("mean",sel_vars[k_plot_var])," (from pre-NPI)"," (relative to pre-NPI)" )
+    # subset for plotting
     df_plot <- summ_broad_age_groups_byvalue %>% 
-      mutate(varname=case_when(grepl("attack",varname) ~ "attack rate",
-                     grepl("hosp_tot",varname) ~ "cumulative hospitalisations",
-                     grepl("inf_tot",varname) ~ "cumulative infections", 
-                     grepl("max_incid_week",varname) ~ "season peak (calendar week)",
-                     grepl("seas_share",varname) ~ "% cases in-season")) %>% 
-      filter(epi_year>=start_year & epi_year<2024 & (varname %in% sel_vars[k_plot_var]) & 
-           (parname %in% sel_par) & (!agegroup_broad %in% "5+y") ) %>%
-      mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
-                               grepl("seasforc_width_wks",parname) ~ "season width (weeks)", 
+      filter(epi_year %in% c("2020-21","2022","2023") & (varname %in% sel_vars[k_plot_var]) & 
+            (parname %in% sel_par) & (!agegroup_broad %in% "5+y") ) %>%
+      mutate(varname=case_when(
+                              grepl("hosp_tot_norm",varname) ~ "cumulative hospitalisations",
+                              grepl("peak_hosp_norm",varname) ~ "peak hospitalisations",
+                              grepl("mean",varname) ~ "change (months) in mean age <5y hospitalisations"),
+        parname=case_when(grepl("age_dep",parname) ~ "age-dependence", 
+                               grepl("exp_dep",parname) ~ "exposure-dependence",
+                               grepl("kappa",parname) ~ "exposure (-1) <-> age (1)", 
+                               grepl("age_exp_ratio",parname) ~ "age/exposure dependence ratio", 
+                               grepl("seasforc_width_wks",parname) ~ "season width (weeks)",
                                grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
                                grepl("R0",parname) ~ "R0 (baseline)",
-                               grepl("waning",parname) ~ "waning (days)"))
-    n_par_value <- length(unique(df_plot$parvalue))
+                               grepl("omega",parname) ~ "waning (days)")) %>%
+      mutate(parvalue=ifelse(grepl("waning",parname),1/parvalue,parvalue))
+    
+    n_par_value <- length(unique(df_plot$par_bin)); median_width=0.5/100
+    if (grepl("mean",sel_vars[k_plot_var])) {median_width=2/100}
     # colour palette
-    if (!grepl("age_exp_par_bins",sel_par)){ 
+    if (!any(c("age_dep","exp_dep","kappa","age_exp_ratio") %in% sel_par)){ 
       colorpal=colorRampPalette(colors=c("orange","red"))(n_par_value)} else  {
-      colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par_value) 
-      }
-    p <- ggplot(df_plot,
-                aes(x=factor(epi_year),color=factor(parvalue),group=parvalue)) + 
+      colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par_value)  }
+
+    p <- ggplot(df_plot,aes(x=factor(epi_year),color=factor(signif(parvalue,2)),group=parvalue)) + 
       facet_wrap(~agegroup_broad,scales="free_y") + 
-      geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),position=position_dodge(width=dodge_val),
-                     alpha=0.3,size=28/n_par_value) +
-      geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),position=position_dodge(width=dodge_val),
-                     alpha=0.6,size=24/n_par_value) +
-      geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),width=(1/n_par_value)*0.75,
-                  size=0.8,color="black") + 
+      geom_linerange(aes(ymin=ci95_l,ymax=ci95_u),position=position_dodge(width=dodge_val),
+                     alpha=0.3,size=ifelse(any(grepl("mean",df_plot$varname)),72,24)/n_par_value) +
+      geom_linerange(aes(ymin=ci50_l,ymax=ci50_u),position=position_dodge(width=dodge_val),
+                     alpha=0.6,size=ifelse(any(grepl("mean",df_plot$varname)),72,24)/n_par_value) +
+      geom_linerange(aes(x=factor(epi_year),ymin=median-median_width,ymax=median+median_width),
+                   position=position_dodge(width=dodge_val),color="black",
+                   size=ifelse(any(grepl("mean",df_plot$varname)),72,24)/n_par_value) + 
       geom_vline(xintercept=(0:4)+1/2,size=1/5) + labs(color=unique(df_plot$parname)) +
-      scale_x_discrete(expand=expansion(0.02,0)) + 
-      xlab("") + ylab(paste0(sel_vars[k_plot_var],ylab_tag)) + 
-      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
-          axis.text.y=element_text(size=12),legend.text=element_text(size=11),legend.title=element_text(size=12),
-          legend.position=ifelse(grepl("expos|forcing",unique(df_plot$parname)),"bottom","right")) + 
-    scale_color_manual(values=colorpal)
+      scale_x_discrete(expand=expansion(0.02,0)) +
+      xlab("") + ylab(paste0(unique(df_plot$varname),ylab_tag)) + 
+      scale_color_manual(values=colorpal) + geom_hline(yintercept=1,linetype="dashed",size=1/2) +
+      theme_bw() + standard_theme + 
+      theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),axis.title.y=element_text(size=11),
+            axis.text.y=element_text(size=13),legend.text=element_text(size=11),legend.title=element_text(size=12),
+            legend.position=ifelse(!grepl("exp|age|kappa",unique(df_plot$parname)),"bottom","right"))
+    # 
+    if (grepl("mean_age",sel_vars[k_plot_var])) {p <- p + scale_y_continuous(breaks=-5:5); p}
       
-    if (grepl("season peak|cases in-season|attack",sel_vars[k_plot_var])) { #  # + scale_y_log10() 
-      if (grepl("season peak",sel_vars[k_plot_var])) {
-        break_vals <- (-5:15)*10} else { break_vals <- (-10:10)*10 }
-      p <- p + geom_hline(yintercept=0,linetype="dashed",size=1/2) + scale_y_continuous(breaks=break_vals) } else {
-        p <- p + geom_hline(yintercept=1,linetype="dashed",size=1/2)}; p
     # create filename and folders
-    sel_var_filename <- gsub("%","share",gsub("_calendar_week","",
-                                            gsub("\\(|\\)","",gsub("-|\\s","_",sel_vars[k_plot_var]))))
-    if (!dir.exists("median_interquant_by_param_value")) {
-          dir.create(here::here(foldername,"median_interquant_by_param_value"))}
-    subfldr_name <- "median_interquant_by_param_value/cumul/"
-    if (!dir.exists(here::here(foldername,subfldr_name))) {
-          dir.create(here::here(foldername,subfldr_name))}
+    sel_var_filename <- gsub("-|\\s","_",sel_vars[k_plot_var])
+    if (!dir.exists(here(foldername,"median_interquant_by_param_value"))) {
+          dir.create(here(foldername,"median_interquant_by_param_value"))}
+    subfldr_name <- ifelse(grepl("peak",sel_vars[k_plot_var]),"median_interquant_by_param_value/from_summ/peak/",
+                           "median_interquant_by_param_value/from_summ/cumul/")
+    if (grepl("mean",sel_vars[k_plot_var])) { subfldr_name <- "median_interquant_by_param_value/from_summ/mean_age/" }
+    if (!dir.exists(here(foldername,subfldr_name)) ) { dir.create(here(foldername,subfldr_name)) }
     # save
-    ggsave(here::here(foldername,paste0(subfldr_name,"summ_stats_relative_2019_",
-                          ifelse(start_year==2020,"incl2020_",""),
+    ggsave(here(foldername,paste0(subfldr_name,"summ_stats_relative_2019_",
                           paste0(sel_var_filename,collapse="_"),"_",sel_par,".png")),
            width=28,height=16,units="cm")
     print(paste0(c(sel_vars[k_plot_var],sel_pars[k_plot_par]),collapse=", "))
@@ -1186,466 +980,279 @@ for (k_plot_var in 1:length(sel_vars)) {
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Calculate the average age of infection (by indiv parsets)
-
-parsets_mean_age_inf <- left_join(
-  results_summ_all_hosp,rsv_age_groups %>% 
-          select(agegroup_name,mean_age_weighted),by="agegroup_name") %>% 
-  group_by(par_id,epi_year) %>% 
-  summarise(PC1=unique(PC1),
-            seasforce_peak=unique(seasforce_peak),
-            waning=round(unique(waning)),
-            seasforc_width_wks=unique(seasforc_width_wks),
-            R0=unique(R0), 
-    mean_age_inf_tot_under_5=sum(12*inf_tot[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(inf_tot[agegroup<=7])),
-    mean_age_inf_seas_under_5=
-      sum(12*inf_in_seas[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(inf_in_seas[agegroup<=7])),
-    mean_age_hosp_tot_under_5=
-      sum(12*hosp_tot[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(hosp_tot[agegroup<=7])),
-    mean_age_hosp_seas_under_5=
-      sum(12*hosp_seas[agegroup<=7]*mean_age_weighted[agegroup<=7]/sum(hosp_seas[agegroup<=7]))) %>%
-  pivot_longer(!c(par_id,epi_year,PC1,seasforce_peak,waning,seasforc_width_wks,R0)) %>%
-  group_by(par_id,name) %>% 
-  summarise(epi_year,PC1,seasforce_peak,waning,seasforc_width_wks,R0,value,
-      value_norm=ifelse(epi_year==2019,1,value-value[epi_year==2019])) %>% 
-  relocate(name,.after=R0) %>%
-  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% 
-  group_by(age_exp_par_bins) %>% 
-  mutate(age_exp_par_bins=round(mean(PC1),1)) %>% 
-  relocate(age_exp_par_bins,.after=PC1)
-###########################################################
-# summary plot (median, interquartile range)
-summ_mean_age_infs <- parsets_mean_age_inf %>% 
-  group_by(epi_year,name) %>% 
-  summarise(mean=mean(value_norm),
-            median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
-  filter(epi_year>2019)
-###########################################################
-# segment age_exp_dep into x values, calculate summary statistics for each param value
-summ_mean_age_inf_byvalue <- parsets_mean_age_inf %>% 
-  select(!c(PC1,value)) %>% 
-  mutate(waning=round(waning)) %>%
-  relocate(age_exp_par_bins,.after=R0) %>% rename(varname=name) %>% 
-  pivot_longer(!c(par_id,epi_year,varname,value_norm)) %>%
-  rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
-  mutate(value_norm=ifelse(varname %in% c("seas_share"),
-         value_norm*100,value_norm)) %>%
-  group_by(epi_year,parname,parvalue,varname) %>% 
-  summarise(mean=mean(value_norm),
-            median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
-            ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],
-            ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
-  filter(epi_year>2019)
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-# PLOT summary stats (mean age inf)
-# Figure 3C
-sel_vars <- c("mean_age_hosp_seas_under_5","mean_age_hosp_tot_under_5")
-dodge_val=0.9
-for (k_plot in 1:length(sel_vars)) {
-  df_plot <- summ_mean_age_infs %>% 
-    filter(epi_year>2020 & (name %in% sel_vars[k_plot])) %>% 
-    mutate(name=case_when(grepl("mean_age_hosp_seas_under_5",name) ~ "mean age of in-season hospitalisations", 
-                          grepl("mean_age_hosp_tot_under_5",name) ~ "mean age of cumulative hospitalisations"))
-  # plot
-  ggplot(df_plot,
-    aes(x=factor(epi_year))) + 
-    geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),position=position_dodge(width=dodge_val),
-                   alpha=0.3,size=12,show.legend=FALSE) +
-    geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),position=position_dodge(width=dodge_val),alpha=0.6,size=12) + 
-    geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),width=1/6,size=1.25,color="black") + # 
-    geom_vline(xintercept=(0:4)+1/2,size=1/2) + 
-    geom_hline(yintercept=0,linetype="dashed",size=1/2) +
-    scale_x_discrete(expand=expansion(0,0)) + scale_y_continuous(breaks=(-10:15)) +
-    xlab("") + ylab(paste0(unique(df_plot$name)," (change from 2019 in months)")) + 
-    theme_bw() + standard_theme + 
-    theme(strip.text=element_text(size=15),legend.text=element_text(size=15),
-        axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),legend.title=element_text(size=15))
-  # create folders
-  subfldr_name <- "median_interquant_all_collapsed/mean_age_all_param/"
-  if (!dir.exists(here::here(foldername,subfldr_name))) {
-    dir.create(here::here(foldername,subfldr_name))}
-  # save
-  ggsave(here::here(foldername,paste0(subfldr_name,gsub("-|\\s","_",sel_vars[k_plot]),".png") ),
-         width=28,height=22,units="cm")
-  print(sel_vars[k_plot])
-}
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-# Plot of shift in average age of inf toggled by param values
-# Figure 8, SI Fig 10, 11
-sel_vars <- c("mean_age_hosp_tot_under_5") # "mean_age_hosp_seas_under_5",
-sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
-dodge_val=1
-for (k_plot_var in 1:length(sel_vars)) {
-  for (k_plot_par in 1:length(sel_pars)) {
-    sel_par <- sel_pars[k_plot_par];
-    df_plot <- summ_mean_age_inf_byvalue %>% 
-      filter(epi_year>2020 & epi_year<2024 & (varname %in% sel_vars[k_plot_var]) & (parname %in% sel_par)) %>%
-      mutate(varname=case_when(
-              grepl("mean_age_hosp_seas_under_5",varname) ~ "mean age of in-season hospitalisations",
-              grepl("mean_age_hosp_tot_under_5",varname) ~ "change in mean age of hosp.")) %>% 
-      mutate(parname=case_when(
-              grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
-              grepl("seasforc_width_wks",parname) ~ "season width (weeks)",
-              grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
-              grepl("R0",parname) ~ "R0 (baseline)",
-              grepl("waning",parname) ~ "waning (days)"))
-    n_par_value <- length(unique(df_plot$parvalue))
-    # colour palette
-    if (!grepl("age_exp_par_bins",sel_par)){
-      colorpal=colorRampPalette(colors=c("orange","red"))(n_par_value)} else  {
-      colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par_value) }
-    # plot
-    ggplot(df_plot,
-      aes(x=factor(epi_year),color=factor(parvalue),group=parvalue)) + 
-      geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),position=position_dodge(width=dodge_val),
-                     alpha=0.6,size=85/n_par_value) + #
-      geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),position=position_dodge(width=dodge_val),
-                     alpha=0.3,size=65/n_par_value) + #
-      geom_hpline(aes(y=median),position=position_dodge(width=dodge_val),
-                  width=(1/n_par_value)*0.85,size=1.25,color="black") + 
-      geom_vline(xintercept=(0:4)+1/2,size=1/5) + labs(color=unique(df_plot$parname)) + 
-      geom_hline(yintercept=0,linetype="dashed",size=1/2) +
-      xlab("") + ylab(paste0(unique(df_plot$varname)," (from 2019)")) + 
-      scale_x_discrete(expand=expansion(0.02,0)) + scale_y_continuous(breaks=-10:10) +
-      theme_bw() + standard_theme + theme(strip.text=element_text(size=15),axis.text.x=element_text(size=16),
-        axis.text.y=element_text(size=16),axis.title.y=element_text(size=18),legend.text=element_text(size=15),
-        legend.title=element_text(size=17),legend.position=ifelse(grepl("expos|forcing",
-        unique(df_plot$parname)),"bottom","right")) + scale_color_manual(values=colorpal)
-    # file name, folders
-    subfldr_name <- "median_interquant_by_param_value/mean_age_by_paramval/"
-    if (!dir.exists(here::here(foldername,subfldr_name))) {
-      dir.create(here::here(foldername,subfldr_name))}
-    # save
-    ggsave(here::here(foldername,paste0(subfldr_name,sel_vars[k_plot_var],"_",sel_par,".png")),
-           width=35,height=18,units="cm")
-    print(paste0(c(sel_vars[k_plot_var],sel_pars[k_plot_par]),collapse=", "))
-  }
-}
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Calculate peak cases/hospitalisations and length of season (defined as cases > some threshold value)
+# Evaluating the DYNAMICS 
 
 # unzip dynamics file
-unzip(zipfile=here::here(foldername,"dyn_all_parsets_broad_age.zip"),exdir=here::here(foldername))
+unzip(zipfile=here(foldername,"dyn_all_parsets_broad_age.zip"),exdir=here(foldername))
 # LOAD dynamics of simulations
-dyn_all_parsets_broad_age <- read_csv(here::here(foldername,"dyn_all_parsets_broad_age.csv"))
+dyn_all_parsets_broad_age <- read_csv(here(foldername,"dyn_all_parsets_broad_age.csv"))
 # delete csv: 
-# unlink(here::here(foldername,"dyn_all_parsets_broad_age.csv"))
+# unlink(here(foldername,"dyn_all_parsets_broad_age.csv"))
 
 ##############################################################
 # plot pre-pandemic dynamics for all parameter sets (Figure 1): all age groups <5y, compare to data
 
-# medians across simulated (accepted) parameter sets
-median_weekly_pred <- dyn_all_parsets_broad_age %>% 
-  filter(agegroup_broad %in% c("<1y","1-2y","2-5y")) %>%
-  mutate(sel_par=ifelse(par_id %in% parsets_regular_dyn$par_id,"selected","discarded")) %>%
-  filter(sel_par %in% "selected") %>% 
-  group_by(date,par_id) %>% 
-  summarise(incid_hosp=sum(incid_hosp)) %>% 
-  mutate(week_number=week(date),
-         incid_hosp_per100k=1e5*incid_hosp/sum(rsv_age_groups$stationary_popul[1:7])) %>% 
-  group_by(date) %>% 
-  summarise(incid_hosp_per100k=median(incid_hosp_per100k),
-            incid_hosp_med_val=median(incid_hosp))
-######
-# scaling: take mean value per week for years with data in SARIwatch, take the maximal weekly value -> 
-# divide the maximal value of the median simulated weekly peak by this value
 # data from SARI_watch
-SARI_watch_all_hosp <- read_csv(here(foldername,"SARI_watch_all_hosp.csv"))
-# this data is under-reported (not everyone hospitalised is tested for RSV), so we scale by the ratio 
-scale_fact <- max((median_weekly_pred %>% 
-                     filter(date<as.Date("2020-04-01")) %>% 
-                     mutate(week_number=week(date)) %>% 
-                     group_by(week_number) %>% 
-                     summarise(incid_hosp_per100k=median(incid_hosp_per100k)))$incid_hosp_per100k)/
-                                max((SARI_watch_all_hosp %>% 
-                                    filter(epi_year<2021) %>% 
-                                    group_by(week_number) %>% 
-                                    summarise(rate_per_100000=median(rate_per_100000)))$rate_per_100000)
-# scale hospit admissions in data by constant
-SARI_watch_all_hosp_scaled <- left_join(
-  SARI_watch_all_hosp,median_weekly_pred %>% 
-    mutate(week_number=week(date),epi_year=ifelse(week_number>26,year(date),year(date)-1)),
-    by=c("week_number","epi_year")) %>% 
-    mutate(rate_per_100000_scaled=rate_per_100000*scale_fact) %>% 
-    select(!c(incid_hosp_per100k,incid_hosp_med_val))
+SARI_watch_all_hosp <- left_join(
+  read_csv(here(foldername,"SARI_watch_under5y_hosp.csv")) %>%
+        mutate(year_week=gsub("-0","-",year_week)),
+  median_weekly_pred %>% select(date,year_week) %>% ungroup() %>% distinct()) %>% 
+  relocate(date,.before=year_week) 
+# this data is under-reported, so simulations are scaled by under-reporting factor
+
 # overlay plot (SARI-Watch data on all simulations, Figure 1B)
-date_limits <- as.Date(c("2017-09-15","2020-04-01"))
-ggplot() + 
-  geom_line(data=dyn_all_parsets_broad_age %>% 
-                    filter(date>date_limits[1] & date<date_limits[2] & 
-                             agegroup_broad %in% c("<1y","1-2y","2-5y")) %>%
-                    group_by(date,par_id) %>% 
-                    summarise(incid_hosp=sum(incid_hosp)) %>% 
-                    mutate(week_number=week(date),
-                           incid_hosp_per100k=1e5*incid_hosp/sum(rsv_age_groups$stationary_popul[1:7]),
-                           sel_par=ifelse(par_id %in% parsets_regular_dyn$par_id,"selected","discarded")),
-      aes(x=date,y=incid_hosp_per100k,group=par_id,alpha=sel_par,color=sel_par)) +
-  scale_color_manual(values=c("grey","blue")) + scale_alpha_manual(values=c(1/10,1/10)) +
-  geom_point(data=SARI_watch_all_hosp_scaled %>% 
-               filter(date>date_limits[1] & date<date_limits[2]),
-      aes(x=date,y=rate_per_100000_scaled)) + # overlay data # ,shape=21,fill=NA,size=2
-  geom_line(data=median_weekly_pred %>% 
-              filter(date>date_limits[1] & date<date_limits[2]),
-      aes(x=date,y=incid_hosp_per100k),color="red",linetype="dashed",size=1.02) + # median simulation
+date_limits <- as.Date(c("2017-09-15","2020-04-01")); date_limits[2]=max(SARI_watch_all_hosp$date)
+# take paramsets with best LLH
+subsample_par = (all_likelihoods %>% filter(name %in% "complete likelihood" & accepted & value<1500))$par_id
+hosp_plot_df <- simul_hosp_rate_weekly_under5_over65 %>%
+  select(broad_age,par_id,date,simul_hosp_rate_100k) %>% ungroup() %>%
+  filter(broad_age %in% "<5y") %>% 
+  mutate(sel_par=ifelse(par_id %in% partable_regular_dyn$par_id,"accepted","rejected")) %>%
+  # select best LLH params?
+  filter((par_id %in% subsample_par) | sel_par %in% "rejected") %>%
+  group_by(sel_par) %>% filter(par_id %in% sample(unique(par_id),size=100)) %>%
+  filter(date>=date_limits[1] & date<=date_limits[2])
+
+# medians across simulated (accepted) parameter sets
+median_weekly_pred <- simul_hosp_rate_weekly_under5_over65 %>% ungroup() %>%
+  filter(par_id %in% hosp_plot_df$par_id[hosp_plot_df$sel_par %in% "accepted"]) %>%
+  ungroup() %>% group_by(date,year_week,broad_age) %>%
+  summarise(incid_hosp_med_val=median(simul_hosp_sum_full),
+            incid_hosp_per100k=median(simul_hosp_rate_100k),
+            incid_hosp_per100k_with_underrep=incid_hosp_per100k*ifelse(broad_age %in% "<5y",
+                    under_report_factor_under5,under_report_factor_over65y) ) %>% distinct()
+# plot
+ggplot() +
+  geom_line(data=hosp_plot_df,
+      aes(x=date,y=simul_hosp_rate_100k*under_report_factor_under5,group=par_id,alpha=sel_par,color=sel_par)) +
+  scale_color_manual(values=c("blue","black")) + scale_alpha_manual(values=c(1/5,1/8)) +
+  geom_point(data=SARI_watch_all_hosp %>% filter(date>date_limits[1] & date<date_limits[2]),
+      aes(x=date,y=rate_under5yrs)) + # overlay data # ,shape=21,fill=NA,size=2
+  geom_line(data=median_weekly_pred %>% filter(date>date_limits[1] & date<date_limits[2] & broad_age %in% "<5y"),
+      aes(x=date,y=incid_hosp_per100k_with_underrep),color="red",linetype="dashed",size=1.02) + # median simulation
   theme_bw() + standard_theme + 
   xlab("") + ylab("weekly hospitalisations <5y per 100.000 persons") + labs(alpha="",color="") +
-  scale_x_date(expand=expansion(1/100,0),date_breaks="2 months") + 
+  scale_x_date(expand=expansion(1/100,0),date_breaks="2 months") + # ,limits=as.Date(c("2021-04-01","2022-04-01"))
   scale_y_continuous(expand=expansion(0.01,0)) +
   theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
         axis.text.y=element_text(size=12),legend.text=element_text(size=11),
-        legend.title=element_text(size=12),legend.position="null")
+        legend.title=element_text(size=12),legend.position="none")
 # SAVE
-# ggsave(here::here(foldername,
-#           "prepandemic_dynamics_all_sel_pars_hosp_per_popul_SARIwatch_under5_median_simul.png"),
+# ggsave(here(foldername,"prepandemic_dyn_compare_SARIwatch_under5_median_simul.png"),
 #           width=28,height=16,units="cm")
+ggsave(here(foldername,"prepandemic_dyn_compare_SARIwatch_under5_median_simul_LLH1500.png"),
+       width=28,height=16,units="cm")
+
+# select params where off season outbreak is earlier
+hosp_plot_df = simul_hosp_rate_weekly_under5_over65 %>%
+  select(broad_age,par_id,date,simul_hosp_rate_100k) %>% ungroup() %>%
+  filter(broad_age %in% "<5y") %>% 
+  mutate(sel_par=ifelse(par_id %in% partable_regular_dyn$par_id,"accepted","rejected")) %>%
+  # select best LLH params?
+  filter((par_id %in% subsample_par) | sel_par %in% "rejected") %>%
+  group_by(sel_par) %>% filter(par_id %in% sample(unique(par_id),size=length(subsample_par))) %>%
+  filter(date>=date_limits[1] & date<=date_limits[2]) %>%
+  group_by(par_id) %>%
+  filter(simul_hosp_rate_100k[date %in% as.Date("2021-08-02") & sel_par %in% "accepted"]>20 | sel_par %in% "rejected")
+
+early_off_season = (hosp_plot_df %>% filter(date %in% as.Date("2021-07-05") & sel_par %in% "accepted"))$par_id[
+  (hosp_plot_df %>% filter(date %in% as.Date("2021-07-05") & sel_par %in% "accepted"))$simul_hosp_rate_100k>5]
+
+# plot param sets where off-season outbreak in 2021 is earlier (as in reality)
+ggplot() +
+  geom_line(data=hosp_plot_df %>% filter(par_id %in% early_off_season | sel_par %in% "rejected") %>%
+              group_by(sel_par) %>% filter(par_id %in% sample(unique(par_id),size=length(early_off_season))),
+            aes(x=date,y=simul_hosp_rate_100k*under_report_factor_under5,group=par_id,alpha=sel_par,color=sel_par)) +
+  scale_color_manual(values=c("blue","black")) + scale_alpha_manual(values=c(1/5,1/8)) +
+  geom_point(data=SARI_watch_all_hosp %>% filter(date>date_limits[1] & date<date_limits[2]),
+             aes(x=date,y=rate_under5yrs)) + # overlay data # ,shape=21,fill=NA,size=2
+  geom_line(data=hosp_plot_df %>% filter(par_id %in% early_off_season) %>% group_by(date) %>% 
+              summarise(simul_hosp_rate_100k=median(simul_hosp_rate_100k)),
+            aes(x=date,y=simul_hosp_rate_100k*under_report_factor_under5),
+            color="red",linetype="dashed",size=1.02) + # median simulation
+  theme_bw() + standard_theme + 
+  xlab("") + ylab("weekly hospitalisations <5y per 100.000 persons") + labs(alpha="",color="") +
+  scale_x_date(expand=expansion(1/100,0),date_breaks="2 months") + # ,limits=as.Date(c("2021-04-01","2022-04-01"))
+  scale_y_continuous(expand=expansion(0.01,0)) +
+  theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
+        axis.text.y=element_text(size=12),legend.text=element_text(size=11),
+        legend.title=element_text(size=12),legend.position="none")
+# SAVE
+ggsave(here(foldername,"prepandemic_dyn_compare_SARIwatch_under5_median_simul_early_offseason.png"),
+       width=28,height=16,units="cm")
 
 ##############################################################
-# filter out discarded parameterisations 
 
 # summary by year
-epi_year_week_start <- week(as.Date("2020-06-01")); comp_year<-2018
-# summary by year
-summ_dyn_max_incid_seas_length <- dyn_all_parsets_broad_age %>% 
-  filter(par_id %in% parsets_regular_dyn$par_id & 
-           date>as.Date("2018-06-01") & date<as.Date("2024-05-01")) %>% 
-  mutate(epi_year=ifelse(week(date)>=epi_year_week_start,year(date),year(date)-1)) %>% 
-  rename(incid_case=value) %>% 
-  pivot_longer(!c(agegroup_broad,date,par_id,epi_year)) %>% 
-  group_by(epi_year,par_id,agegroup_broad,name) %>%
-  mutate(seas_tot_2018=ifelse(epi_year==2018,sum(value),NA)) %>% 
-  group_by(par_id,agegroup_broad,name) %>%
-  mutate(seas_tot_2018=min(seas_tot_2018,na.rm=T)) %>% ungroup() %>% 
-  mutate(above_baseline=value>seas_tot_2018/52) %>%
-  group_by(epi_year,par_id,agegroup_broad,name) %>% 
-  summarise(max_value=max(value),sum_value=sum(value),
-     seas_length_wk=sum(above_baseline)) %>% filter(epi_year>2017)
-# left-join with partable to have input parameters
-parsets_max_incid_seas_length <- left_join(
-  left_join(summ_dyn_max_incid_seas_length, pred_pca %>% select(par_id,PC1),by="par_id"),
-  partable_regular_dyn %>% 
-        select(par_id,omega,seasforc_width_wks,R0,seasforce_peak) %>%
-        mutate(omega=1/omega) %>% 
-        rename(waning=omega), by="par_id") %>% 
-  relocate(c(name,max_value,sum_value,seas_length_wk),.after=seasforce_peak) %>% 
-  rename(varname=name) %>% 
-  pivot_longer(!c(epi_year,par_id,agegroup_broad,PC1,waning,seasforc_width_wks,R0,seasforce_peak,varname)) %>%
-  rename(vartype=name) %>% 
-  group_by(par_id,agegroup_broad,PC1,waning,seasforc_width_wks,R0,seasforce_peak,varname,vartype) %>% 
-  mutate(value_norm=ifelse(grepl("seas_length_wk",vartype),
-                           value-value[epi_year==comp_year],
-                           value/value[epi_year==comp_year])) %>%
-  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% 
-  relocate(age_exp_par_bins,.after=PC1) %>%
-  group_by(age_exp_par_bins) %>% 
-  mutate(age_exp_par_bins=round(mean(PC1),1))
-##############################################################
-# summary statistics: collapse across all param values
-summ_max_incid_seas_length <- parsets_max_incid_seas_length %>% 
-  group_by(agegroup_broad,epi_year,varname,vartype) %>% 
-  summarise(mean=mean(value_norm),median=median(value_norm),
-    ci50_low=quantile(value_norm,c(0.25,0.75))[1],ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-    ci95_low=quantile(value_norm,c(0.025,0.975))[1],ci95_up=quantile(value_norm,c(0.025,0.975))[2])
-##############################################################
-# calculate summary statistics for each param value
-summ_max_incid_seas_length_byvalue <- parsets_max_incid_seas_length %>% mutate(waning=round(waning)) %>% 
-  select(!c(PC1,value)) %>% 
-  relocate(age_exp_par_bins,.after=R0) %>% 
-  pivot_longer(!c(par_id,agegroup_broad,epi_year,varname,vartype,value_norm)) %>% 
-  rename(parname=name,parvalue=value) %>% relocate(c(varname,value_norm),.after=parvalue) %>%
-  group_by(agegroup_broad,epi_year,parname,parvalue,varname,vartype) %>% 
-  summarise(mean=mean(value_norm),median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
-            ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],
-            ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% filter(epi_year>2019)
+epi_year_week_start <- isoweek(as.Date("2020-06-01"))
+# normalise by pre-pandemic epi-years 2017 and 2018
+summ_dyn_peak_cumul_meanage <- simul_hosp_rate_weekly_all_broad_agegroups %>%
+  filter(par_id %in% partable_regular_dyn$par_id) %>%
+  mutate(epi_year=ifelse(week(date)>=40,year(date),year(date)-1),
+         epi_year_june=ifelse(week(date)>=epi_year_week_start,year(date),year(date)-1)) %>% ungroup() %>%
+  filter(epi_year>2016) %>%
+  pivot_longer(cols=c(epi_year,epi_year_june)) %>% rename(epi_year_wk_start=name,epi_year=value) %>%
+  mutate(epi_year_wk_start=ifelse(grepl("june",epi_year_wk_start),epi_year_week_start,40)) %>%
+  group_by(epi_year,epi_year_wk_start,par_id,agegroup) %>%
+  summarise(peak_hosp=max(simul_hosp_sum_full), cumul_hosp=sum(simul_hosp_sum_full),
+            peak_yday=mean(yday(date[simul_hosp_sum_full %in% max(simul_hosp_sum_full)]))) %>%
+  pivot_longer(!c(epi_year,epi_year_wk_start,par_id,agegroup)) %>%
+  group_by(par_id,agegroup,name,epi_year_wk_start) %>% # calculate pre-pandemic mean
+  # because of some biennial patterns need to normalise by the right pre-pandemic year (2022/2018, 2021/2017)
+  mutate(norm_value=case_when(grepl("hosp",name) ~ value/value[epi_year==ifelse(epi_year %% 2==0,2018,2017)],
+                              !grepl("hosp",name) ~ value-value[epi_year==ifelse(epi_year %% 2==0,2018,2017)])) %>%
+  relocate(par_id,.before=epi_year)
+# add mean age
+if (!any(grepl("age",unique(summ_dyn_peak_cumul_meanage$name)))) {
+  summ_dyn_peak_cumul_meanage = 
+    bind_rows(summ_dyn_peak_cumul_meanage,
+              summ_dyn_peak_cumul_meanage %>% group_by(par_id,epi_year_wk_start,name,epi_year) %>%
+                    mutate(mean_age_under5y=ifelse(agegroup==1 & name %in% "cumul_hosp",sum(value[agegroup==1]*1/2+
+                                             value[agegroup==1]*1.5+value[agegroup==1]*3.5)/sum(value),NA)) %>% 
+                ungroup() %>% select(epi_year,epi_year_wk_start,par_id,mean_age_under5y) %>% 
+                filter(!is.na(mean_age_under5y)) %>% distinct() %>% 
+                group_by(par_id,epi_year_wk_start) %>%
+                mutate(mean_age_shift=mean_age_under5y-mean_age_under5y[epi_year==ifelse(epi_year %% 2==0,2018,2017)]) %>%
+                rename(value=mean_age_under5y,norm_value=mean_age_shift) %>% mutate(name="mean_age_under5y") )
+  }
+
+# left-join with partable to have input parameters, calculate summary stats by quantiles of parameters
+# summ_max_incid_seas_length_byvalue
+summ_dyn_peak_cumul_meanage_byparvalue <- left_join(
+  summ_dyn_peak_cumul_meanage %>% filter(epi_year>2019),
+  left_join(partable_regular_dyn,pred_pca %>% select(par_id,PC1)) %>% 
+    select(!const_delta) %>% rename(waning=omega,age_exp_PC1=PC1) %>% mutate(age_exp_ratio=age_dep/exp_dep) %>% 
+    pivot_longer(!par_id) %>% rename(parname=name,parvalue=value), by="par_id") %>% 
+  relocate(c(name,value,norm_value),.after=last_col()) %>% relocate(par_id,.before=epi_year) %>% rename(varname=name) %>%
+  group_by(parname) %>% mutate(par_bin=ntile(parvalue,10)) %>% relocate(par_bin,.after=parvalue) %>% 
+  # calculate summary stats (median, ci50, ci95)
+  group_by(agegroup,epi_year,epi_year_wk_start,parname,par_bin,varname) %>%
+  summarise(parvalue=median(parvalue),mean_parvalue=mean(parvalue),
+            median=median(norm_value),mean=mean(norm_value),
+            ci50_l=quantile(norm_value,probs=0.25),ci50_u=quantile(norm_value,probs=0.75),
+            ci95_l=quantile(norm_value,probs=0.025),ci95_u=quantile(norm_value,probs=0.975))
 
 ##############################################################
 # plot PEAK VALUE of cases/hospitalisations (+ season length), disaggregated by parameter values
 
 # Figure 3B, SI 7-10
-start_year<-2021; end_year<-2023
-sel_vars <- c("incid_case","incid_hosp")
-sel_pars <- c("age_exp_par_bins","R0","seasforc_width_wks","seasforce_peak","waning")
-sel_vartypes <- c("max_value","seas_length_wk")[1]
-for (k_plot_var in 1:length(sel_vars)) {
-  for (k_plot_par in 1:length(sel_pars)) {
-    for (k_plot_vartype in 1:length(sel_vartypes)) {
-      sel_vartype <- sel_vartypes[k_plot_vartype]; sel_par <- sel_pars[k_plot_par]; dodge_val=1
-      # sel data to plot
-      df_plot <- summ_max_incid_seas_length_byvalue %>% 
-                    filter(epi_year>=start_year & epi_year<=end_year & 
-                             (varname %in% sel_vars[k_plot_var]) & (parname %in% sel_par) &
-                             (vartype %in% sel_vartype) & (!agegroup_broad %in% "5+y")) %>%
-        mutate(varname=case_when(grepl("incid_case",varname) ~ "cases",
-                                 grepl("incid_hosp",varname) ~ "hospitalisations"),
-               vartype=case_when(grepl("max_value",vartype) ~ "peak", 
-                                 grepl("seas_length_wk",vartype) ~ "above baseline (weeks)")) %>% 
-        mutate(parname=case_when(grepl("age_exp_par_bins",parname) ~ "exposure (-1) <-> age (1)", 
-                                 grepl("seasforc_width_wks",parname) ~ "season width (weeks)", 
-                                 grepl("seasforce_peak",parname) ~ "seasonal forcing (above baseline)",
-                                 grepl("R0",parname) ~ "R0 (baseline)",
-                                 grepl("waning",parname) ~ "waning (days)"))
-      ylab_tag <- paste0(paste0(unique(df_plot$vartype)," ",unique(df_plot$varname)),
-                              ifelse(grepl("above",unique(df_plot$vartype)),
-                                     " (change from 2019 level)"," (relative to pre-NPI)"))
-      n_par_value <- length(unique(df_plot$parvalue))
-      # colour palette
-      if (!grepl("age_exp_par_bins",sel_par)){
-              colorpal=colorRampPalette(colors=c("orange","red"))(n_par_value)} else  {
-              colorpal=colorRampPalette(colors=c("blue","grey","red"))(n_par_value) }
-      p <- ggplot(df_plot,
-                  aes(x=factor(epi_year),color=factor(parvalue),group=parvalue)) + 
-        facet_wrap(~agegroup_broad,scales="free_y") + 
-        geom_linerange(aes(ymin=ci50_low,ymax=ci50_up),
-                       position=position_dodge(width=dodge_val),alpha=0.6,size=24/n_par_value) +
-        geom_linerange(aes(ymin=ci95_low,ymax=ci95_up),
-                       position=position_dodge(width=dodge_val),alpha=0.3,size=24/n_par_value) +
-        geom_hpline(aes(y=median),
-                    position=position_dodge(width=dodge_val),
-                    width=(1/n_par_value)*0.75,size=0.8,color="black") + 
-        geom_vline(xintercept=(0:4)+1/2,size=1/5) + 
-        scale_x_discrete(expand=expansion(0.02,0)) + 
-        xlab("") + ylab(ylab_tag) + labs(color=unique(df_plot$parname)) +
-        theme_bw() + standard_theme + 
-        theme(strip.text=element_text(size=15),axis.text.x=element_text(size=13),
-              axis.text.y=element_text(size=12),legend.text=element_text(size=11),
-              legend.title=element_text(size=12),
-              legend.position=ifelse(grepl("expos|forcing",unique(df_plot$parname)),"bottom","right")) + 
-        scale_color_manual(values=colorpal)
-      if (grepl("season peak|cases in-season|attack",sel_vars[k_plot_var])) {
-        if (grepl("season peak",sel_vars[k_plot_var])) {
-          break_vals <- (-5:15)*10} else {break_vals <- (-10:10)*10 }
-        p <- p + geom_hline(yintercept=0,linetype="dashed",size=1/2) + 
-          scale_y_continuous(breaks=break_vals) 
-        } else { 
-          p <- p + geom_hline(yintercept=1,linetype="dashed",size=1/2)}; p
-      # save
-      # folders
-      subfldr_name<-"median_interquant_by_param_value/peak_duration/"
-      if (!dir.exists(here::here(foldername,subfldr_name))) {
-        dir.create(here::here(foldername,subfldr_name))}
-      # filename
-      plot_filename <- here::here(foldername,paste0(subfldr_name,"summ_stats_",
-                paste0(c(sel_vars[k_plot_var],sel_vartype),collapse="_"),"_",
-                sel_par,ifelse(start_year==2020,"_incl2020",""),".png"))
-      # save
-      ggsave(plot_filename,width=28,height=16,units="cm")
-      # print progress of loop
-      print(paste0(c(sel_vars[k_plot_var],sel_pars[k_plot_par],sel_vartype),collapse=", "))
-    }
-  }
-}
+sel_pars <- unique(summ_dyn_peak_cumul_meanage_byparvalue$parname)
+sel_varnames <- unique(summ_dyn_peak_cumul_meanage_byparvalue$varname)
+start_year=2020
+# this file also saves the plots!
+source("fcns/create_summ_plots_from_dyn.R")
+
+##############################################################
+# calculate PRCC values wrt parameters
+
+source("fcns/create_df_prcc_from_dynamics.R")
+# creates the list: list_prcc_dyn
+
+# plot PRCC on cumulative/peak hospitalisations, timing of peak (yday relative to pre-NPI), mean age of hosp
+source("fcns/create_prcc_plot_from_dyn.R")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Evaluating DYNAMICS as a function of parameters
-comp_year <- c(2018,2019)[2] # 
-dyn_all_parsets_broad_age_params <- left_join(
-  dyn_all_parsets_broad_age %>% 
-    filter(par_id %in% parsets_regular_dyn$par_id & 
-             date>as.Date(paste0(comp_year,"-06-01")) & date<as.Date("2024-05-01")) %>% ungroup() %>% 
-    mutate(epi_year=ifelse(week(date)>=epi_year_week_start,year(date),year(date)-1)) %>% 
-    rename(incid_case=value) %>%
-    pivot_longer(c(incid_case,incid_hosp)) %>% 
-    rename(varname=name,varvalue=value) %>% rename(value=varvalue) %>%
-    ungroup() %>% group_by(agegroup_broad,par_id,varname) %>%
-    mutate(peak_value_sel_year=max(value[epi_year %in% comp_year])) %>% # peak level of selected year
-    group_by(epi_year,par_id,agegroup_broad,varname) %>% mutate(epi_week=row_number()) %>%
-    group_by(agegroup_broad,par_id,varname) %>% 
-    mutate(peak_week_sel_year=min(epi_week[value==peak_value_sel_year # peak week of year of reference
-                                           & (epi_year %in% comp_year)])) %>% 
-    ungroup() %>% 
-    mutate(peak_week_distance=epi_week-peak_week_sel_year) %>% # distance from peak week of sel year
-    mutate(value_norm=value/peak_value_sel_year) %>% 
-    select(!peak_value_sel_year),
-  left_join(partable_regular_dyn %>% 
-              select(par_id,seasforc_width_wks,R0,seasforce_peak,omega),
-                      pred_pca %>% select(par_id,PC1),by="par_id"), by="par_id") %>% 
-  mutate(age_exp_par_bins=findInterval(PC1,seq(-1,1,by=1/5))) %>% 
-        group_by(age_exp_par_bins) %>% 
-        mutate(age_exp_par_bins=round(mean(PC1),1)) %>% rename(value_abs=value) %>%
-        select(!c(seasforc_width_wks,R0,seasforce_peak,PC1)) %>% 
-  pivot_longer(c(omega,age_exp_par_bins)) %>%
-  rename(parname=name,parvalue=value,value=value_abs) %>% 
-  relocate(c(varname,value,value_norm),.after=parvalue)
+# Evaluating DYNAMICS as a function of parameters (relative timing of peak and duration/shape of season)
+
+# all_dynamics_accepted <- read_csv(here(foldername,"all_dynamics_accepted_2e3.csv")) %>%
+#  mutate(date=as.Date(start_date_dyn_save)+t-min(t)) %>%
+#   filter(date>=as.Date("2018-06-01") & date<as.Date("2024-10-01"))
+
+epi_year_week_start=23
+startweek_2017=isoweek(min(simul_hosp_rate_weekly_all_broad_agegroups$date))-23
+
+dyn_hosp_weekly_norm_to_peak <- simul_hosp_rate_weekly_all_broad_agegroups %>% ungroup() %>% 
+      filter(par_id %in% partable_regular_dyn$par_id & agegroup %in% 1:3) %>% rename(value=simul_hosp_sum_full) %>%
+      mutate(epi_year=ifelse(week(date)>=epi_year_week_start,year(date),year(date)-1)) %>% 
+      group_by(epi_year,par_id,agegroup) %>% 
+      mutate(epi_week=ifelse(epi_year==2017,row_number()+startweek_2017,row_number())) %>%    
+      ungroup() %>% group_by(agegroup,par_id) %>%
+      mutate(peak_value_2017=max(value[epi_year %in% 2017]),
+             peak_value_2018=max(value[epi_year %in% 2018])) %>% # peak level of selected year
+      group_by(agegroup,par_id) %>% 
+      # peak week of year of reference  
+      mutate(peak_week_2017=min(epi_week[value==peak_value_2017 & (epi_year %in% 2017)]),
+             peak_week_2018=min(epi_week[value==peak_value_2018 & (epi_year %in% 2018)])) %>% 
+      # distance from peak week of sel year    
+      ungroup() %>% mutate(peak_week_distance=ifelse(epi_year %% 2==0,epi_week-peak_week_2018,epi_week-peak_week_2017)) %>% 
+      mutate(value_norm=ifelse(epi_year %% 2==0,value/peak_value_2018,value/peak_value_2017))
+
+# bin parameter values 
+binned_partable_regular_dyn <- partable_regular_dyn %>% select(!c(const_delta,seasforc_width_wks,peak_week)) %>%
+  filter(par_id %in% unique(dyn_hosp_weekly_norm_to_peak$par_id)) %>%
+  mutate(age_exp_ratio=age_dep/exp_dep) %>%
+  pivot_longer(!par_id) %>% group_by(name) %>% mutate(par_bin=ntile(value,8)) %>% 
+  group_by(name,par_bin) %>% mutate(median_parbin=median(value))
 
 #######
-# calculate statistics at time points relative to peak week of selected reference year
-# (this command can take 10-20 secs)
-summ_dyn_all_parsets_broad_age_relat_time <- dyn_all_parsets_broad_age_params %>% 
-  group_by(agegroup_broad,epi_year,peak_week_distance,parname,parvalue,varname) %>%
-  summarise(mean=mean(value_norm),median=median(value_norm),
-            ci50_low=quantile(value_norm,c(0.25,0.75))[1],
-            ci50_up=quantile(value_norm,c(0.25,0.75))[2],
-            ci95_low=quantile(value_norm,c(0.025,0.975))[1],
-            ci95_up=quantile(value_norm,c(0.025,0.975))[2]) %>% 
-  pivot_longer(c(mean,median,ci50_low,ci50_up,ci95_low,ci95_up)) %>% 
-  rename(metric=name) %>% 
-  group_by(agegroup_broad,parname,parvalue,varname,metric) %>%
-  mutate(parname=ifelse(parname=="omega","waning","exposure (-1) <-> age (1)"),
-         parvalue=ifelse(parname=="waning",1/parvalue,parvalue),value=round(value,3))
-# dyn_all_parsets_broad_age_params is a large dataframe, free up memory by deleting it
-rm(dyn_all_parsets_broad_age_params)
+# calculate statistics at time points relative to peak week of selected reference year,
+# for each bin of the selected parameters
+# this takes about 1 min
+source("fcns/create_dyn_wk_hosp_norm_time_norm_value.R")
+
+# this creates the dataframe `summ_dyn_all_parsets_broad_age_relat_time`
 
 ##############################################################
 # Plot dynamics faceted by the age vs immunity dependence of susceptibility (Figure 4)
 
 # FIGURE 4 and SI FIG : plot faceted by years, color-coded by parameter values
-sel_years <- c("2019","2021","2022","2023")
-for (k_par in c("exposure (-1) <-> age (1)","waning")){
-  for (k_age in 2) {
-    for (var_name in c("incid_case","incid_hosp")[2]) {
-          sel_agegr<-c("<1y","1-2y","2-5y")[1:ifelse(k_age==1,2,3)]
-  # subset data to plot
-          df_plot <- summ_dyn_all_parsets_broad_age_relat_time %>% 
-                filter(agegroup_broad %in% sel_agegr & epi_year %in% sel_years & 
-                       (metric %in% c("median","ci50_low","ci50_up")) & 
-                       (parname %in% k_par) & varname %in% var_name) %>% 
-                pivot_wider(names_from=metric,values_from=value) %>% 
-                rename(`epi-year`=epi_year)
-  # color palette
-  n_par<-length(unique(df_plot$parvalue))
-  colorpal <- colorRampPalette(colors=c("blue","grey","red"))(n_par)
-  p <- ggplot(df_plot,
-    aes(x=peak_week_distance,group=parvalue,color=factor(parvalue))) + 
-    geom_line(aes(y=median),size=1.1) +
-    geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(parvalue)),color=NA,alpha=0.05) + 
-    facet_grid(agegroup_broad~`epi-year`,
-               labeller=labeller(`epi-year`=label_both),scales="free_y") +
-    scale_x_continuous(limits=c(-23,15)) + theme_bw() + standard_theme + 
-    theme(axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
-          axis.title.y=element_text(size=16),legend.position="top",
-          legend.text=element_text(size=15),legend.title=element_text(size=16),
-          strip.text=element_text(size=18)) +
-    xlab("distance in weeks from (pre-pandemic) peak week") +  
-    ylab(paste0("weekly hospitalisations (1=pre-pandemic peak)")) + labs(color=k_par,fill=k_par) +
-    geom_hline(yintercept=1,linetype="dashed",size=1/3) + 
-    geom_vline(xintercept=c(-9,9),linetype="dashed",size=1/3)
-if (n_par>3) {p <- p + scale_color_manual(values=colorpal) + 
-              scale_fill_manual(values=colorpal)}; p 
-  # save
-  # folder to save
-  if (!dir.exists(here::here(foldername,"dynamics"))) {
-    dir.create(here::here(foldername,"dynamics"))}
-  # filename
-  plot_fn <- here::here(foldername, paste0("dynamics/weekly_hosp_by_",
-                               ifelse(grepl("exp",k_par),"age_exp",k_par),
-                            "_norm_",comp_year,"_peak_until",max(sel_years),
-                            ifelse(k_age>1,"_1_5y",""),".png")) 
-  # save
-  ggsave(plot_fn,width=30,height=18,units="cm"); print(gsub(foldername,"",plot_fn))
-     }
-  }
-}
+source("fcns/create_norm_dyn_plots.R")
 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+# DATA PLOTS (for SI)
+# Plot UK RSV case data, calculate seasonal concentration
+
+season_weeks=c(13,40)
+resp_detects_weekly_all_age <- read_csv(here(foldername,"Respiratory_viral_detections_by_any_method_UK.csv")) %>% 
+  mutate(year_week=factor(paste0(Year,"-",Week),unique(paste0(Year,"-",Week))), 
+         RSV_rolling_av=roll_mean(RSV,n=7,align="center",fill=NA) ) %>%
+  select(-(contains("virus")|contains("flu"))) %>% 
+  mutate(epi_year=ifelse(Week>=season_weeks[2],Year+1,Year)-min(Year)+1) %>% 
+  group_by(epi_year) %>% mutate(perc_yearly=RSV/sum(RSV)) %>% group_by(epi_year) %>% 
+  mutate(season_share=sum(perc_yearly[Week>=season_weeks[2] | Week<=season_weeks[1]]),
+         on_off_season=ifelse(findInterval(Week,season_weeks+c(1,0))==1,"off","on"))
+
+# SI Table 5
+resp_detects_weekly_all_age_means_shares <- left_join(
+  resp_detects_weekly_all_age %>% 
+    group_by(epi_year,on_off_season) %>% 
+    summarise(mean_on_off=mean(RSV,na.rm=T),cal_year=paste0(unique(Year),collapse="_")) %>% 
+    filter(epi_year>1&epi_year<8) %>%
+    mutate(cal_year=ifelse(on_off_season %in% "off",paste0(as.numeric(cal_year)-1,"_",
+                                                           as.numeric(cal_year)),cal_year)) %>% 
+    pivot_wider(names_from=on_off_season,values_from=mean_on_off,names_prefix="mean_"),  
+  resp_detects_weekly_all_age %>% 
+    group_by(epi_year) %>% 
+    summarise(season_share=unique(season_share)),by="epi_year" ) %>%
+  mutate(on_off_ratio=round(mean_on/mean_off,1),
+         mean_on=round(mean_on,1),mean_off=round(mean_off,1),season_share=round(season_share,3))
+
+### ### ### ### ### ### ### ### ### ### ###
+# SI Figure 1 (RSV case data with age)
+resp_virus_data_uk_tidy <- read_csv(here(foldername,"Respiratory_viral_detections_by_any_method_UK_Ages.csv")) %>% 
+  pivot_longer(!c("Year","startweek","Age")) %>% 
+  mutate(Age=factor(gsub(" Y","Y",Age),levels=unique(gsub(" Y","Y",Age))),
+         date=as.Date(paste(Year,startweek,1,sep="-"),"%Y-%U-%u"))
+
+# PLOT all years
+ggplot(subset(resp_virus_data_uk_tidy,name %in% "RSV"),
+       aes(x=date,y=value,group=Age)) + 
+  geom_area(aes(fill=Age),position=position_stack(reverse=T),color="black",size=1/4) +
+  scale_x_date(breaks="2 month",expand=expansion(0.01,0)) + 
+  scale_y_continuous(expand=expansion(0.01,0)) + 
+  xlab("")  +  ylab("number of reported RSV cases") + labs(fill="") + 
+  theme_bw() + standard_theme  +
+  theme(axis.text.x=element_text(size=13),axis.text.y=element_text(size=14),
+        legend.position="bottom",legend.text=element_text(size=15),
+        axis.title.y=element_text(size=16))
+
+# end of plots
+# below are calculations for the range of outputs (cumul and peak hospitalisations) by parameters
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # quantify total variation in hospitalisations (figures quoted in Discussion)
 # comp_year<-2019
@@ -1754,7 +1361,6 @@ parsets_max_incid_seas_length %>%
             ci50_low=quantile(value_norm,c(0.25,0.75))[1],
             ci50_up=quantile(value_norm,c(0.25,0.75))[2])
 
-
 # ranges of increase in peak values by agegroup AT MAX EXP DEP
 parsets_max_incid_seas_length %>% 
   filter(varname %in% "incid_hosp" & vartype %in% "max_value" & 
@@ -1800,60 +1406,27 @@ parsets_max_incid_seas_length %>%
   group_by(agegroup_broad) %>%
   summarise(perc_decrease=sum(value_norm<1)/n(),perc_increase=sum(value_norm<1)/n())
 
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# Plot UK RSV case data, calculate seasonal concentration
 
-season_weeks=c(13,40)
-resp_detects_weekly_all_age <- read_csv(here(foldername,"Respiratory_viral_detections_by_any_method_UK.csv")) %>% 
-  mutate(year_week=factor(paste0(Year,"-",Week),unique(paste0(Year,"-",Week))), 
-         RSV_rolling_av=roll_mean(RSV,n=7,align="center",fill=NA) ) %>%
-  select(-(contains("virus")|contains("flu"))) %>% 
-  mutate(epi_year=ifelse(Week>=season_weeks[2],Year+1,Year)-min(Year)+1) %>% 
-  group_by(epi_year) %>% mutate(perc_yearly=RSV/sum(RSV)) %>% group_by(epi_year) %>% 
-  mutate(season_share=sum(perc_yearly[Week>=season_weeks[2] | Week<=season_weeks[1]]),
-         on_off_season=ifelse(findInterval(Week,season_weeks+c(1,0))==1,"off","on"))
-
-# SI Table 5
-resp_detects_weekly_all_age_means_shares <- left_join(
-  resp_detects_weekly_all_age %>% 
-          group_by(epi_year,on_off_season) %>% 
-          summarise(mean_on_off=mean(RSV,na.rm=T),cal_year=paste0(unique(Year),collapse="_")) %>% 
-          filter(epi_year>1&epi_year<8) %>%
-          mutate(cal_year=ifelse(on_off_season %in% "off",paste0(as.numeric(cal_year)-1,"_",
-                                      as.numeric(cal_year)),cal_year)) %>% 
-          pivot_wider(names_from=on_off_season,values_from=mean_on_off,names_prefix="mean_"),  
-  resp_detects_weekly_all_age %>% 
-            group_by(epi_year) %>% 
-            summarise(season_share=unique(season_share)),by="epi_year" ) %>%
-  mutate(on_off_ratio=round(mean_on/mean_off,1),
-  mean_on=round(mean_on,1),mean_off=round(mean_off,1),season_share=round(season_share,3))
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-# SI Figure 1 (RSV case data with age)
-resp_virus_data_uk_tidy <- read_csv(here(foldername,"Respiratory_viral_detections_by_any_method_UK_Ages.csv")) %>% 
-  pivot_longer(!c("Year","startweek","Age")) %>% 
-  mutate(Age=factor(gsub(" Y","Y",Age),levels=unique(gsub(" Y","Y",Age))),
-         date=as.Date(paste(Year,startweek,1,sep="-"),"%Y-%U-%u"))
-# PLOT all years
-ggplot(subset(resp_virus_data_uk_tidy,name %in% "RSV"),
-       aes(x=date,y=value,group=Age)) + 
-  geom_area(aes(fill=Age),position=position_stack(reverse=T),color="black",size=1/4) +
-  scale_x_date(breaks="2 month",expand=expansion(0.01,0)) + 
-  scale_y_continuous(expand=expansion(0.01,0)) + 
-  xlab("")  +  ylab("number of reported RSV cases") + labs(fill="") + 
-  theme_bw() + standard_theme  +
-  theme(axis.text.x=element_text(size=13),axis.text.y=element_text(size=14),
-        legend.position="bottom",legend.text=element_text(size=15),
-        axis.title.y=element_text(size=16))
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
-### THE END <:) ¯\_(ツ)_/¯
+### THE END ¯\_(ツ)_/¯
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # PS: 
 # To run individual simulations and plot results go to "indiv_simul.R" 
 #
 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# under-reporting of SARI-Watch hosp data
+# scale_fact <- max((median_weekly_pred %>% 
+#                      filter(date<as.Date("2020-04-01")) %>% 
+#                      mutate(week_number=week(date)) %>% 
+#                      group_by(week_number) %>% 
+#                      summarise(incid_hosp_per100k=median(incid_hosp_per100k)))$incid_hosp_per100k)/
+#   max((SARI_watch_all_hosp %>% 
+#          filter(epi_year<2021) %>% 
+#          group_by(week_number) %>% 
+#          summarise(rate_per_100000=median(rate_per_100000)))$rate_per_100000)
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 # THESE STEPS CAN BE SKIPPED AS RESULTS ARE ALREADY IN repo_data/ ----> 
 # GO TO: `CONTINUE: RESULTS: interyear variation`
 #
@@ -1973,4 +1546,4 @@ ggplot(subset(resp_virus_data_uk_tidy,name %in% "RSV"),
 #                          axis.text.x=element_text(size=14),axis.text.y=element_text(size=14),
 #                          axis.title.x=element_text(size=15),axis.title.y=element_text(size=15))
 # save
-# ggsave(here::here(foldername,"hospit_per_age_group_simul_lit_compare.png"),width=30,height=25,units="cm")
+# ggsave(here(foldername,"hospit_per_age_group_simul_lit_compare.png"),width=30,height=25,units="cm")
