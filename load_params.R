@@ -1,8 +1,8 @@
 # functions
 # rm(list=ls()); 
 # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
-x1 <- c("here","tidyverse","deSolve","gtools","lubridate","RcppRoll","pracma","lhs","ISOweek","tidybayes","epiR")
-# "rstudioapi","devtools","wpp2019","Rcpp",
+x1 <- c("here","tidyverse","deSolve","gtools","lubridate","Rcpp","RcppRoll","pracma","lhs","ISOweek","tidybayes","epiR")
+# "rstudioapi","devtools","wpp2019",
 x2 <- x1 %in% row.names(installed.packages())
 if (any(x2 == FALSE)) { install.packages(x1[!x2],repos="http://cran.us.r-project.org") }
 # Load all packages (unless already loaded) # as.Date <- zoo::as.Date
