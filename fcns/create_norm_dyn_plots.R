@@ -5,9 +5,8 @@ for (k_par in unique(summ_dyn_all_parsets_broad_age_relat_time$parname) ){
     sel_agegr<-c("<1y","1-2y","2-5y")[1:ifelse(k_age==1,2,3)]
     # subset data to plot
     df_plot <- summ_dyn_all_parsets_broad_age_relat_time %>% 
-      filter(agegroup %in% sel_agegr & 
-               epi_year %in% sel_years & # (metric %in% c("median","ci50_low","ci50_up"))
-               parname %in% k_par) %>% rename(`epi-year`=epi_year)
+      filter(agegroup %in% sel_agegr & epi_year %in% sel_years & parname %in% k_par) %>% 
+      rename(`epi-year`=epi_year)
     # color palette
     n_par<-length(unique(df_plot$par_bin))
     colorpal <- colorRampPalette(colors=c("blue","grey","red"))(n_par)
@@ -31,6 +30,7 @@ for (k_par in unique(summ_dyn_all_parsets_broad_age_relat_time$parname) ){
     if (!dir.exists(here(foldername,"dynamics"))) { dir.create(here(foldername,"dynamics"))}
     # filename
     plot_fn <- gsub("//","/",here(foldername, paste0("dynamics/weekly_norm_hosp_under5y_by_",k_par,".png") ) )
+    # plot_fn <- gsub("//","/",here(foldername, paste0("dynamics/early_offseason/weekly_norm_hosp_under5y_by_",k_par,".png") ) )
     # comp_year,"_peak_until",max(sel_years), ifelse(k_age>1,"_1_5y",""),
     message(gsub(here(foldername),"",plot_fn))
     # save

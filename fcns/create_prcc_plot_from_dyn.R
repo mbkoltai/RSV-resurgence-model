@@ -1,7 +1,7 @@
 # plot PRCC plots of cumulative/peak hospit, timing of peak relative to pre-NPI and mean age
 
 for (k_epiyear_start_wk in c(23,40)) {
-  for (k_epiyear_plot in 1){ # :3
+  for (k_epiyear_plot in 1:3){ # :3
     for (k_output in 1:3){
     
     sel_years=list(2020,2021,2020:2021)[[k_epiyear_plot]]

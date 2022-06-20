@@ -11,7 +11,7 @@ for (sel_parname in unique(binned_partable_regular_dyn$name)) {
                     filter(name %in% sel_parname & par_bin %in% par_bin_val))$median_parbin
     # calculate median and CIs
     summ_dyn_all_parsets_broad_age_relat_time[[n_cnt]] = dyn_hosp_weekly_norm_to_peak %>% 
-      ungroup() %>% filter(par_id %in% sel_pars) %>%
+      ungroup() %>% filter(par_id %in% sel_pars & epi_year<2024 & epi_year>=2017) %>%
       group_by(epi_year,peak_week_distance,agegroup) %>%
       summarise(median_date=median(date), # unique(paste0(epi_year,"-",isoweek(median(date)))),
                 median=median(value_norm),mean=mean(value_norm),

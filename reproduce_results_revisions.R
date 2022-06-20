@@ -120,8 +120,10 @@ partable_filtered_AR_seasconc <- read_csv(here("repo_data/partable_filtered_AR_s
 # Plot cumul incid (relative to 2019) of accepted parsets
 results_summ_all %>% 
   filter(epi_year<2020 & par_id %in% unique(all_sum_inf_epiyear_age_filtered$par_id)) %>%
-  mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],levels=rsv_age_groups$agegroup_name)) %>%
-  group_by(par_id,agegroup_name) %>% mutate(inf_in_seas=inf_in_seas/(inf_in_seas[epi_year==2019])) %>% # *1+(1/26)
+  mutate(agegroup_name=factor(rsv_age_groups$agegroup_name[agegroup],
+                              levels=rsv_age_groups$agegroup_name)) %>%
+  group_by(par_id,agegroup_name) %>% 
+  mutate(inf_in_seas=inf_in_seas/(inf_in_seas[epi_year==2019])) %>% # *1+(1/26)
   filter(epi_year<2019) %>%
 ggplot() + geom_jitter(aes(x=factor(epi_year),y=inf_in_seas,group=par_id),alpha=1/8,size=1/2) +
   # geom_segment(data=epiyear_means,aes(x=epi_year-0.4,xend=epi_year+0.4,y=inf_in_seas,yend=inf_in_seas),size=1,color="red") +
@@ -552,7 +554,7 @@ ggplot(plot_partable_histogram,aes(x=accepted,y=value,color=accepted)) +
   geom_jitter(width=0.4,alpha=1/4) + # geom_violin(fill=NA,show.legend=F) + 
   geom_boxplot(fill=NA,width=0.88,size=3/4,outlier.colour=NA,color="black") + # 
   facet_wrap(~name,scales="free_x",nrow = 4) + # scale_y_log10() + # scale_x_discrete(expand=expansion(0.03,0)) +
-  scale_color_manual(values=c("blue","red"),guide=guide_legend(override.aes=list(size=3))) + 
+  scale_color_manual(values=c("grey","blue"),guide=guide_legend(override.aes=list(size=3))) + 
   xlab("") + ylab("parameter values") + theme_bw() + standard_theme + 
   theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
         legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13)) + coord_flip()
@@ -566,7 +568,7 @@ ggplot(plot_partable_histogram, aes(x=value,color=accepted)) +
   geom_vline(data=median_parvals,aes(xintercept=median_parval,color=accepted),linetype="dashed",size=1/2,show.legend=F) +
   # geom_text(data=median_parvals,aes(x=median_parval,y=1/8,color=accepted,label=round(median_parval,2)),show.legend=F) +
   facet_wrap(~name,scales="free",nrow=3) + # scale_x_log10(expand=expansion(0.01,0)) +
-  scale_color_manual(values=c("black","red")) + labs(color="accepted") + 
+  scale_color_manual(values=c("grey","blue")) + labs(color="accepted") + 
   xlab("") + ylab("density") + theme_bw() + standard_theme + # + ylab("densi")
   theme(strip.text=element_text(size=15),axis.text.y=element_text(size=12),legend.position="top")
 # save
@@ -1012,6 +1014,8 @@ SARI_watch_all_hosp <- left_join(
 date_limits <- as.Date(c("2017-09-15","2020-04-01")); date_limits[2]=max(SARI_watch_all_hosp$date)
 # take paramsets with best LLH
 subsample_par = (all_likelihoods %>% filter(name %in% "complete likelihood" & accepted & value<1500))$par_id
+# simul_hosp_rate_weekly_under5_over65: contains both accepted and rejected parsets
+# simul_hosp_rate_weekly_under5_over65_grad_relax: only accepted parsets, with gradual relaxation
 hosp_plot_df <- simul_hosp_rate_weekly_under5_over65 %>%
   select(broad_age,par_id,date,simul_hosp_rate_100k) %>% ungroup() %>%
   filter(broad_age %in% "<5y") %>% 
@@ -1022,6 +1026,7 @@ hosp_plot_df <- simul_hosp_rate_weekly_under5_over65 %>%
   filter(date>=date_limits[1] & date<=date_limits[2])
 
 # medians across simulated (accepted) parameter sets
+# simul_hosp_rate_weekly_under5_over65 OR simul_hosp_rate_weekly_under5_over65_grad_relax
 median_weekly_pred <- simul_hosp_rate_weekly_under5_over65 %>% ungroup() %>%
   filter(par_id %in% hosp_plot_df$par_id[hosp_plot_df$sel_par %in% "accepted"]) %>%
   ungroup() %>% group_by(date,year_week,broad_age) %>%
@@ -1051,33 +1056,41 @@ ggplot() +
 ggsave(here(foldername,"prepandemic_dyn_compare_SARIwatch_under5_median_simul_LLH1500.png"),
        width=28,height=16,units="cm")
 
-# select params where off season outbreak is earlier
-hosp_plot_df = simul_hosp_rate_weekly_under5_over65 %>%
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+# select params where off-season outbreak is earlier (as what was observed)
+
+# calculate distance for 2020-2021
+subsample_par = (all_likelihoods %>% filter(name %in% "complete likelihood" & accepted & value<2e3))$par_id
+hosp_plot_df = simul_hosp_rate_weekly_under5_over65_grad_relax %>%
   select(broad_age,par_id,date,simul_hosp_rate_100k) %>% ungroup() %>%
   filter(broad_age %in% "<5y") %>% 
   mutate(sel_par=ifelse(par_id %in% partable_regular_dyn$par_id,"accepted","rejected")) %>%
   # select best LLH params?
-  filter((par_id %in% subsample_par) | sel_par %in% "rejected") %>%
-  group_by(sel_par) %>% filter(par_id %in% sample(unique(par_id),size=length(subsample_par))) %>%
-  filter(date>=date_limits[1] & date<=date_limits[2]) %>%
-  group_by(par_id) %>%
-  filter(simul_hosp_rate_100k[date %in% as.Date("2021-08-02") & sel_par %in% "accepted"]>20 | sel_par %in% "rejected")
+  filter((par_id %in% subsample_par) | sel_par %in% "rejected")
 
-early_off_season = (hosp_plot_df %>% filter(date %in% as.Date("2021-07-05") & sel_par %in% "accepted"))$par_id[
-  (hosp_plot_df %>% filter(date %in% as.Date("2021-07-05") & sel_par %in% "accepted"))$simul_hosp_rate_100k>5]
+# we calculate euclidean distance from observed hosp rate in 2021-22
+dist_hosp_2021_22 = left_join(
+    hosp_plot_df %>% filter(date>=as.Date("2021-01-01") & date<=max(SARI_watch_all_hosp$date)),
+    SARI_watch_all_hosp,by=c("date","year_week","broad_age")) %>%
+  mutate(abs_dist=abs(rate_under5yrs-simul_hosp_rate_100k),sqrd_dist=abs_dist^2) %>%
+  group_by(par_id,broad_age) %>% summarise(mean_abs_dist=mean(abs_dist),mean_sqrd_dist=mean(sqrd_dist))
 
-# plot param sets where off-season outbreak in 2021 is earlier (as in reality)
+early_off_season = (dist_hosp_2021_22 %>% filter(mean_sqrd_dist<=quantile(dist_hosp_2021_22$mean_sqrd_dist,probs=0.1)))$par_id
+
+# plot param sets where off-season outbreak in 2021 is earlier (as it was in reality)
 ggplot() +
   geom_line(data=hosp_plot_df %>% filter(par_id %in% early_off_season | sel_par %in% "rejected") %>%
-              group_by(sel_par) %>% filter(par_id %in% sample(unique(par_id),size=length(early_off_season))),
+              group_by(sel_par) %>% 
+              filter(par_id %in% sample(unique(par_id),size=length(early_off_season)) & date<=as.Date("2022-04-01")),
             aes(x=date,y=simul_hosp_rate_100k*under_report_factor_under5,group=par_id,alpha=sel_par,color=sel_par)) +
   scale_color_manual(values=c("blue","black")) + scale_alpha_manual(values=c(1/5,1/8)) +
   geom_point(data=SARI_watch_all_hosp %>% filter(date>date_limits[1] & date<date_limits[2]),
              aes(x=date,y=rate_under5yrs)) + # overlay data # ,shape=21,fill=NA,size=2
-  geom_line(data=hosp_plot_df %>% filter(par_id %in% early_off_season) %>% group_by(date) %>% 
-              summarise(simul_hosp_rate_100k=median(simul_hosp_rate_100k)),
-            aes(x=date,y=simul_hosp_rate_100k*under_report_factor_under5),
-            color="red",linetype="dashed",size=1.02) + # median simulation
+  # geom_line(data=hosp_plot_df %>% filter(par_id %in% early_off_season) %>% group_by(date) %>% 
+  #             summarise(simul_hosp_rate_100k=median(simul_hosp_rate_100k)) %>%
+  #             filter(date<=as.Date("2022-04-01")),
+  #           aes(x=date,y=simul_hosp_rate_100k*under_report_factor_under5),
+  #           color="red",linetype="dashed",size=1.02) + # median simulation
   theme_bw() + standard_theme + 
   xlab("") + ylab("weekly hospitalisations <5y per 100.000 persons") + labs(alpha="",color="") +
   scale_x_date(expand=expansion(1/100,0),date_breaks="2 months") + # ,limits=as.Date(c("2021-04-01","2022-04-01"))
@@ -1086,10 +1099,11 @@ ggplot() +
         axis.text.y=element_text(size=12),legend.text=element_text(size=11),
         legend.title=element_text(size=12),legend.position="none")
 # SAVE
-ggsave(here(foldername,"prepandemic_dyn_compare_SARIwatch_under5_median_simul_early_offseason.png"),
+ggsave(here(foldername,"prepandemic_dyn_compare_SARIwatch_under5_median_simul_early_offseason_gradrelax.png"),
        width=28,height=16,units="cm")
 
-##############################################################
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
 # summary by year
 epi_year_week_start <- isoweek(as.Date("2020-06-01"))
@@ -1168,13 +1182,15 @@ source("fcns/create_prcc_plot_from_dyn.R")
 #   filter(date>=as.Date("2018-06-01") & date<as.Date("2024-10-01"))
 
 epi_year_week_start=23
-startweek_2017=isoweek(min(simul_hosp_rate_weekly_all_broad_agegroups$date))-23
+# if dataframe starts with Autumn 2017!!!!
+startweek_startyr=isoweek(min(simul_hosp_rate_weekly_all_broad_agegroups_grad_relax$date))-23
+start_yr=isoyear(min(simul_hosp_rate_weekly_all_broad_agegroups_grad_relax$date))
 
 dyn_hosp_weekly_norm_to_peak <- simul_hosp_rate_weekly_all_broad_agegroups %>% ungroup() %>% 
       filter(par_id %in% partable_regular_dyn$par_id & agegroup %in% 1:3) %>% rename(value=simul_hosp_sum_full) %>%
       mutate(epi_year=ifelse(week(date)>=epi_year_week_start,year(date),year(date)-1)) %>% 
       group_by(epi_year,par_id,agegroup) %>% 
-      mutate(epi_week=ifelse(epi_year==2017,row_number()+startweek_2017,row_number())) %>%    
+      mutate(epi_week=ifelse(epi_year==start_yr,row_number()+startweek_startyr,row_number())) %>%    
       ungroup() %>% group_by(agegroup,par_id) %>%
       mutate(peak_value_2017=max(value[epi_year %in% 2017]),
              peak_value_2018=max(value[epi_year %in% 2018])) %>% # peak level of selected year

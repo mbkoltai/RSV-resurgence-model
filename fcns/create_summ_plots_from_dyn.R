@@ -3,12 +3,12 @@
 
 for (k_epi_year_start in 1:2){
   for (k_plot_par in 1:length(sel_pars)) {
-    for (k_plot_var in 4) { # 1:length(sel_varnames)
+    for (k_plot_var in 1:length(sel_varnames)) { # 1:length(sel_varnames)
       if(all(c(k_epi_year_start,k_plot_par,k_plot_var)==1)) {n_cnt=0} else {n_cnt=n_cnt+1}
       sel_var <- sel_varnames[k_plot_var]; sel_par <- sel_pars[k_plot_par]; dodge_val=1
       epi_year_week_start=c(23,40)[k_epi_year_start]
       # sel data to plot
-      # start_year=2020
+      for (k_start_yr in 2020:2021) { # start_year=2021
       df_plot <- summ_dyn_peak_cumul_meanage_byparvalue %>% 
         filter(epi_year>=start_year & epi_year<=2023 & (varname %in% sel_var) & (parname %in% sel_par) &
                  !(agegroup %in% 5) & epi_year_wk_start %in% epi_year_week_start) %>%
@@ -66,6 +66,7 @@ for (k_epi_year_start in 1:2){
       ggsave(plot_filename,width=28,height=16,units="cm")
       # print progress of loop
       print(paste0(c(sel_varnames[k_plot_var],sel_pars[k_plot_par],sel_var,epi_year_week_start,start_year),collapse=", "))
-    }
+        }
+      }
   }
 } # epi_year_start week
