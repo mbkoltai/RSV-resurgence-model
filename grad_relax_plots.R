@@ -141,7 +141,7 @@ early_off_season = (dist_hosp_2021_22 %>% filter(mean_sqrd_dist<=quantile(dist_h
 
 plot_partable_histogram_offseas = partable_regular_dyn %>% filter(par_id %in% subsample_par) %>%
   mutate(`early off season`=par_id %in% early_off_season) %>% select(!const_delta) %>%
-  mutate(`waning (days)`=1/omega,`maximal forcing (% above baseline)`=1e2*seasforce_peak) %>% rename(`R0 baseline`=R0) %>%
+  mutate(`waning (days)`=1/omega,`maximal forcing (% above baseline)`=1e2*seasforce_peak) %>% rename(`R0 (baseline)`=R0) %>%
   select(!c(omega,seasforce_peak)) %>% # `R0 peak`=R0*(1+seasforce_peak)
   rename(`age-dependence`=age_dep,`exposure-dependence`=exp_dep,
          `peak forcing (week)`=peak_week,`season width (weeks)`=seasforc_width_wks) %>%
