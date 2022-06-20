@@ -159,3 +159,29 @@ ggplot(plot_partable_histogram_offseas %>% filter(!name %in% "peak forcing (week
         legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13)) + coord_flip()
 # save
 ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_jitter.png",width=28,height=18,units="cm")
+
+# ECDF plots
+median_parvals = plot_partable_histogram_offseas %>% group_by(`early off season`,name) %>% 
+  filter(!name %in% "peak forcing (week)") %>% summarise(median_parval=median(value))
+KS_test = plot_partable_histogram_offseas %>% filter(!name %in% "peak forcing (week)") %>% 
+  # select(!const_delta) %>% pivot_longer(!c(par_id,`early off season`)) %>%
+  group_by(name) %>% summarise(min_val=min(value),max_val=max(value),
+                               p_val=ks.test(x=value[`early off season`],y=value[!`early off season`])$p.value,
+                               signif=p_val<0.01)
+# plot
+ggplot(plot_partable_histogram_offseas %>% filter(!name %in% "peak forcing (week)"),
+       aes(x=value,color=`early off season`)) + stat_ecdf(geom="step") +
+  facet_wrap(~name,scales="free_x",nrow = 4) + 
+  scale_color_manual(values=c("grey","blue"),guide=guide_legend(override.aes=list(size=3))) + 
+  geom_vline(data=median_parvals,aes(xintercept=median_parval,color=`early off season`),linetype="dashed",size=1/2,show.legend=F) +
+  geom_text(data=KS_test,aes(x=max_val*0.9,y=0.1,label=paste0("p=",signif(p_val,3),ifelse(signif,"**","")) ),color="black") +
+  xlab("parameter values") + ylab("CDF") + theme_bw() + standard_theme + 
+  theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
+        legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13)) # + coord_flip()
+# SAVE
+ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_ECDF.png",width=28,height=18,units="cm")
+
+
+  
+# library(dgof)
+ks.test(x = xx$age_dep[xx$`early off season`],y=xx$age_dep[!xx$`early off season`])

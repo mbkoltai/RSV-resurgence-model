@@ -544,10 +544,10 @@ ggsave(here(foldername,"attack_rate_comparison_with_lit.png"),width=25,height=20
 # jitter with boxplot
 plot_partable_histogram = partable %>% 
   mutate(accepted=par_id %in% partable_regular_dyn$par_id) %>% select(!const_delta) %>%
-  mutate(`waning (days)`=1/omega,`R0 peak`=R0*(1+seasforce_peak),`maximal forcing (% above baseline)`=1e2*seasforce_peak) %>%
-  select(!c(omega,seasforce_peak,R0)) %>%
+  mutate(`waning (days)`=1/omega,`maximal forcing (% above baseline)`=1e2*seasforce_peak) %>% # ,`R0 peak`=R0*(1+seasforce_peak)
+  select(!c(omega,seasforce_peak,peak_week)) %>% rename(`R0 (baseline)`=R0) %>%
   rename(`age-dependence`=age_dep,`exposure-dependence`=exp_dep,
-         `peak forcing (week)`=peak_week,`season width (weeks)`=seasforc_width_wks) %>%
+         `season width (weeks)`=seasforc_width_wks) %>% # `peak forcing (week)`=peak_week,
   group_by(accepted) %>% slice_sample(n=2e3) %>% pivot_longer(!c(par_id,accepted))
 # plot
 ggplot(plot_partable_histogram,aes(x=accepted,y=value,color=accepted)) + 
@@ -555,6 +555,8 @@ ggplot(plot_partable_histogram,aes(x=accepted,y=value,color=accepted)) +
   geom_boxplot(fill=NA,width=0.88,size=3/4,outlier.colour=NA,color="black") + # 
   facet_wrap(~name,scales="free_x",nrow = 4) + # scale_y_log10() + # scale_x_discrete(expand=expansion(0.03,0)) +
   scale_color_manual(values=c("grey","blue"),guide=guide_legend(override.aes=list(size=3))) + 
+  geom_text(data=KS_test_accept,
+             aes(x=2/3,y=max_val*0.95,label=paste0("p=",signif(p_val,3),ifelse(signif,"**","")) ),color="black") +
   xlab("") + ylab("parameter values") + theme_bw() + standard_theme + 
   theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
         legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13)) + coord_flip()
@@ -562,17 +564,25 @@ ggplot(plot_partable_histogram,aes(x=accepted,y=value,color=accepted)) +
 ggsave("simul_output/2e4_parsets/crit_8_11/param_distrib_accept_jitter.png",width=28,height=18,units="cm")
 
 # density plot
-median_parvals = plot_partable_histogram %>% group_by(accepted,name) %>% summarise(median_parval=median(value))
+median_parvals_accept = plot_partable_histogram %>% group_by(accepted,name) %>% summarise(median_parval=median(value))
+
+# CDF plot
+KS_test_accept = plot_partable_histogram %>% filter(!name %in% "peak forcing (week)") %>% 
+  # select(!const_delta) %>% pivot_longer(!c(par_id,`early off season`)) %>%
+  group_by(name) %>% summarise(min_val=min(value),max_val=max(value),
+                               p_val=ks.test(x=value[accepted],y=value[!accepted])$p.value,
+                               signif=p_val<0.01)
+
 ggplot(plot_partable_histogram, aes(x=value,color=accepted)) + 
-  geom_density(aes(y=..scaled..)) + # aes(y=..scaled..) # aes(y=..count..)
-  geom_vline(data=median_parvals,aes(xintercept=median_parval,color=accepted),linetype="dashed",size=1/2,show.legend=F) +
-  # geom_text(data=median_parvals,aes(x=median_parval,y=1/8,color=accepted,label=round(median_parval,2)),show.legend=F) +
+  stat_ecdf(geom="step") + # aes(y=..scaled..) # aes(y=..count..)
+  geom_vline(data=median_parvals_accept,aes(xintercept=median_parval,color=accepted),linetype="dashed",size=1/2,show.legend=F) +
+  geom_text(data=KS_test_accept,
+            aes(x=max_val*0.9,y=0.1,label=paste0("p=",signif(p_val,3),ifelse(signif,"**","")) ),color="black") +
   facet_wrap(~name,scales="free",nrow=3) + # scale_x_log10(expand=expansion(0.01,0)) +
   scale_color_manual(values=c("grey","blue")) + labs(color="accepted") + 
   xlab("") + ylab("density") + theme_bw() + standard_theme + # + ylab("densi")
   theme(strip.text=element_text(size=15),axis.text.y=element_text(size=12),legend.position="top")
-# save
-ggsave("simul_output/2e4_parsets/crit_8_11/param_distrib_accept_density.png",width=28,height=18,units="cm")
+# ggsave("simul_output/2e4_parsets/crit_8_11/param_distrib_accept_CDF.png",width=28,height=18,units="cm")
 
 # plot correlations btwn params
 library(GGally)
