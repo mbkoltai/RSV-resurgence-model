@@ -108,8 +108,10 @@ length(unique(all_sum_inf_epiyear_age_filtered$par_id))
 create_AR_seas_filtered_partable=T
 if (create_AR_seas_filtered_partable){
 partable_filtered_AR_seasconc <- partable %>% filter(par_id %in% parsets_AR_seas_share)
-write_csv(partable_filtered_AR_seasconc,here(foldername,"partable_filtered_AR_seasconc.csv")) } else {
-partable_filtered_AR_seasconc <- read_csv(here("repo_data/partable_filtered_AR_seasconc.csv")) }
+write_csv(partable_filtered_AR_seasconc,here(foldername,"partable_filtered_AR_seasconc.csv")) 
+} else {
+partable_filtered_AR_seasconc <- read_csv(here("repo_data/partable_filtered_AR_seasconc.csv")) 
+}
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # SI Figure 14: plot total infections in epi-years 2017,17,18 compared to 2019
@@ -331,7 +333,7 @@ ggplot(hosp_dyn_likelihoods %>% mutate(broad_age=paste0(broad_age," hospitalisat
   geom_point(position=position_jitterdodge(seed=1,dodge.width=0.9),alpha=1/2,size=1.5,shape=21) +
   geom_boxplot(fill=NA,size=1/2,width=1/2,outlier.colour=NA,color="black") + 
   facet_wrap(~broad_age,scales = "free_y") +
-  scale_color_manual(values=c("blue","red")) + labs(color="accepted") + scale_y_log10() +
+  scale_color_manual(values=c("grey","blue")) + labs(color="accepted") + scale_y_log10() +
   xlab("") + ylab("negative log-likelihood") + theme_bw() + standard_theme # theme(legend.position="none")
 # save
 ggsave(here("simul_output/2e4_parsets/hosp_dyn_LLH_accepted_rejected_boxplot.png"),width=30,height=25,units="cm")
@@ -377,7 +379,7 @@ ggplot(all_likelihoods,aes(x=accepted,y=value,color=accepted)) +
   # geom_violin(fill=NA,show.legend=F) + 
   geom_boxplot(fill=NA,width=0.88,size=3/4,outlier.colour=NA,color="black") + # 
   facet_wrap(~name,scales="free_y",nrow=1) + scale_y_log10() + # scale_x_discrete(expand=expansion(0.03,0)) +
-  scale_color_manual(values=c("blue","red")) + # labs(color="accepted") + # coord_fixed(ratio=3) + 
+  scale_color_manual(values=c("darkgrey","blue")) + # labs(color="accepted") + # coord_fixed(ratio=3) + 
   xlab("") + ylab("negative log-likelihood") + theme_bw() + standard_theme + 
   theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
         legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13))
@@ -391,7 +393,7 @@ ggplot(all_likelihoods,aes(x=value,color=accepted)) +
   geom_vline(data=median_llh,aes(xintercept=median_llh,color=accepted),linetype="dashed",size=1/2,show.legend=F) +
   geom_text(data=median_llh,aes(x=median_llh*0.88,y=1/8,color=accepted,label=round(median_llh)),show.legend=F) +
   facet_wrap(~name,scales="free",nrow=3) + scale_x_log10(expand=expansion(0.01,0)) +
-  scale_color_manual(values=c("black","red")) + labs(color="accepted") + 
+  scale_color_manual(values=c("black","blue")) + labs(color="accepted") + 
   xlab("negative log-likelihood") + ylab("density") + theme_bw() + standard_theme + # + ylab("densi")
   theme(strip.text=element_text(size=15),axis.text.y=element_text(size=12))
 # save
@@ -403,7 +405,7 @@ ggplot(all_likelihoods) + stat_ecdf(aes(x=value,color=accepted),geom="step") + f
                linetype="dashed",size=1/2,show.legend=F) +
   geom_text(data=median_llh,aes(x=median_llh*1.12,y=0.44,color=accepted,label=round(median_llh)),show.legend=F) +
   scale_x_log10(expand=expansion(0.01,0)) + scale_y_continuous(expand=expansion(0.01,0)) +
-  scale_color_manual(values=c("black","red")) + labs(color="accepted") + 
+  scale_color_manual(values=c("black","blue")) + labs(color="accepted") + 
   xlab("negative log-likelihood") + ylab("cumulative density function") +
   theme_bw() + standard_theme + theme(legend.position="top",strip.text=element_text(size=14),
                                       legend.title=element_text(size=15),legend.text=element_text(size=14),
@@ -420,23 +422,25 @@ bind_rows(results_summ_rejected,results_summ_all_reg_dyn) %>%
         epi_year<2019) %>% select(c(par_id,agegroup,attack_rate_perc,seas_share)) %>% 
   mutate(accepted=ifelse(par_id %in% unique(all_likelihoods$par_id[all_likelihoods$accepted]),T,F)) %>% 
   pivot_longer(!c(par_id,agegroup,accepted)) %>% 
+  mutate(name=ifelse(name %in% "attack_rate_perc","attack rate (%)","seasonal concentration (%)")) %>%
 ggplot() + 
-  geom_jitter(aes(x=factor(agegroup),y=value,color=accepted,group=accepted),alpha=1/4,
+  geom_jitter(aes(x=factor(agegroup),y=ifelse(grepl("seas",name),value*100,value),color=accepted,group=accepted),alpha=1/4,
               position=position_jitterdodge(dodge.width=0.9,jitter.width=0.35)) + 
   geom_vline(xintercept=(1:10)+1/2,size=1/2) +
   geom_segment(data=estim_attack_rates %>% mutate(agegroup=row_number(),sympt_attack_rate=100*sympt_attack_rate) %>% 
                 select(c(agegroup,min_est,max_est,sympt_attack_rate)) %>% pivot_longer(!agegroup) %>% 
-                mutate(type=name,name="attack_rate_perc"),
+                mutate(type=name,name="attack rate (%)"),
               aes(x=agegroup-1/2,xend=agegroup+1/2,y=value,yend=value,group=name,
                   linetype=ifelse(type %in% "sympt_attack_rate","solid","dashed")),size=1/3,show.legend = F) +
   geom_hline(aes(yintercept=ifelse(name %in% "seas_share",0.85,NA)),linetype="dashed") +
-  facet_wrap(~name,scales="free",nrow=2) + scale_y_log10() + ylab("") +
-  scale_x_discrete(expand=expansion(0,0)) + 
-  scale_color_manual(values = c("blue","red")) + theme_bw() + standard_theme + xlab("") + 
-  theme(legend.position="top",axis.text.x=element_text(size=13),axis.text.y=element_text(size=13))
+  facet_wrap(~name,scales="free",nrow=2) + xlab("") + ylab("") +
+  scale_x_discrete(expand=expansion(0,0)) + scale_y_log10() +  
+  scale_color_manual(values = c("darkgrey","blue")) + theme_bw() + standard_theme + 
+  theme(legend.position="top",axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
+        strip.text=element_text(size=14),legend.text=element_text(size=14),legend.title=element_text(size=14))
 # it's because attack rates are out of the range for agegroups > 8
 # ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1e3_filtered.png"),width=35,height=16,units="cm")
-ggsave(here("simul_output/2e4_parsets/goodfits_negLLH_below1500_filtered.png"),width=35,height=20,units="cm")
+ggsave(here(foldername,"goodfits_negLLH_below1500_filtered.png"),width=35,height=20,units="cm")
 
 # dynamics
 goodfit_pars <- (all_likelihoods %>% filter((name %in% "complete likelihood") & value<1.5e3))$par_id
@@ -448,11 +452,12 @@ sari_hosp_data_joint = simul_hosp_rate_weekly_SARIdates_LLH %>% ungroup() %>%
 # plot
 show_every_nth = function(n) { return(function(x) {x[c(TRUE, rep(FALSE, n - 1))]}) }
 simul_hosp_rate_weekly_SARIdates_LLH %>% select(c(par_id,accepted,broad_age,simul_hosp_scaled,year_week,year)) %>%
-  filter(par_id %in% goodfit_pars) %>%
+  filter(par_id %in% goodfit_pars) %>% mutate(year_week=factor(year_week,levels = unique(year_week))) %>%
 ggplot(aes(x=year_week)) + 
   geom_line(aes(y=simul_hosp_scaled,color=accepted,group=par_id),alpha=1/2) + 
   geom_point(data=sari_hosp_data_joint,aes(y=value)) +
   geom_line(data=sari_hosp_data_joint,aes(y=value,group=1),linetype="dashed",size=1/2) +
+  scale_color_manual(values=c("grey","blue")) +
   facet_grid(broad_age~year,scales="free") + xlab("") + ylab("hospitalisations (count)") + 
   scale_x_discrete(breaks=show_every_nth(n=2)) + theme_bw() + standard_theme
 # save
@@ -466,15 +471,18 @@ x_dodge=1/5
 all_crit_summarised = 
 left_join(
   left_join(
-    left_join(
- bind_rows(results_summ_all_reg_dyn %>% filter(par_id %in% unique(all_dynamics_accepted$par_id)) %>% mutate(accepted=T),
-           results_summ_rejected  %>% mutate(accepted=F)) %>%
-  filter(epi_year<2020) %>% select(c(par_id,agegroup,attack_rate_perc,seas_share,accepted)), reg_irreg_parsets),
+    left_join(  # %>% filter(par_id %in% unique(all_dynamics_accepted$par_id))
+          bind_rows(results_summ_all_reg_dyn %>% mutate(accepted=T), 
+                    results_summ_rejected  %>% mutate(accepted=F)) %>% 
+            filter(epi_year<2020) %>% select(c(par_id,agegroup,attack_rate_perc,seas_share,accepted)), 
+          reg_irreg_parsets),
   fullscan_score_AR_seasconc) %>% group_by(par_id) %>% mutate(seas_share=mean(seas_share)) %>%
    select(!c(agegroup,attack_rate_perc)) %>% distinct(),
   all_likelihoods %>% filter(name %in% "complete likelihood") %>% select(!name) %>% rename(negLLH=value)) %>%
   mutate(x_pos_AR=ifelse(accepted,n_attack_rate_check+x_dodge+runif(1,min=-1/7,max=1/7),
                          n_attack_rate_check-x_dodge+runif(1,min=-1/7,max=1/7)))
+# n_attack_rate_check=paste0(n_attack_rate_check,"/11"),
+# n_attack_rate_check=factor(n_attack_rate_check,levels=unique(n_attack_rate_check))
 
 # if sampling 1000-1000 of all parsets
 # sample_pars <- c(sample(all_crit_summarised$par_id[all_crit_summarised$accepted],size=1000),
@@ -501,14 +509,14 @@ ggplot(all_crit_summarised) + #  %>% filter(par_id %in% sample_pars)
   theme_bw() + standard_theme + theme(legend.position="top",axis.text.x=element_text(size=12),
         axis.text.y=element_text(size=12),legend.text=element_text(size=12))
 # save
-ggsave(here("simul_output/2e4_parsets/crit_8_11/parsets_phase_diagram_x_attackrate.png"),width=35,height=16,units="cm")
+ggsave(here(foldername,"parsets_phase_diagram_x_attackrate.png"),width=35,height=16,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 
 # SI FIGURE 4: simulated attack rates vs LIT estimates
 attack_rate_limits <- estim_attack_rates %>% mutate(agegroup=row_number(),sympt_attack_rate=100*sympt_attack_rate) %>% 
   select(c(agegroup,min_est,max_est,sympt_attack_rate)) %>% pivot_longer(!agegroup) %>% 
-  mutate(type=name,name="attack_rate_perc",type=ifelse(grepl("min")))
+  mutate(type=name,name="attack_rate_perc") # ,type=ifelse(grepl("min",type),"minimum","maximum")
 # plot
 bind_rows(results_summ_all_reg_dyn %>% filter(par_id %in% sample(unique(par_id),size=5e2)) %>% mutate(accepted=T),
           results_summ_rejected %>% filter(par_id %in% sample(unique(par_id),size=5e2)) %>% mutate(accepted=F)) %>% 
@@ -519,13 +527,13 @@ ggplot() +
               position=position_jitterdodge(dodge.width=0.9,jitter.width=0.4),size=2/3) + 
   geom_vline(xintercept=(0:11)+1/2,size=1/2,color="grey") +
   geom_segment(data=attack_rate_limits,aes(x=agegroup-1/2,xend=agegroup+1/2,y=value,yend=value,group=name,
-                   linetype=ifelse(type %in% "sympt_attack_rate","solid","dashed")),show.legend=F,size=1/2) +
+                   linetype=ifelse(type %in% "sympt_attack_rate","solid","dashed")),show.legend=F,size=1/2,color="red") +
   scale_y_log10(limits=c(0.1,110),expand=expansion(0.02,0)) + scale_x_discrete(expand=expansion(0,0)) +
-  scale_color_manual(values=c("blue","red"),guide=guide_legend(override.aes=list(size=3))) + 
+  scale_color_manual(values=c("black","blue"),guide=guide_legend(override.aes=list(size=3))) + 
   theme_bw() + standard_theme + xlab("age group") + ylab("attack rate (%)") +
   theme(legend.position="top",axis.text.x=element_text(size=13),axis.text.y=element_text(size=13))
 # SAVE
-ggsave(here("simul_output/2e4_parsets/crit_8_11/attack_rate_comparison_with_lit.png"),width=25,height=20,units="cm")
+ggsave(here(foldername,"attack_rate_comparison_with_lit.png"),width=25,height=20,units="cm")
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # distribution of all parameters separated by accepted/rejected

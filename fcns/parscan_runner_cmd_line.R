@@ -64,16 +64,31 @@ for (k_par in 1:nrow(partable)){ # nrow(partable)
   # initvals_sirs_model <- fcn_set_initconds(rsv_age_groups$stationary_popul,init_set=c("previous","fromscratch")[2],
   #         init_cond_src=c("output","file")[1],NA,init_seed=10,seed_vars="all",filename="") 
   # read in a solution with stabilised age structure
-  initvals_sirs_model<-readRDS("repo_data/stationary_sol.RDS")
+  initvals_sirs_model <- readRDS("repo_data/stationary_sol.RDS")
   
   print(format(Sys.time(),"%Y/%b/%d | %X"))
   print(paste0("PARSET: ",partable$par_id[k_par], "(",k_par,")")) # print("LOAD INITVALS")
   # set length of simulation and seasonality
-  l_seas <- fun_shutdown_seasforc(npi_dates,years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
+  l_seas <- fun_shutdown_seasforc(npidates=npi_dates,
+                                  years_pre_post_npi=c(simul_length_yr-post_npi_yr,post_npi_yr),
           season_width_wks=seasforc_width_wks,init_mt_day="01-01",
           peak_week=peak_week,
           forcing_above_baseline=partable$seasforce_peak[k_par], npireduc_strength=contact_reduction)
   g(n_years,timesteps,simul_start_end,forcing_vector_npi) %=% l_seas
+  
+  # this is if recovery of contact levels is gradual from March 2021 or in one step in May
+  gradual_contact_recov=T
+  if (gradual_contact_recov) {
+    relax_start_date = as.Date("2021-03-08")
+    # numeric index of relax start date
+    relax_start_date_num = as.numeric(npi_dates[2]-simul_start_end[1] - (npi_dates[2]-relax_start_date))
+    # jump points: which(abs(diff(forcing_vector_npi))>quantile(abs(diff(forcing_vector_npi)),probs=99.9/100))
+    rescale_range=relax_start_date_num:as.numeric(npi_dates[2]-simul_start_end[1])
+    forcing_vector_npi[rescale_range]=seq(forcing_vector_npi[rescale_range[1]],
+                                          forcing_vector_npi[rescale_range[length(rescale_range)]+1],
+                                          length.out=length(rescale_range))
+  }
+  
   # if waning is a variable parameter
   if (any(colnames(partable) %in% "omega")){
     omega=partable$omega[k_par]
@@ -123,7 +138,7 @@ if (!mat_imm_flag){
                         inf_in_seas=sum(value[in_out_season=="in"]), # round()
               # for the 1st age group we only count 1st infections for the attack rate, to be comparable to Kenya study
               inf_in_seas_AR=sum(value[in_out_season=="in" & !(agegroup==1 & infection>1)]), # round()
-              peak_inf=round(max(value,na.rm=T)),
+              peak_inf=max(value,na.rm=T), # round()
               max_incid_week=mean(isoweek(date[value==max(value,na.rm=T)]),na.rm=T)) %>%
               group_by(agegroup) %>% filter(epi_year>min(epi_year)),
               final_pop,by="agegroup") %>%  # LEFT JOIN END
@@ -134,7 +149,7 @@ if (!mat_imm_flag){
            peak_week=peak_week,
            R0=partable$R0[k_par],
            omega=partable$omega[k_par],
-           attack_rate_perc=100*inf_in_seas_AR/final, # calculate in-season attack rate! # no rounding round(,1)
+           attack_rate_perc=100*inf_in_seas_AR/final, # calculate in-season attack rate # no rounding round(,1)
            seas_share=inf_in_seas/inf_tot) %>% # round(,3)
     relocate(c(inf_tot,inf_in_seas,peak_inf,max_incid_week,attack_rate_perc,seas_share),.after=omega) %>%
     relocate(par_id,.before=epi_year)
