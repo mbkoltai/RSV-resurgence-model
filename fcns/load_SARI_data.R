@@ -13,12 +13,14 @@ SARIwatch_RSVhosp_under5_2018_2020_weekly_counts %>% group_by(year) %>%
 # under-reporting for under-5 hospitalisations
 # annual RATE of hospitalisations from Reeves 2017: <1y: 35.1/1000, 1-4y: 5.31/1000 = 1083.8/1e5
 # annual RATE from Taylor 2016: <0.5y: 4184/1e5, 6-23mts: 1272/1e5, 2-4y: 114/1e5 = 822.7/1e5
-reported_hosp_rate_per_100k <- c(reeves_2017=(35.1*sum(rsv_age_groups$value[1:2]) + 
-                                                5.31*sum(rsv_age_groups$value[3:7]))*100/sum(rsv_age_groups$value[1:7]),
-                                 taylor_2016=(4184*sum(rsv_age_groups$value[1]) + 1272*sum(rsv_age_groups$value[2:4]) + 
-                                                114*sum(rsv_age_groups$value[5:7]))/sum(rsv_age_groups$value[1:7]) )
+reported_hosp_rate_per_100k <- c(
+              reeves_2017=(35.1*sum(rsv_age_groups$value[1:2]) + 
+                                  5.31*sum(rsv_age_groups$value[3:7]))*100/sum(rsv_age_groups$value[1:7]),
+              taylor_2016=(4184*sum(rsv_age_groups$value[1]) + 1272*sum(rsv_age_groups$value[2:4]) + 
+                                  114*sum(rsv_age_groups$value[5:7]))/sum(rsv_age_groups$value[1:7]) )
 under_report_factor_under5 = mean( (SARIwatch_RSVhosp_under5_2018_2020_weekly_counts %>% group_by(year) %>% 
-                          summarise(annual_cumul_rate=sum(rate_under5yrs)))$annual_cumul_rate)/mean(reported_hosp_rate_per_100k)
+              summarise(annual_cumul_rate=
+                          sum(rate_under5yrs)))$annual_cumul_rate)/mean(reported_hosp_rate_per_100k)
 
 # hospitalisation counts for 65+
 # for 65+y

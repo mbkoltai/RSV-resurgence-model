@@ -117,7 +117,7 @@ hosp_probabilities <- read_csv("repo_data/hosp_probabilities.csv")
 hosp_probabilities_broad_age = 
   hosp_probabilities %>% mutate(size=rsv_age_groups$value,
                                 broad_age=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% group_by(broad_age) %>%
-  # this is not entirely correct, hosp has to be calculated for smaller age groups and then summed
+  # this is not entirely correct, because it merges some age groups
   summarise(prob_hosp_per_infection=sum(prob_hosp_per_infection*size/sum(size)),
             agegroup=unique(broad_age) ) %>%
   select(agegroup,prob_hosp_per_infection)

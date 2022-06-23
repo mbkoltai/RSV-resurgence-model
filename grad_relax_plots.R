@@ -14,8 +14,9 @@ summ_dyn_peak_cumul_meanage <- simul_hosp_rate_weekly_all_broad_agegroups_grad_r
   pivot_longer(!c(epi_year,epi_year_wk_start,par_id,agegroup)) %>%
   group_by(par_id,agegroup,name,epi_year_wk_start) %>% # calculate pre-pandemic mean
   # because of some biennial patterns need to normalise by the right pre-pandemic year (2022/2018, 2021/2017)
-  mutate(norm_value=case_when(grepl("hosp",name) ~ value/value[epi_year==ifelse(epi_year %% 2==0,2018,2017)],
-                              !grepl("hosp",name) ~ value-value[epi_year==ifelse(epi_year %% 2==0,2018,2017)])) %>%
+  mutate(norm_value=case_when(
+    grepl("hosp",name) ~ value/value[epi_year==ifelse(epi_year %% 2==0,2018,2017)],
+    !grepl("hosp",name) ~ value-value[epi_year==ifelse(epi_year %% 2==0,2018,2017)])) %>%
   relocate(par_id,.before=epi_year)
 # add mean age
 if (!any(grepl("age",unique(summ_dyn_peak_cumul_meanage$name)))) {
@@ -27,8 +28,8 @@ if (!any(grepl("age",unique(summ_dyn_peak_cumul_meanage$name)))) {
                 ungroup() %>% select(epi_year,epi_year_wk_start,par_id,mean_age_under5y) %>% 
                 filter(!is.na(mean_age_under5y)) %>% distinct() %>% 
                 group_by(par_id,epi_year_wk_start) %>%
-                mutate(mean_age_shift=mean_age_under5y-mean_age_under5y[epi_year==ifelse(epi_year %% 2==0,2018,2017)]) %>%
-                rename(value=mean_age_under5y,norm_value=mean_age_shift) %>% mutate(name="mean_age_under5y") )
+        mutate(mean_age_shift=mean_age_under5y-mean_age_under5y[epi_year==ifelse(epi_year %% 2==0,2018,2017)]) %>%
+        rename(value=mean_age_under5y,norm_value=mean_age_shift) %>% mutate(name="mean_age_under5y") )
 }
 
 # left-join with partable to have input parameters, calculate summary stats by quantiles of parameters
@@ -120,28 +121,32 @@ source("fcns/create_norm_dyn_plots.R")
 
 ##############################################################
 # plot parameter distribs for early off season outbreaks
-cutoff_llh = quantile((all_likelihoods %>% filter(name %in% "complete likelihood" & accepted))$value,na.rm=T,probs=0.5)
-subsample_par = (all_likelihoods %>% filter(name %in% "complete likelihood" & accepted & value<cutoff_llh))$par_id
+cutoff_llh = quantile((all_likelihoods %>% 
+                         filter(name %in% "complete likelihood" & accepted))$value,na.rm=T,probs=0.5)
+subsample_par = (all_likelihoods %>% 
+                   filter(name %in% "complete likelihood" & accepted & value<cutoff_llh))$par_id
 
 # we calculate euclidean distance from observed hosp rate in 2021-22
 dist_hosp_2021_22 = left_join(
   simul_hosp_rate_weekly_under5_over65_grad_relax %>%
-    select(broad_age,par_id,date,simul_hosp_rate_100k) %>% ungroup() %>%
+    select(broad_age,par_id,date,simul_hosp_rate_100k,year_week) %>% ungroup() %>%
     filter(broad_age %in% "<5y") %>% 
     mutate(sel_par=ifelse(par_id %in% partable_regular_dyn$par_id,"accepted","rejected")) %>%
     # select best LLH params?
-    filter((par_id %in% subsample_par) & date>=as.Date("2021-01-01") & date<=max(SARI_watch_all_hosp$date)),
-  SARI_watch_all_hosp,by=c("date","year_week","broad_age")) %>%
+    filter((par_id %in% subsample_par) & 
+             date>=as.Date("2021-01-01") & date<=max(SARI_watch_under5y_hosp_rate$date)),
+  SARI_watch_under5y_hosp_rate,by=c("date","year_week","broad_age")) %>%
   mutate(abs_dist=abs(rate_under5yrs-simul_hosp_rate_100k),sqrd_dist=abs_dist^2) %>%
   group_by(par_id,broad_age) %>% summarise(mean_abs_dist=mean(abs_dist),mean_sqrd_dist=mean(sqrd_dist))
 
-early_off_season = (dist_hosp_2021_22 %>% filter(mean_sqrd_dist<=quantile(dist_hosp_2021_22$mean_sqrd_dist,probs=0.1)))$par_id
-
-
+# best matches
+early_off_season = (dist_hosp_2021_22 %>% 
+           filter(mean_sqrd_dist<=quantile(dist_hosp_2021_22$mean_sqrd_dist,probs=0.1)))$par_id
 
 plot_partable_histogram_offseas = partable_regular_dyn %>% filter(par_id %in% subsample_par) %>%
   mutate(`early off season`=par_id %in% early_off_season) %>% select(!const_delta) %>%
-  mutate(`waning (days)`=1/omega,`maximal forcing (% above baseline)`=1e2*seasforce_peak) %>% rename(`R0 (baseline)`=R0) %>%
+  mutate(`waning (days)`=1/omega,`maximal forcing (% above baseline)`=1e2*seasforce_peak) %>% 
+  rename(`R0 (baseline)`=R0) %>%
   select(!c(omega,seasforce_peak)) %>% # `R0 peak`=R0*(1+seasforce_peak)
   rename(`age-dependence`=age_dep,`exposure-dependence`=exp_dep,
          `peak forcing (week)`=peak_week,`season width (weeks)`=seasforc_width_wks) %>%
@@ -155,10 +160,12 @@ ggplot(plot_partable_histogram_offseas %>% filter(!name %in% "peak forcing (week
   facet_wrap(~name,scales="free_x",nrow = 4) + # scale_y_log10() + # scale_x_discrete(expand=expansion(0.03,0)) +
   scale_color_manual(values=c("grey","blue"),guide=guide_legend(override.aes=list(size=3))) + 
   xlab("") + ylab("parameter values") + theme_bw() + standard_theme + 
-  theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
-        legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13)) + coord_flip()
+  theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),
+        axis.text.y=element_text(size=13),legend.position="top",
+        legend.text=element_text(size=13),legend.title=element_text(size=13)) + coord_flip()
 # save
-ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_jitter.png",width=28,height=18,units="cm")
+ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_jitter.png",
+       width=28,height=18,units="cm")
 
 # ECDF plots
 median_parvals = plot_partable_histogram_offseas %>% group_by(`early off season`,name) %>% 
@@ -169,19 +176,37 @@ KS_test = plot_partable_histogram_offseas %>% filter(!name %in% "peak forcing (w
                                p_val=ks.test(x=value[`early off season`],y=value[!`early off season`])$p.value,
                                signif=p_val<0.01)
 # plot
-ggplot(plot_partable_histogram_offseas %>% filter(!name %in% "peak forcing (week)"),
+p <- ggplot(plot_partable_histogram_offseas %>% 
+              filter(!name %in% "peak forcing (week)") %>%
+              filter(!grepl("expos|waning",name)) %>%
+              mutate(name=ifelse(grepl("maximal",name),"max. forcing (%)",name)),
        aes(x=value,color=`early off season`)) + stat_ecdf(geom="step") +
-  facet_wrap(~name,scales="free_x",nrow = 4) + 
+  facet_wrap(~name,scales="free_x",nrow=2) +
   scale_color_manual(values=c("grey","blue"),guide=guide_legend(override.aes=list(size=3))) + 
-  geom_vline(data=median_parvals,aes(xintercept=median_parval,color=`early off season`),linetype="dashed",size=1/2,show.legend=F) +
-  geom_text(data=KS_test,aes(x=max_val*0.9,y=0.1,label=paste0("p=",signif(p_val,3),ifelse(signif,"**","")) ),color="black") +
+  geom_vline(data=median_parvals %>% filter(!grepl("expos|waning",name)) %>%
+               mutate(name=ifelse(grepl("maximal",name),"max. forcing (%)",name)),
+             aes(xintercept=median_parval,color=`early off season`),
+             linetype="dashed",size=1/2,show.legend=F) +
+  geom_text(data=KS_test %>% filter(!grepl("expos|waning",name)) %>%
+                  mutate(name=ifelse(grepl("maximal",name),"max. forcing (%)",name)),
+            aes(x=max_val*0.95,y=0.2,label=paste0("p=",signif(p_val,3),ifelse(signif,"**","")) ),
+            color="black",size=2.5,angle=90) +
   xlab("parameter values") + ylab("CDF") + theme_bw() + standard_theme + 
-  theme(strip.text=element_text(size=13),axis.text.x=element_text(size=13),axis.text.y=element_text(size=13),
-        legend.position="top",legend.text=element_text(size=13),legend.title=element_text(size=13)) # + coord_flip()
+  theme(strip.text=element_text(size=15),
+        axis.title.x=element_text(size=16),axis.title.y=element_text(size=16),
+        axis.text.x=element_text(size=15),axis.text.y=element_text(size=15),legend.position="top",
+        legend.text=element_text(size=14),legend.title=element_text(size=14))
 # SAVE
-ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_ECDF.png",width=28,height=18,units="cm")
+ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_ECDF.png",
+       width=28,height=18,units="cm")
 
+p <- p + theme(legend.position="none") + theme(strip.text=element_text(size=9),
+        axis.title.x=element_text(size=10),axis.title.y=element_text(size=10),
+        axis.text.x=element_text(size=8),axis.text.y=element_text(size=8)); p
+# ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_ECDF_largefont.png",
+#        width=10,height=8,units="cm")
+ggsave("simul_output/2e3_accepted_linear_relaxing/param_distrib_offseas_timing_ECDF_largefont_4pars.png",
+       width=10,height=8,units="cm")
 
-  
 # library(dgof)
 ks.test(x = xx$age_dep[xx$`early off season`],y=xx$age_dep[!xx$`early off season`])
