@@ -1,7 +1,8 @@
 # functions
 # rm(list=ls()); 
 # currentdir_path=dirname(rstudioapi::getSourceEditorContext()$path); setwd(currentdir_path)
-x1 <- c("here","tidyverse","deSolve","gtools","lubridate","Rcpp","RcppRoll","pracma","lhs","ISOweek","tidybayes")
+x1 <- c("here","tidyverse","deSolve","gtools","lubridate","Rcpp",
+        "RcppRoll","pracma","lhs","ISOweek","tidybayes")
 # "rstudioapi","devtools","wpp2019",
 # ,"epiR"
 x2 <- x1 %in% row.names(installed.packages())
@@ -13,8 +14,10 @@ source("fcns/essential_fcns.R")
 # retired functions in `source('fcns/RSV_model_functions.R')`
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 # set plotting theme
-standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),axis.text.x=element_text(size=9,angle=90,vjust=1/2),
-  axis.text.y=element_text(size=9),axis.title=element_text(size=14), panel.grid.minor=element_blank())
+standard_theme=theme(plot.title=element_text(hjust=0.5,size=16),
+                     axis.text.x=element_text(size=9,angle=90,vjust=1/2),
+                     axis.text.y=element_text(size=9),axis.title=element_text(size=14),
+                     panel.grid.minor=element_blank())
 # panel.grid=element_line(linetype="solid",colour="black",size=0.1),
 # text=element_text(family="Calibri") # some R versions/OS will throw errors if font set to Calibri
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
@@ -39,11 +42,12 @@ low_inds<-findInterval(rsv_age_groups$age_low,ons_2020_midyear_estimates_uk$age_
 high_inds <- findInterval(rsv_age_groups$age_low+rsv_age_groups$duration-0.1,
                           ons_2020_midyear_estimates_uk$age_num)
 rsv_age_groups$value <- unlist(lapply(1:length(low_inds), 
-        function(x) sum(ons_2020_midyear_estimates_uk$value[low_inds[x]:high_inds[x]])*ifelse(rsv_age_groups$duration[x]<1,
-                                            rsv_age_groups$duration[x],1) ))
-# DEATHS (2019: 530841 deaths [England and Wales!]) # "uk_death_rate_byage_rsv_agegroups.csv" is for 1000 population!
+        function(x) sum(ons_2020_midyear_estimates_uk$value[low_inds[x]:high_inds[x]])*ifelse(
+          rsv_age_groups$duration[x]<1,rsv_age_groups$duration[x],1) ))
+# DEATHS (2019: 530841 deaths [England and Wales!]) 
+# "uk_death_rate_byage_rsv_agegroups.csv" is for 1000 population!
 # read_csv("data/uk_death_rate_byage_rsv_agegroups.csv")
-# I slightly adjusted the age-specific deaths rates to get a stationary population close to the 2019 age struct
+# I adjusted the age-specific deaths rates to get a stationary population close to the 2019 age struct
 uk_death_rate=c(rep(1e-5,2)*3,rep(1e-6,5),rep(0,2),1e-6,1.79e-4) 
 # number of age groups, reinfections and variables (S,I,R)
 n_age=nrow(rsv_age_groups); varname_list=c('S','I','R'); n_compartment=length(varname_list); n_inf=3
@@ -81,9 +85,12 @@ C_m=fun_recipr_contmatr(C_m_merged_nonrecipr,age_group_sizes=rsv_age_groups$stat
 # the force of infection is the same for the 1st, 2nd, 3rd infections, 
 # but in the full equation they are multiplied by a different
 # susceptibility parameter (delta1>delta2>delta3). 
-# Therefore we repeat the contact matrix's rows three times, corresponding to 1st, 2nd, 3rd infxs of each age group
-# Also the columns of the matrix are normalised by the age group sizes, as they will multiply the infection terms by age groups
-contmatr_rowvector = t(do.call(cbind, lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)}))) /
+# Therefore we repeat the contact matrix's rows three times, 
+# corresponding to 1st, 2nd, 3rd infxs of each age group
+# Also the columns of the matrix are normalised by the age group sizes, 
+# as they will multiply the infection terms by age groups
+contmatr_rowvector = t(do.call(cbind, 
+                    lapply(1:nrow(C_m), function(x){diag(C_m[x,]) %*% matrix(1,n_age,n_inf)}))) /
                     matrix(rep(rsv_age_groups$stationary_popul,n_age*n_inf),nrow=n_age*n_inf,byrow=T)
 # matrix(1,nrow=33,ncol = 11)/matrix(rep(1:11,33),nrow=33,byrow=T)
 every_nth = function(n) { return(function(x) {x[c(TRUE, rep(FALSE, n-1))]}) }

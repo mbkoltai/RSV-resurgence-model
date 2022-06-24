@@ -388,11 +388,13 @@ fun_shutdown_seasforc <- function(npidates,years_pre_post_npi,season_width_wks,i
 }
 
 ### initial susceptible populs -----------------
-fcn_init_susc_vals <- function(stationary_init,from_file_or_output,simul_output,susc_vars_inds,agegr_sizes,sim_filepath){
+fcn_init_susc_vals <- function(stationary_init,from_file_or_output,simul_output,
+                               susc_vars_inds,agegr_sizes,sim_filepath){
   if (stationary_init){
-    if (grepl("file",from_file_or_output)) { 
+    if (grepl("file",from_file_or_output)) {
       x=readRDS(sim_filepath); initvals_sirs_model=as.numeric(x[nrow(x),2:ncol(x)]) 
-    } else { initvals_sirs_model[,1]=as.numeric(simul_output[nrow(simul_output),2:ncol(simul_output)]) } } else {
+    } else { 
+      initvals_sirs_model[,1]=as.numeric(simul_output[nrow(simul_output),2:ncol(simul_output)]) } } else {
       # at t=0 entire popul into susceptibles
       initvals_sirs_model=matrix(0,ncol(simul_output)-1,1); # stationary_init=FALSE
       initvals_sirs_model[sapply(susc_vars_inds,"[[",1)]=agegr_sizes 

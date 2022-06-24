@@ -40,5 +40,5 @@ over65_hosp_rate_100k_lit_estim = (
   sum(ons_2020_midyear_estimates_uk$value[66:nrow(ons_2020_midyear_estimates_uk)])
 # under-reporting rate
 under_report_factor_over65y <- mean((SARIwatch_RSVhosp_over65_2018_2020_weekly_counts %>% 
-                                       group_by(year) %>% summarise(annual_rate=sum(rate_65yplus)))$annual_rate) / 
+                           group_by(year) %>% summarise(annual_rate=sum(rate_65yplus)))$annual_rate) / 
   over65_hosp_rate_100k_lit_estim
