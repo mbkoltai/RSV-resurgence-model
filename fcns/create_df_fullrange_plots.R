@@ -4,7 +4,8 @@
 # for ALL param sets and for the accepted parsets
 
 for (k in 1:ncol(median_parset)){ 
-  if (k==1) { output_ranges_full_scan <- data.frame(); mean_age_shift_ranges<-data.frame() }
+  if (k==1) { 
+    output_ranges_full_scan <- data.frame(); mean_age_shift_ranges<-data.frame() }
   
   # find parameter set closest to the median (closest by mean abs percentage error)
   error_threshold=5/100; n_par_scan=length(colnames(median_parset)[-k])
@@ -89,4 +90,4 @@ for (k in 1:ncol(median_parset)){
     output_ranges_full_scan <- output_ranges_full_scan %>% 
       relocate(c(scan_param,range,vartype),.after=epi_year) }
 }
-### END OF LOOP (building dataframe for Fig XXXX)
+### END OF LOOP (building dataframe for Figures of full range of outputs by parameters)

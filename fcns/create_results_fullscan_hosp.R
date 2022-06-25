@@ -14,11 +14,7 @@ results_fullscan_hosp <- bind_rows(results_summ_all_reg_dyn,
             inf_tot=sum(inf_tot)) %>% 
   group_by(agegroup_broad,par_id) %>%
   mutate(hosp_tot_norm=hosp_tot/hosp_tot[epi_year==2019],
-         peak_hosp_norm=peak_hosp/peak_hosp[epi_year==2019]) %>%
-  mutate(kappa_grouped=findInterval(kappa,seq(-1,1,by=1/5)) ) %>% 
-  group_by(kappa_grouped) %>% 
-  mutate(kappa_grouped=round(mean(kappa),1)) %>% 
-  relocate(c(kappa,kappa_grouped),.after=age_dep)
+         peak_hosp_norm=peak_hosp/peak_hosp[epi_year==2019])
 
 # mean age should be calculated from narrower age bands
 if (!any(grepl("mean_age",colnames(results_fullscan_hosp)))){
@@ -50,7 +46,7 @@ if (!any(grepl("mean_age",colnames(results_fullscan_hosp)))){
 
 # find median parameter set
 median_parset <- results_fullscan_hosp %>% ungroup() %>% 
-  select(c(kappa_grouped,seasforc_width_wks,seasforce_peak,R0,omega)) %>% 
-  group_by(kappa_grouped,seasforc_width_wks,seasforce_peak,R0,omega) %>% 
+  select(c(age_dep,exp_dep,seasforc_width_wks,seasforce_peak,R0,omega)) %>% 
+  group_by(seasforc_width_wks,seasforce_peak,R0,omega) %>% 
   summarise_all(unique) %>% ungroup() %>%
   summarise_all(quantile,p=0.5,type=1)

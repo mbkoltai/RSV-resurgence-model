@@ -51,6 +51,28 @@ for (k_par in 1:nrow(start_stop_table)){
 simul_hosp_rate_weekly_all_broad_agegroups <- bind_rows(simul_hosp_rate_weekly_all_broad_agegroups)
 simul_hosp_rate_weekly_under5_over65 <- bind_rows(simul_hosp_rate_weekly_under5_over65)
 
+
+# calculate the (Poisson) likelihood per data point
+simul_hosp_rate_weekly_SARIdates_LLH <- left_join(
+  left_join(SARIwatch_RSVhosp_under5_2018_2020_weekly_counts,
+            SARIwatch_RSVhosp_over65_2018_2020_weekly_counts,
+            by=c("wk_n","date","year")), 
+  simul_hosp_rate_weekly_under5_over65, by="date") %>%
+  mutate(simul_hosp_scaled=ifelse(grepl("65y",broad_age),
+                                  simul_hosp_sum_full*under_report_factor_over65y*(
+                                    pop_AGE65PLUS/rsv_age_groups$stationary_popul[11]),
+                                  simul_hosp_sum_full*under_report_factor_under5*(
+                                    pop_AGEUNDER5/sum(rsv_age_groups$stationary_popul[1:7])) ),
+         log_lklh_poiss=dpois(x=ifelse(grepl("65y",broad_age),cases65plustotal,casesunder5total),
+                              lambda=simul_hosp_scaled,log=T)) %>% 
+  relocate(date,.after=wk_n) %>%
+  group_by(par_id,broad_age) %>% 
+  mutate(sum_neg_llh=-sum(log_lklh_poiss,na.rm=T),
+         accepted=ifelse(par_id %in% partable_regular_dyn$par_id,"accepted","rejected"))
+# save
+# write_csv(simul_hosp_rate_weekly_SARIdates_LLH,
+#           "repo_data/simul_hosp_rate_weekly_SARIdates_LLH.csv")
+
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
 # FOR SIMULATIONs with gradual relaxation of NPI from March 2021

@@ -30,8 +30,8 @@ for (k_age in unique(df_dyn_prcc$agegroup)) {
             mutate(agegroup=k_age, output=k_name, epi_year=k_epi_year, epi_year_wk_start=k_epiyear_start_wk) %>% 
             relocate(c(parname,agegroup,epi_year,epi_year_wk_start,output),.before=est) %>% 
             mutate(parname=case_when(parname %in% "exp_dep" ~ "exposure-dependence", 
-                                     grepl("age_dep",parname) ~ "age-dependence",
-                                     grepl("seasforce_peak",parname) ~ "seasonal forcing (peak relative to baseline)",
+                       grepl("age_dep",parname) ~ "age-dependence",
+                       grepl("seasforce_peak",parname) ~ "seasonal forcing (peak relative to baseline)",
                                      grepl("seasforc_width_wks",parname) ~ "seasonal forcing (duration)",
                                      grepl("R0",parname) ~ "R0 (baseline)",
                                      grepl("omega",parname) ~ "waning rate",

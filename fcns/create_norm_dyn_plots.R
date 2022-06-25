@@ -1,5 +1,7 @@
+all_plots=F
+
 sel_years <- c("2019","2021","2022","2023")
-for (k_par in unique(summ_dyn_all_parsets_broad_age_relat_time$parname) ){
+for (k_par in unique(summ_dyn_all_parsets_broad_age_relat_time$parname)[6] ){
   for (k_age in 2) {
     # up to which age group?
     sel_agegr<-c("<1y","1-2y","2-5y")[1:ifelse(k_age==1,2,3)]
@@ -13,7 +15,8 @@ for (k_par in unique(summ_dyn_all_parsets_broad_age_relat_time$parname) ){
     ggplot(df_plot,
            aes(x=peak_week_distance,group=par_median,color=factor(signif(par_median,3)))) + 
       geom_line(aes(y=median)) + # geom_line(aes(y=ci50_up),linetype="dashed") +# ,size=1.1
-      # geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,fill=factor(signif(par_median,3))),color=NA,alpha=0.05) + 
+      # geom_ribbon(aes(ymin=ci50_low,ymax=ci50_up,
+      #   fill=factor(signif(par_median,3))),color=NA,alpha=0.05) + 
       facet_grid(agegroup~`epi-year`,
                  labeller=labeller(`epi-year`=label_both),scales="free_y") +
       scale_x_continuous(limits=c(-20,15),expand=expansion(0.02,0)) + theme_bw() + standard_theme + 
@@ -27,14 +30,20 @@ for (k_par in unique(summ_dyn_all_parsets_broad_age_relat_time$parname) ){
     # p 
     # save
     # folder
+    if (all_plots){
     if (!dir.exists(here(foldername,"dynamics"))) { dir.create(here(foldername,"dynamics"))}
     # filename
     plot_fn <- gsub("//","/",here(foldername, paste0("dynamics/weekly_norm_hosp_under5y_by_",k_par,".png") ) )
-    # plot_fn <- gsub("//","/",here(foldername, paste0("dynamics/early_offseason/weekly_norm_hosp_under5y_by_",k_par,".png") ) )
+    # plot_fn <- gsub("//","/",here(foldername, 
+    #   paste0("dynamics/early_offseason/weekly_norm_hosp_under5y_by_",k_par,".png") ) )
     # comp_year,"_peak_until",max(sel_years), ifelse(k_age>1,"_1_5y",""),
-    message(gsub(here(foldername),"",plot_fn))
     # save
-    ggsave(plot_fn,width=30,height=18,units="cm"); print(gsub(foldername,"",plot_fn))
+    message(gsub(here(foldername),"",plot_fn))
+    ggsave(plot_fn,width=30,height=18,units="cm"); print(gsub(foldername,"",plot_fn)) 
+    } else {
+      
+      ggsave(here(figs_folder,"FIG3.png"),width=30,height=18,units="cm")
+    }
     
   }
 }
