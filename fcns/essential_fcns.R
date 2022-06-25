@@ -36,6 +36,8 @@ g = function(...) {
   return(List)
 }
 
+### for plots with factors as x-axis, show every nth tick --------------
+show_every_nth = function(n) { return(function(x) {x[c(TRUE, rep(FALSE, n - 1))]}) }
 
 ### get objects larger than x Mb (memory) --------------
 fcn_objs_mem_use <- function(min_size){

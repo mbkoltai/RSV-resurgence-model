@@ -35,10 +35,11 @@ for (k_par in 1:nrow(start_stop_table)){
   simul_hosp_rate_weekly_under5_over65[[k_par]] <- processed_df %>% ungroup() %>%
     mutate(broad_age=ifelse(agegroup<=3,"<5y",">65y")) %>%
     group_by(year_week,par_id,broad_age) %>% 
-    summarise(simul_hosp_sum_full=sum(simul_hosp_sum_full),date=unique(date) ) %>% # ,accepted=unique(accepted)
-    mutate(simul_hosp_rate_100k=ifelse(grepl("65y",broad_age),
-                                       1e5*simul_hosp_sum_full/rsv_age_groups$stationary_popul[11],
-                                       1e5*simul_hosp_sum_full/sum(rsv_age_groups$stationary_popul[1:7]) ) )
+    summarise(simul_hosp_sum_full=sum(simul_hosp_sum_full),date=unique(date) ) %>% 
+    mutate(simul_hosp_rate_100k=
+             ifelse(grepl("65y",broad_age),
+                1e5*simul_hosp_sum_full/rsv_age_groups$stationary_popul[11],
+                1e5*simul_hosp_sum_full/sum(rsv_age_groups$stationary_popul[1:7]) ) )
   
   # 
   gc()
@@ -89,8 +90,8 @@ simul_hosp_rate_weekly_under5_over65 <- bind_rows(simul_hosp_rate_weekly_under5_
 #     group_by(year_week,par_id,broad_age) %>%
 #     summarise(simul_hosp_sum_full=sum(simul_hosp_sum_full),date=unique(date) ) %>% # ,accepted=unique(accepted)
 #     mutate(simul_hosp_rate_100k=ifelse(grepl("65y",broad_age),
-#                                        1e5*simul_hosp_sum_full/rsv_age_groups$stationary_popul[11],
-#                                        1e5*simul_hosp_sum_full/sum(rsv_age_groups$stationary_popul[1:7]) ) )
+#                          1e5*simul_hosp_sum_full/rsv_age_groups$stationary_popul[11],
+#                          1e5*simul_hosp_sum_full/sum(rsv_age_groups$stationary_popul[1:7]) ) )
 #   #
 #   gc()
 #   # toc()
@@ -98,5 +99,7 @@ simul_hosp_rate_weekly_under5_over65 <- bind_rows(simul_hosp_rate_weekly_under5_
 # }
 # 
 # # list to dataframe
-# simul_hosp_rate_weekly_all_broad_agegroups_grad_relax <- bind_rows(simul_hosp_rate_weekly_all_broad_agegroups_grad_relax)
-# simul_hosp_rate_weekly_under5_over65_grad_relax <- bind_rows(simul_hosp_rate_weekly_under5_over65_grad_relax)
+# simul_hosp_rate_weekly_all_broad_agegroups_grad_relax <- 
+#   bind_rows(simul_hosp_rate_weekly_all_broad_agegroups_grad_relax)
+# simul_hosp_rate_weekly_under5_over65_grad_relax <- 
+#   bind_rows(simul_hosp_rate_weekly_under5_over65_grad_relax)

@@ -123,11 +123,19 @@ hosp_probabilities <- read_csv("repo_data/hosp_probabilities.csv")
 # aggregate into our age groups
 hosp_probabilities_broad_age = 
   hosp_probabilities %>% mutate(size=rsv_age_groups$value,
-                                broad_age=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% group_by(broad_age) %>%
+                                broad_age=findInterval(agegroup,c(2,4,7,10)+1)+1) %>% 
+  group_by(broad_age) %>%
   # this is not entirely correct, because it merges some age groups
   summarise(prob_hosp_per_infection=sum(prob_hosp_per_infection*size/sum(size)),
             agegroup=unique(broad_age) ) %>%
   select(agegroup,prob_hosp_per_infection)
+
+# for the manuscript we need larger fonts
+manuscript_large_font_theme <- theme(
+  strip.text=element_text(size=18),legend.title=element_text(size=16),
+  legend.text=element_text(size=15),legend.position="top",axis.text.x=element_text(size=14),
+  axis.text.y=element_text(size=12),axis.title.x=element_text(size=16),
+  axis.title.y=element_text(size=18))
 
 ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
 message("end of load_params.R")
