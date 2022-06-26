@@ -253,14 +253,14 @@ left_join(dyn_parsets_main1_324 %>% filter(date<as.Date("2020-04-01")),
   arrange(epi_year,date) %>% mutate(epi_day=row_number()) %>% 
   filter(epi_day<=180 & agegroup==2 & !regular) %>%
   mutate(year_type=epi_year %% 2) %>% group_by(year_type) %>% 
-  mutate(year_rank=ifelse(epi_year==min(epi_year),0,1)) %>%
+  mutate(year_rank=ifelse(epi_year==min(epi_year),"even","odd")) %>%
 ggplot(aes(x=epi_day,y=value,color=factor(epi_year),
            group=epi_year,linetype=factor(year_rank))) + 
-  geom_line() + facet_wrap(~par_id,scales="free_y") + 
-  xlab("day of season") + labs(linetype="",color="epi-year") +
-  theme_bw() + standard_theme
+  geom_line(size=1.2) + facet_wrap(~par_id,scales="free_y") + 
+  xlab("day of season") + ylab("# infections") + labs(linetype="",color="epi-year") +
+  theme_bw() + standard_theme + manuscript_large_font_theme + theme(strip.text=element_text(size=13.5)) 
 # save
-ggsave(here(figs_folder,"SI_FIG6.png"),width=30,height=25,units="cm")
+ggsave(here(figs_folder,"SI_FIG6.png"),width=35,height=25,units="cm")
 # ggsave(here(figs_folder,"interyear_difference_regular_parsets.png"),
 #   width=30,height=25,units="cm")
 
@@ -412,10 +412,9 @@ ggplot(all_likelihoods,aes(x=accepted,y=value,color=accepted)) +
   xlab("") + ylab("negative log-likelihood") + theme_bw() + standard_theme + # element_text(size=14)
   theme(strip.text=element_text(size=15),
         axis.text.x=element_blank(),axis.text.y=element_text(size=15),
-        axis.title.y=element_text(size=18),
-        legend.position="top",legend.title=element_text(size=15),
-        legend.text=element_text(size=14)) 
-  # manuscript_large_font_theme
+        axis.title.y=element_text(size=20),
+        legend.position="top",legend.title=element_text(size=17),
+        legend.text=element_text(size=16)) # +  manuscript_large_font_theme
 # save
 # ggsave(here(figs_folder,"all_LLH_accepted_rejected_boxplot.png"),
 #        width=35,height=22,units="cm")
@@ -433,11 +432,12 @@ ggplot(all_likelihoods,aes(x=value,color=accepted)) +
   facet_wrap(~name,scales="free",nrow=3) + scale_x_log10(expand=expansion(0.01,0)) +
   scale_color_manual(values=c("black","blue")) + labs(color="accepted") + 
   xlab("negative log-likelihood") + ylab("density") + 
-  theme_bw() + standard_theme + 
-  theme(strip.text=element_text(size=15),axis.text.y=element_text(size=12))
+  theme_bw() + standard_theme + manuscript_large_font_theme +
+  theme(axis.title.x=element_text(size=20),axis.title.y=element_text(size=20),
+        legend.title=element_text(size=18))
 # save
 # ggsave(here(figs_folder,"all_LLH_accepted_rejected_density.png"),width=35,height=22,units="cm")
-ggsave(here(figs_folder,"SI_FIG_4A.png"),width=30,height=25,units="cm")
+ggsave(here(figs_folder,"SI_FIG4B.png"),width=30,height=25,units="cm")
 
 # SI FIG4B: cumulative density of parsets up to LLH<x
 ggplot(all_likelihoods) + stat_ecdf(aes(x=value,color=accepted),geom="step") + 
@@ -727,7 +727,7 @@ library(epiR)
 # create dataframe of PRCC values
 source("fcns/create_df_prcc.R")
 
-# We do not use this PRCC calculation, because here epi-year is defined as 
+# We do not use this PRCC calculation in the article, because here epi-year is defined as 
 # from week 40 to 39, but in 2021 out of season outbreaks often start before week 40
 # plot cumul age and peak
 bind_rows(list_prcc_output) %>% 

@@ -12,21 +12,23 @@ for (k_epiyear_start_wk in c(23,40)[1]) {
                epi_year_wk_start==k_epiyear_start_wk & 
                epi_year %in% sel_years & 
                !(grepl("ratio",parname)) ) %>% 
-      mutate(parname=factor(parname,levels=unique(parname)),
+      mutate(parname=gsub("seasonal forcing","seasonal forcing\n",parname),
+        parname=factor(parname,levels=unique(parname)),
              agegroup=unique(results_fullscan_hosp$agegroup_broad)[agegroup],
              output=case_when(output %in% "peak_hosp" ~ "peak hospitalisation",
                               output %in% "cumul_hosp" ~ "cumulative hospitalisation",
                               output %in% "peak_yday" ~ "peak timing (day of year)",
-                              output %in% "mean_age_under5y" ~ "mean age of hospitalisation (<5y)"),
-             est=ifelse(p_below_0.05,est,NA))
-      
+                              output %in% "mean_age_under5y" ~ "mean age of hospitalisation (<5y)"))
+    # est=ifelse(p_below_0.05,est,NA)
+
     # create plot
     p <- ggplot(df_plot) + facet_wrap(~output,scales="free_x") +
       labs(fill="") + coord_flip() + xlab("") + ylab("PRCC") + 
       theme_bw() + standard_theme + manuscript_large_font_theme + 
-      theme(panel.grid.major.y=element_blank())
-    
+      theme(panel.grid.major.y=element_blank(),axis.text.y=element_text(size=16))
+      
     if (length(sel_years)>1) {
+      # show multiple years
       p <- p + geom_col(aes(y=est,x=parname,
                             group=interaction(epi_year,agegroup),color=factor(epi_year),
                             fill=factor(agegroup)),size=2/3,
@@ -37,10 +39,17 @@ for (k_epiyear_start_wk in c(23,40)[1]) {
     } else {
       p <- p + geom_col(aes(y=est,x=parname,group=agegroup,fill=factor(agegroup)),
                         size=1/3,color="black",position=position_dodge(width=0.85),width=4/5) +
-        geom_vline(xintercept=1/2+(1:4),size=1/3) + geom_hline(yintercept=0)
+        geom_vline(xintercept=1/2+(1:4),size=1/3) + geom_hline(yintercept=0) + 
+        geom_text(data=df_plot %>% 
+                    filter(parname %in% "exposure-dependence"), #  & grepl("cumulative",output)
+                  aes(x=1+ifelse(agegroup %in% "<1y",-1/3,ifelse(agegroup %in% "2-5y",1/3,0)),
+                      y=est+ifelse(est>0,0.06,-0.06),
+                      label=paste0(agegroup,ifelse(!p_below_0.05,"*",""))))
+      
     }
-    if (length(unique(df_plot$agegroup))==1) { p <- p + scale_fill_manual(values="lightgrey")
-    if (length(unique(df_plot$epi_year))==1) { p <- p + theme(legend.position=NULL)    }     }
+    if (length(unique(df_plot$agegroup))==1) { 
+      p <- p + scale_fill_manual(values="lightgrey")
+    if (length(unique(df_plot$epi_year))==1) { p <- p + theme(legend.position=NULL)}     }
     p
     
     # create folder/filenames
